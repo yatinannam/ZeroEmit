@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport"/>
+<title>ZeroEmit - Location Setup</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "secondary": "#006e1c",
+                        "surface-variant": "#dae6d6",
+                        "primary-container": "#2e7d32",
+                        "surface-tint": "#1b6d24",
+                        "surface-dim": "#d1ddcd",
+                        "secondary-fixed": "#94f990",
+                        "on-secondary-fixed": "#002204",
+                        "surface-container": "#e5f1e1",
+                        "primary": "#0d631b",
+                        "on-surface": "#141e14",
+                        "on-primary": "#ffffff",
+                        "surface-container-low": "#ebf7e7",
+                        "on-tertiary-fixed-variant": "#3e4a41",
+                        "secondary-fixed-dim": "#78dc77",
+                        "outline-variant": "#bfcaba",
+                        "on-background": "#141e14",
+                        "on-primary-fixed-variant": "#005312",
+                        "on-tertiary": "#ffffff",
+                        "on-secondary-container": "#00731e",
+                        "outline": "#707a6c",
+                        "on-tertiary-container": "#e8f5e9",
+                        "inverse-primary": "#88d982",
+                        "on-primary-fixed": "#002204",
+                        "on-secondary-fixed-variant": "#005313",
+                        "tertiary": "#4d5950",
+                        "on-surface-variant": "#40493d",
+                        "error": "#ba1a1a",
+                        "tertiary-container": "#657167",
+                        "tertiary-fixed-dim": "#bdcabe",
+                        "surface-container-lowest": "#ffffff",
+                        "surface": "#f1fdec",
+                        "primary-fixed": "#a3f69c",
+                        "on-error-container": "#93000a",
+                        "on-secondary": "#ffffff",
+                        "surface-bright": "#f1fdec",
+                        "surface-container-high": "#e0ecdb",
+                        "on-tertiary-fixed": "#131e17",
+                        "inverse-on-surface": "#e8f4e4",
+                        "on-error": "#ffffff",
+                        "tertiary-fixed": "#d9e6da",
+                        "inverse-surface": "#293328",
+                        "error-container": "#ffdad6",
+                        "background": "#f1fdec",
+                        "secondary-container": "#91f78e",
+                        "on-primary-container": "#cbffc2",
+                        "primary-fixed-dim": "#88d982",
+                        "surface-container-highest": "#dae6d6"
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    spacing: {
+                        "base": "4px",
+                        "sm": "12px",
+                        "xl": "32px",
+                        "xs": "8px",
+                        "container-padding": "20px",
+                        "touch-target-min": "44px",
+                        "lg": "24px",
+                        "md": "16px"
+                    },
+                    fontFamily: {
+                        "headline-lg": ["Inter", "sans-serif"],
+                        "display-metrics": ["Inter", "sans-serif"],
+                        "headline-lg-mobile": ["Inter", "sans-serif"],
+                        "body-lg": ["Inter", "sans-serif"],
+                        "label-caps": ["Inter", "sans-serif"],
+                        "body-sm": ["Inter", "sans-serif"],
+                        "headline-md": ["Inter", "sans-serif"]
+                    },
+                    fontSize: {
+                        "headline-lg": ["32px", { "lineHeight": "40px", "letterSpacing": "-0.01em", "fontWeight": "700" }],
+                        "display-metrics": ["48px", { "lineHeight": "56px", "letterSpacing": "-0.02em", "fontWeight": "700" }],
+                        "headline-lg-mobile": ["28px", { "lineHeight": "34px", "fontWeight": "700" }],
+                        "body-lg": ["16px", { "lineHeight": "24px", "fontWeight": "400" }],
+                        "label-caps": ["12px", { "lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600" }],
+                        "body-sm": ["14px", { "lineHeight": "20px", "fontWeight": "400" }],
+                        "headline-md": ["20px", { "lineHeight": "28px", "fontWeight": "600" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        body {
+            -webkit-tap-highlight-color: transparent;
+        }
+        /* Safe area padding for modern mobile devices */
+        @supports (padding-bottom: env(safe-area-inset-bottom)) {
+            .pb-safe {
+                padding-bottom: env(safe-area-inset-bottom);
+            }
+            .pt-safe {
+                padding-top: env(safe-area-inset-top);
+            }
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background text-on-background font-body-lg antialiased">
+<!-- Main Layout Container: 4-column fluid mobile grid equivalent, restricted max width for larger screens -->
+<div class="max-w-md mx-auto min-h-screen flex flex-col relative pt-safe pb-safe shadow-[0px_4px_40px_rgba(23,33,23,0.02)] sm:border-x sm:border-surface-variant/30">
+<!-- Minimal Header for Linear Flow -->
+<header class="flex items-center px-container-padding h-touch-target-min w-full pt-4 shrink-0">
+<!-- Back Action -->
+<button aria-label="Go back" class="flex items-center justify-center w-touch-target-min h-touch-target-min -ml-4 text-on-surface hover:bg-surface-variant/50 rounded-full transition-colors duration-200">
+<span class="material-symbols-outlined text-[24px]">arrow_back</span>
+</button>
+</header>
+<!-- Content Canvas -->
+<main class="flex-grow flex flex-col px-container-padding pt-6 pb-6">
+<!-- Headline -->
+<div class="mb-10">
+<h1 class="font-headline-lg-mobile text-headline-lg-mobile text-on-background tracking-tight">
+                    Where do you charge?
+                </h1>
+</div>
+<!-- Input Form Area -->
+<div class="flex flex-col gap-xs mb-6 w-full">
+<!-- Label above field as per guidelines -->
+<label class="font-label-caps text-label-caps text-on-surface-variant uppercase" for="location-input">
+                    Location
+                </label>
+<!-- Input Container with Icon -->
+<div class="relative flex items-center w-full">
+<span class="material-symbols-outlined absolute left-4 text-outline z-10 pointer-events-none">location_on</span>
+<!-- 12px rounded corners (xl), 1px stroke in text_secondary_hex at 20% opacity (approximated with outline token) -->
+<input class="w-full h-[48px] pl-12 pr-4 rounded-xl border border-outline/20 bg-surface focus:bg-surface-bright focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary font-body-lg text-body-lg text-on-surface placeholder:text-outline-variant transition-all duration-200 shadow-sm" id="location-input" placeholder="Chennai, Tamil Nadu" type="text"/>
+</div>
+</div>
+<!-- Secondary Action: Use Current Location -->
+<button class="flex items-center gap-2 self-start text-primary group hover:opacity-80 transition-opacity duration-200 px-2 -ml-2 py-2 rounded-lg">
+<span class="material-symbols-outlined text-[20px] group-active:scale-90 transition-transform" style="font-variation-settings: 'FILL' 1;">my_location</span>
+<span class="font-body-lg text-body-lg font-medium">Use current location</span>
+</button>
+<!-- Flexible Space to push CTA to bottom -->
+<div class="flex-grow"></div>
+<!-- Bottom Context & Action Area -->
+<div class="mt-8 flex flex-col items-center gap-6 w-full">
+<!-- Explanation Text -->
+<p class="font-body-sm text-body-sm text-on-surface-variant text-center px-4 max-w-[320px]">
+                    Your location helps ZeroEmit use relevant grid and renewable-energy data.
+                </p>
+<!-- Primary CTA Button -->
+<button class="w-full h-[48px] px-4 bg-primary text-on-primary font-headline-md text-headline-md rounded-xl hover:bg-primary-container hover:text-on-primary-container active:scale-[0.98] transition-all duration-200 shadow-[0_4px_12px_rgba(13,99,27,0.15)] flex items-center justify-center">
+                    Continue
+                </button>
+</div>
+</main>
+</div>
+<!-- Script for simple input interaction feedback -->
+<script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const input = document.getElementById('location-input');
+            const icon = input.previousElementSibling;
+
+            input.addEventListener('focus', () => {
+                icon.classList.remove('text-outline');
+                icon.classList.add('text-primary');
+            });
+
+            input.addEventListener('blur', () => {
+                icon.classList.remove('text-primary');
+                icon.classList.add('text-outline');
+            });
+        });
+    </script>
+</body></html>

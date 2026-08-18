@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>ZeroEmit - Home Dashboard</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "secondary": "#006e1c",
+                        "surface-variant": "#dae6d6",
+                        "primary-container": "#2e7d32",
+                        "surface-tint": "#1b6d24",
+                        "surface-dim": "#d1ddcd",
+                        "secondary-fixed": "#94f990",
+                        "on-secondary-fixed": "#002204",
+                        "surface-container": "#e5f1e1",
+                        "primary": "#0d631b",
+                        "on-surface": "#141e14",
+                        "on-primary": "#ffffff",
+                        "surface-container-low": "#ebf7e7",
+                        "on-tertiary-fixed-variant": "#3e4a41",
+                        "secondary-fixed-dim": "#78dc77",
+                        "outline-variant": "#bfcaba",
+                        "on-background": "#141e14",
+                        "on-primary-fixed-variant": "#005312",
+                        "on-tertiary": "#ffffff",
+                        "on-secondary-container": "#00731e",
+                        "outline": "#707a6c",
+                        "on-tertiary-container": "#e8f5e9",
+                        "inverse-primary": "#88d982",
+                        "on-primary-fixed": "#002204",
+                        "on-secondary-fixed-variant": "#005313",
+                        "tertiary": "#4d5950",
+                        "on-surface-variant": "#40493d",
+                        "error": "#ba1a1a",
+                        "tertiary-container": "#657167",
+                        "tertiary-fixed-dim": "#bdcabe",
+                        "surface-container-lowest": "#ffffff",
+                        "surface": "#f1fdec",
+                        "primary-fixed": "#a3f69c",
+                        "on-error-container": "#93000a",
+                        "on-secondary": "#ffffff",
+                        "surface-bright": "#f1fdec",
+                        "surface-container-high": "#e0ecdb",
+                        "on-tertiary-fixed": "#131e17",
+                        "inverse-on-surface": "#e8f4e4",
+                        "on-error": "#ffffff",
+                        "tertiary-fixed": "#d9e6da",
+                        "inverse-surface": "#293328",
+                        "error-container": "#ffdad6",
+                        "background": "#f1fdec",
+                        "secondary-container": "#91f78e",
+                        "on-primary-container": "#cbffc2",
+                        "primary-fixed-dim": "#88d982",
+                        "surface-container-highest": "#dae6d6"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "base": "4px",
+                        "sm": "12px",
+                        "xl": "32px",
+                        "xs": "8px",
+                        "container-padding": "20px",
+                        "touch-target-min": "44px",
+                        "lg": "24px",
+                        "md": "16px"
+                    },
+                    "fontFamily": {
+                        "headline-lg": ["Inter"],
+                        "display-metrics": ["Inter"],
+                        "headline-lg-mobile": ["Inter"],
+                        "body-lg": ["Inter"],
+                        "label-caps": ["Inter"],
+                        "body-sm": ["Inter"],
+                        "headline-md": ["Inter"]
+                    },
+                    "fontSize": {
+                        "headline-lg": ["32px", { "lineHeight": "40px", "letterSpacing": "-0.01em", "fontWeight": "700" }],
+                        "display-metrics": ["48px", { "lineHeight": "56px", "letterSpacing": "-0.02em", "fontWeight": "700" }],
+                        "headline-lg-mobile": ["28px", { "lineHeight": "34px", "fontWeight": "700" }],
+                        "body-lg": ["16px", { "lineHeight": "24px", "fontWeight": "400" }],
+                        "label-caps": ["12px", { "lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600" }],
+                        "body-sm": ["14px", { "lineHeight": "20px", "fontWeight": "400" }],
+                        "headline-md": ["20px", { "lineHeight": "28px", "fontWeight": "600" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        .hide-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .hide-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+</head>
+<body class="bg-background text-on-background antialiased selection:bg-primary-container selection:text-on-primary-container">
+<div class="max-w-md mx-auto min-h-screen relative pb-[100px] flex flex-col bg-background">
+<!-- TopAppBar (Shared Component) -->
+<header class="bg-surface dark:bg-background docked full-width top-0 z-40 sticky">
+<div class="flex justify-between items-center px-container-padding h-touch-target-min w-full max-w-md mx-auto">
+<button aria-label="Location" class="w-touch-target-min h-touch-target-min flex items-center justify-start text-primary dark:text-primary-fixed hover:opacity-80 transition-opacity scale-95 active:transition-transform">
+<span class="material-symbols-outlined">location_on</span>
+</button>
+<h1 class="font-headline-md text-headline-md-mobile text-primary dark:text-primary-fixed tracking-tight">ZeroEmit</h1>
+<button aria-label="Profile" class="w-touch-target-min h-touch-target-min flex items-center justify-end text-primary dark:text-primary-fixed hover:opacity-80 transition-opacity scale-95 active:transition-transform">
+<span class="material-symbols-outlined">account_circle</span>
+</button>
+</div>
+</header>
+<!-- Main Canvas -->
+<main class="flex-1 px-container-padding pt-md flex flex-col gap-xl">
+<!-- Greeting & Location -->
+<section class="flex flex-col gap-xs">
+<div class="flex items-center gap-base text-on-surface-variant font-label-caps text-label-caps uppercase tracking-wider">
+<span class="material-symbols-outlined text-[14px]">location_on</span>
+<span>Chennai, India</span>
+</div>
+<h2 class="font-headline-lg-mobile text-headline-lg-mobile text-on-surface">Good morning, Yatin</h2>
+</section>
+<!-- Main Hero Card: Best Time to Charge -->
+<section class="bg-surface-container-lowest rounded-xl p-md shadow-[0px_4px_20px_rgba(23,33,23,0.04)] border border-surface-variant relative overflow-hidden isolate">
+<!-- Ambient Glow Decoration -->
+<div class="absolute -top-12 -right-12 w-40 h-40 bg-primary-container rounded-full blur-[40px] opacity-30 -z-10 pointer-events-none"></div>
+<div class="flex justify-between items-start mb-sm">
+<h3 class="font-label-caps text-label-caps text-on-surface-variant uppercase">Best time to charge</h3>
+<div class="bg-primary-container text-on-primary-container font-label-caps text-label-caps px-2 py-1 rounded-full flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]" style="font-variation-settings: 'FILL' 1;">bolt</span> Recommended
+                    </div>
+</div>
+<div class="flex items-baseline gap-xs mt-xs">
+<span class="font-display-metrics text-display-metrics text-primary">2:00</span>
+<span class="font-headline-md text-headline-md text-primary">AM</span>
+<span class="font-headline-md text-headline-md text-on-surface-variant mx-1">–</span>
+<span class="font-display-metrics text-display-metrics text-primary">4:00</span>
+<span class="font-headline-md text-headline-md text-primary">AM</span>
+</div>
+<div class="mt-md flex items-center gap-xs font-body-sm text-body-sm text-on-surface-variant bg-surface p-sm rounded-lg border border-surface-variant/50">
+<span class="material-symbols-outlined text-secondary">co2</span>
+<span>Current Intensity: <strong class="text-on-surface">118 gCO₂/kWh</strong></span>
+</div>
+<button class="mt-md w-full bg-surface-variant text-primary font-body-sm text-body-sm font-semibold rounded-lg h-touch-target-min flex items-center justify-center gap-xs hover:bg-surface-dim transition-colors active:scale-[0.98]">
+                    View forecast <span class="material-symbols-outlined text-[18px]">trending_flat</span>
+</button>
+</section>
+<!-- Impact Section Bento Grid -->
+<section class="grid grid-cols-2 gap-md">
+<!-- Full width main metric -->
+<div class="col-span-2 bg-surface-container-lowest rounded-xl p-md shadow-[0px_4px_20px_rgba(23,33,23,0.04)] border border-surface-variant flex items-center justify-between">
+<div>
+<p class="font-label-caps text-label-caps text-on-surface-variant uppercase mb-xs">Total CO₂ Saved</p>
+<div class="flex items-baseline gap-1">
+<span class="font-headline-lg-mobile text-headline-lg-mobile text-secondary">620</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant font-semibold">g</span>
+</div>
+</div>
+<div class="w-12 h-12 rounded-full bg-secondary-container/50 flex items-center justify-center text-primary">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">nature</span>
+</div>
+</div>
+<!-- Half width metrics -->
+<div class="bg-surface-container-lowest rounded-xl p-md shadow-[0px_4px_20px_rgba(23,33,23,0.04)] border border-surface-variant">
+<p class="font-label-caps text-label-caps text-on-surface-variant uppercase mb-xs">Eco Points</p>
+<p class="font-headline-md text-headline-md text-primary">+85</p>
+</div>
+<div class="bg-surface-container-lowest rounded-xl p-md shadow-[0px_4px_20px_rgba(23,33,23,0.04)] border border-surface-variant">
+<p class="font-label-caps text-label-caps text-on-surface-variant uppercase mb-xs">Renewable</p>
+<p class="font-headline-md text-headline-md text-primary">74%</p>
+</div>
+</section>
+<!-- Horizontal Scroll Area: Streak & Timeline -->
+<section class="flex gap-md overflow-x-auto pb-2 -mx-container-padding px-container-padding snap-x hide-scrollbar">
+<!-- Streak Card -->
+<div class="min-w-[150px] bg-primary text-on-primary rounded-xl p-md flex flex-col justify-between shadow-lg snap-start shrink-0 relative overflow-hidden isolate">
+<span class="material-symbols-outlined absolute -bottom-4 -right-2 text-[100px] opacity-10 -z-10 pointer-events-none" style="font-variation-settings: 'FILL' 1;">local_fire_department</span>
+<p class="font-label-caps text-label-caps uppercase text-on-primary/80">Current Streak</p>
+<div class="mt-xl flex items-center gap-xs">
+<span class="font-headline-lg-mobile text-headline-lg-mobile">7</span>
+<span class="font-body-sm text-body-sm font-semibold opacity-90 mt-1">days</span>
+</div>
+</div>
+<!-- Compact Timeline -->
+<div class="min-w-[200px] bg-surface-container-lowest rounded-xl p-md shadow-[0px_4px_20px_rgba(23,33,23,0.04)] border border-surface-variant flex flex-col justify-between snap-start shrink-0">
+<p class="font-label-caps text-label-caps text-on-surface-variant uppercase mb-sm">Next Charging Window</p>
+<div class="flex items-center gap-sm mt-auto">
+<div class="w-8 h-8 rounded-full bg-surface-variant flex items-center justify-center text-primary">
+<span class="material-symbols-outlined text-[16px]">schedule</span>
+</div>
+<div>
+<p class="font-body-sm text-body-sm text-on-surface font-semibold">Tomorrow</p>
+<p class="font-label-caps text-label-caps text-on-surface-variant mt-base">1:00 AM - 5:00 AM</p>
+</div>
+</div>
+</div>
+</section>
+<!-- Recent Activity -->
+<section class="mb-lg">
+<h3 class="font-headline-md text-headline-md text-on-surface mb-md">Recent Activity</h3>
+<div class="flex flex-col gap-sm">
+<!-- Activity Item -->
+<div class="bg-surface-container-lowest rounded-xl p-sm shadow-[0px_4px_20px_rgba(23,33,23,0.04)] border border-surface-variant flex items-center gap-sm transition-colors hover:bg-surface">
+<div class="w-10 h-10 rounded-full bg-surface flex items-center justify-center text-primary shrink-0 border border-surface-variant">
+<span class="material-symbols-outlined text-[20px]">ev_station</span>
+</div>
+<div class="flex-1 min-w-0">
+<p class="font-body-sm text-body-sm font-semibold text-on-surface truncate">Charged at 2:30 AM</p>
+<p class="font-label-caps text-label-caps text-on-surface-variant mt-base truncate">Saved 420 g CO₂</p>
+</div>
+<div class="font-label-caps text-label-caps text-primary bg-primary-container/30 px-2 py-1 rounded-full shrink-0">
+                            +65 pts
+                        </div>
+</div>
+</div>
+</section>
+</main>
+<!-- BottomNavBar (Shared Component) -->
+<nav class="bg-surface dark:bg-surface-container shadow-[0px_-4px_20px_rgba(23,33,23,0.04)] shadow-lg fixed bottom-0 left-0 w-full z-50 flex justify-around items-center h-[84px] pb-safe px-4 rounded-t-xl max-w-md left-1/2 -translate-x-1/2">
+<!-- Active: Home -->
+<a class="flex flex-col items-center justify-center text-primary dark:text-primary-fixed relative after:content-[''] after:w-1 after:h-1 after:bg-primary after:rounded-full after:mt-1 hover:text-primary transition-colors active:scale-90 transition-all duration-200 h-touch-target-min w-touch-target-min" href="#">
+<span class="material-symbols-outlined mb-1" style="font-variation-settings: 'FILL' 1;">home</span>
+<span class="font-label-caps text-label-caps">Home</span>
+</a>
+<!-- Inactive: Forecast -->
+<a class="flex flex-col items-center justify-center text-on-surface-variant dark:text-outline hover:text-primary transition-colors active:scale-90 transition-all duration-200 h-touch-target-min w-touch-target-min" href="#">
+<span class="material-symbols-outlined mb-1">query_stats</span>
+<span class="font-label-caps text-label-caps">Forecast</span>
+</a>
+<!-- Inactive: Log -->
+<a class="flex flex-col items-center justify-center text-on-surface-variant dark:text-outline hover:text-primary transition-colors active:scale-90 transition-all duration-200 h-touch-target-min w-touch-target-min" href="#">
+<span class="material-symbols-outlined mb-1">history</span>
+<span class="font-label-caps text-label-caps">Log</span>
+</a>
+<!-- Inactive: Rewards -->
+<a class="flex flex-col items-center justify-center text-on-surface-variant dark:text-outline hover:text-primary transition-colors active:scale-90 transition-all duration-200 h-touch-target-min w-touch-target-min" href="#">
+<span class="material-symbols-outlined mb-1">workspace_premium</span>
+<span class="font-label-caps text-label-caps">Rewards</span>
+</a>
+<!-- Inactive: Profile -->
+<a class="flex flex-col items-center justify-center text-on-surface-variant dark:text-outline hover:text-primary transition-colors active:scale-90 transition-all duration-200 h-touch-target-min w-touch-target-min" href="#">
+<span class="material-symbols-outlined mb-1">person</span>
+<span class="font-label-caps text-label-caps">Profile</span>
+</a>
+</nav>
+</div>
+</body></html>

@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>ZeroEmit - Onboarding</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "secondary": "#006e1c",
+                        "surface-variant": "#dae6d6",
+                        "primary-container": "#2e7d32",
+                        "surface-tint": "#1b6d24",
+                        "surface-dim": "#d1ddcd",
+                        "secondary-fixed": "#94f990",
+                        "on-secondary-fixed": "#002204",
+                        "surface-container": "#e5f1e1",
+                        "primary": "#0d631b",
+                        "on-surface": "#141e14",
+                        "on-primary": "#ffffff",
+                        "surface-container-low": "#ebf7e7",
+                        "on-tertiary-fixed-variant": "#3e4a41",
+                        "secondary-fixed-dim": "#78dc77",
+                        "outline-variant": "#bfcaba",
+                        "on-background": "#141e14",
+                        "on-primary-fixed-variant": "#005312",
+                        "on-tertiary": "#ffffff",
+                        "on-secondary-container": "#00731e",
+                        "outline": "#707a6c",
+                        "on-tertiary-container": "#e8f5e9",
+                        "inverse-primary": "#88d982",
+                        "on-primary-fixed": "#002204",
+                        "on-secondary-fixed-variant": "#005313",
+                        "tertiary": "#4d5950",
+                        "on-surface-variant": "#40493d",
+                        "error": "#ba1a1a",
+                        "tertiary-container": "#657167",
+                        "tertiary-fixed-dim": "#bdcabe",
+                        "surface-container-lowest": "#ffffff",
+                        "surface": "#f1fdec",
+                        "primary-fixed": "#a3f69c",
+                        "on-error-container": "#93000a",
+                        "on-secondary": "#ffffff",
+                        "surface-bright": "#f1fdec",
+                        "surface-container-high": "#e0ecdb",
+                        "on-tertiary-fixed": "#131e17",
+                        "inverse-on-surface": "#e8f4e4",
+                        "on-error": "#ffffff",
+                        "tertiary-fixed": "#d9e6da",
+                        "inverse-surface": "#293328",
+                        "error-container": "#ffdad6",
+                        "background": "#f1fdec",
+                        "secondary-container": "#91f78e",
+                        "on-primary-container": "#cbffc2",
+                        "primary-fixed-dim": "#88d982",
+                        "surface-container-highest": "#dae6d6"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "base": "4px",
+                        "sm": "12px",
+                        "xl": "32px",
+                        "xs": "8px",
+                        "container-padding": "20px",
+                        "touch-target-min": "44px",
+                        "lg": "24px",
+                        "md": "16px"
+                    },
+                    "fontFamily": {
+                        "headline-lg": ["Inter"],
+                        "display-metrics": ["Inter"],
+                        "headline-lg-mobile": ["Inter"],
+                        "body-lg": ["Inter"],
+                        "label-caps": ["Inter"],
+                        "body-sm": ["Inter"],
+                        "headline-md": ["Inter"]
+                    },
+                    "fontSize": {
+                        "headline-lg": ["32px", { "lineHeight": "40px", "letterSpacing": "-0.01em", "fontWeight": "700" }],
+                        "display-metrics": ["48px", { "lineHeight": "56px", "letterSpacing": "-0.02em", "fontWeight": "700" }],
+                        "headline-lg-mobile": ["28px", { "lineHeight": "34px", "fontWeight": "700" }],
+                        "body-lg": ["16px", { "lineHeight": "24px", "fontWeight": "400" }],
+                        "label-caps": ["12px", { "lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600" }],
+                        "body-sm": ["14px", { "lineHeight": "20px", "fontWeight": "400" }],
+                        "headline-md": ["20px", { "lineHeight": "28px", "fontWeight": "600" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .slide-hidden {
+            display: none;
+            opacity: 0;
+            transition: opacity 0.3s ease-in-out;
+        }
+        .slide-visible {
+            display: flex;
+            opacity: 1;
+            transition: opacity 0.3s ease-in-out;
+        }
+    </style>
+</head>
+<body class="bg-surface text-on-surface antialiased min-h-screen flex flex-col font-sans">
+<!-- Top Action Bar (Skip) -->
+<header class="flex justify-end items-center px-container-padding py-4 h-touch-target-min shrink-0">
+<button class="font-label-caps text-label-caps text-primary tracking-widest uppercase hover:opacity-80 transition-opacity" type="button">
+            Skip
+        </button>
+</header>
+<!-- Carousel Main Content -->
+<main class="flex-1 flex flex-col relative overflow-hidden">
+<!-- Step 1 -->
+<div class="slide-visible flex-col flex-1 h-full w-full absolute inset-0 bg-surface" id="step-1">
+<div class="flex-1 px-container-padding py-lg flex flex-col justify-center items-center">
+<div class="w-full max-w-[320px] aspect-square rounded-[32px] overflow-hidden bg-surface-container-lowest shadow-[0px_4px_20px_rgba(23,33,23,0.04)] mb-8 flex items-center justify-center p-8 border border-outline-variant/20">
+<img class="w-full h-full object-contain object-center" data-alt="A sophisticated, minimalist 3D rendering of an electric vehicle charging station set against a soft, bright light-mode background. Abstract, glowing green energy waves flow elegantly into the vehicle, symbolizing clean power. The visual style is modern corporate climate-tech, using a palette of pure whites, soft ambient shadows, and deep primary greens. The mood is optimistic and technologically advanced, conveying a seamless transition to sustainable energy." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAoGOrfFky6_ZADHs9tpn9-p3n1iMGGUcnbf9Kcz9UafRAPlSbQ39HPS0UcdGmYMEgxW41_6mbBRvWHIHglaTEUY78vCi0JU85QFBy3iMK_ycL57I9vOLM4eMdOHcotV90JAoxTOxBoZyADr0djyBaZLGOC9AlahDCEa8gGlprDyT5MfBK6BRSHbZ0w-av3aPsHMJaUCDkZcsW4_p3vRnUOvRK_SG4tsP_BHePkFQJ_6CrXQaEP1RVChA"/>
+</div>
+</div>
+<div class="px-container-padding pb-8 shrink-0">
+<h1 class="font-headline-lg-mobile text-headline-lg-mobile text-on-surface mb-xs tracking-tight">Charge when energy is cleaner.</h1>
+<p class="font-body-lg text-body-lg text-on-surface-variant">Electricity isn't equally clean throughout the day. ZeroEmit helps you find better charging windows.</p>
+</div>
+</div>
+<!-- Step 2 -->
+<div class="slide-hidden flex-col flex-1 h-full w-full absolute inset-0 bg-surface" id="step-2">
+<div class="flex-1 px-container-padding py-lg flex flex-col justify-center items-center">
+<div class="w-full max-w-[320px] aspect-square rounded-[32px] overflow-hidden bg-surface-container-lowest shadow-[0px_4px_20px_rgba(23,33,23,0.04)] mb-8 flex items-center justify-center p-8 border border-outline-variant/20">
+<img class="w-full h-full object-contain object-center" data-alt="A minimalist, high-end data visualization graphic showing a 24-hour timeline in a bright, clean light-mode environment. A specific time window is highlighted with a soft, glowing green gradient, representing periods of low carbon grid intensity. The design uses sophisticated soft-tech aesthetics, pure white backgrounds with ambient shadows, and precise UI elements. The overall mood is calm, authoritative, and focused on clear environmental data." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAWsCmVjqbYr5mAslVQBqk2QujA1UwR2SQOYRlWItOyHBp0mC63pdD5iI2HAA9YXeb0F_p0jAdsPgkcwiiwXf4MDI7fXklPZI48Y0nllf6hUQjhGCfvGt0JbAHJYpWvqmAX0OSqXbtQotbcMaqvTIWH23sXGB6gU4qoo2e2LRIGm1QL5rD_XiO-dRMyHCKg4kjEputJs_OoExNqu_1F7I4naT7Je0agE0nlVUi9mqoLQ6hv4mdwn06Lvw"/>
+</div>
+</div>
+<div class="px-container-padding pb-8 shrink-0">
+<h1 class="font-headline-lg-mobile text-headline-lg-mobile text-on-surface mb-xs tracking-tight">Plan your next 24 hours.</h1>
+<p class="font-body-lg text-body-lg text-on-surface-variant">AI forecasts grid carbon intensity and recommends cleaner charging periods.</p>
+</div>
+</div>
+<!-- Step 3 -->
+<div class="slide-hidden flex-col flex-1 h-full w-full absolute inset-0 bg-surface" id="step-3">
+<div class="flex-1 px-container-padding py-lg flex flex-col justify-center items-center">
+<div class="w-full max-w-[320px] aspect-square rounded-[32px] overflow-hidden bg-surface-container-lowest shadow-[0px_4px_20px_rgba(23,33,23,0.04)] mb-8 flex items-center justify-center p-8 border border-outline-variant/20">
+<img class="w-full h-full object-contain object-center" data-alt="A premium, minimalist digital illustration of a stylized, modern leaf motif growing upwards, symbolizing environmental progress and sustainability. The graphic is set against a pristine, well-lit white background typical of high-end climate-tech interfaces. Soft, ambient shadows give depth to the elements, while the color palette focuses on refined greens and crisp whites. The aesthetic is clean, encouraging, and sophisticated, representing personal impact." src="https://lh3.googleusercontent.com/aida-public/AB6AXuD_vURGmQBFqgCZG0w08swdH0g_hrLwdIRU_eD-EzuChnoimv_5E-4b8nflpwMKuBPSUlE0AP56sh0zCMeVjmopi8g4MYNoJvXuB4n-h0qoyrgix-Q-MV15v8GDBlcsPK21EtgrFSWo9iWAambUctQagSrTtKK4i152DPI1nHga5v9MWmCr9vQa3iJt5dMgScvSPar2Ska0c5IbdG1AWhjQB4Co_qQ6sAPMPyLY_5WrWPvTvxoK3NuXMA"/>
+</div>
+</div>
+<div class="px-container-padding pb-8 shrink-0">
+<h1 class="font-headline-lg-mobile text-headline-lg-mobile text-on-surface mb-xs tracking-tight">Turn cleaner choices into progress.</h1>
+<p class="font-body-lg text-body-lg text-on-surface-variant">Track CO₂ savings, earn Eco Points and build sustainable charging habits.</p>
+</div>
+</div>
+</main>
+<!-- Bottom Navigation / Controls -->
+<footer class="px-container-padding pb-[34px] pt-4 shrink-0 bg-surface z-10 relative">
+<div class="flex justify-between items-center h-[48px]">
+<!-- Paging Dots -->
+<div class="flex items-center gap-2">
+<div class="w-6 h-1.5 rounded-full bg-primary transition-all duration-300" id="dot-1"></div>
+<div class="w-1.5 h-1.5 rounded-full bg-surface-variant transition-all duration-300" id="dot-2"></div>
+<div class="w-1.5 h-1.5 rounded-full bg-surface-variant transition-all duration-300" id="dot-3"></div>
+</div>
+<!-- Primary CTA -->
+<button class="bg-primary text-on-primary h-touch-target-min px-[24px] rounded-full font-label-caps text-label-caps uppercase tracking-widest hover:bg-surface-tint active:scale-95 transition-all shadow-[0px_4px_12px_rgba(13,99,27,0.15)] flex items-center justify-center gap-2 min-w-[120px]" id="nextBtn" type="button">
+<span>Next</span>
+<span class="material-symbols-outlined text-[18px]">arrow_forward</span>
+</button>
+</div>
+</footer>
+<script>
+        document.addEventListener('DOMContentLoaded', () => {
+            let currentStep = 1;
+            const totalSteps = 3;
+            const nextBtn = document.getElementById('nextBtn');
+            const btnText = nextBtn.querySelector('span:first-child');
+            const btnIcon = nextBtn.querySelector('span:last-child');
+
+            nextBtn.addEventListener('click', () => {
+                if (currentStep < totalSteps) {
+                    // Hide current
+                    document.getElementById(`step-${currentStep}`).classList.remove('slide-visible');
+                    document.getElementById(`step-${currentStep}`).classList.add('slide-hidden');
+                    
+                    // Update dot width/color
+                    document.getElementById(`dot-${currentStep}`).classList.remove('w-6', 'bg-primary');
+                    document.getElementById(`dot-${currentStep}`).classList.add('w-1.5', 'bg-surface-variant');
+
+                    currentStep++;
+
+                    // Show next
+                    document.getElementById(`step-${currentStep}`).classList.remove('slide-hidden');
+                    document.getElementById(`step-${currentStep}`).classList.add('slide-visible');
+                    
+                    // Update next dot
+                    document.getElementById(`dot-${currentStep}`).classList.remove('w-1.5', 'bg-surface-variant');
+                    document.getElementById(`dot-${currentStep}`).classList.add('w-6', 'bg-primary');
+
+                    // Update button text on last step
+                    if (currentStep === totalSteps) {
+                        btnText.textContent = 'Get Started';
+                        btnIcon.style.display = 'none';
+                    }
+                } else {
+                    // Logic for "Get Started" click (e.g., redirect)
+                    console.log('Proceed to dashboard/auth');
+                }
+            });
+        });
+    </script>
+</body></html>

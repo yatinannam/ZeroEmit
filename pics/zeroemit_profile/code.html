@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>ZeroEmit - Profile</title>
+<!-- Material Symbols Outlined -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Google Fonts: Inter -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS v3 -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<!-- Tailwind Theme Config -->
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "secondary": "#006e1c",
+                    "surface-variant": "#dae6d6",
+                    "primary-container": "#2e7d32",
+                    "surface-tint": "#1b6d24",
+                    "surface-dim": "#d1ddcd",
+                    "secondary-fixed": "#94f990",
+                    "on-secondary-fixed": "#002204",
+                    "surface-container": "#e5f1e1",
+                    "primary": "#0d631b",
+                    "on-surface": "#141e14",
+                    "on-primary": "#ffffff",
+                    "surface-container-low": "#ebf7e7",
+                    "on-tertiary-fixed-variant": "#3e4a41",
+                    "secondary-fixed-dim": "#78dc77",
+                    "outline-variant": "#bfcaba",
+                    "on-background": "#141e14",
+                    "on-primary-fixed-variant": "#005312",
+                    "on-tertiary": "#ffffff",
+                    "on-secondary-container": "#00731e",
+                    "outline": "#707a6c",
+                    "on-tertiary-container": "#e8f5e9",
+                    "inverse-primary": "#88d982",
+                    "on-primary-fixed": "#002204",
+                    "on-secondary-fixed-variant": "#005313",
+                    "tertiary": "#4d5950",
+                    "on-surface-variant": "#40493d",
+                    "error": "#ba1a1a",
+                    "tertiary-container": "#657167",
+                    "tertiary-fixed-dim": "#bdcabe",
+                    "surface-container-lowest": "#ffffff",
+                    "surface": "#f1fdec",
+                    "primary-fixed": "#a3f69c",
+                    "on-error-container": "#93000a",
+                    "on-secondary": "#ffffff",
+                    "surface-bright": "#f1fdec",
+                    "surface-container-high": "#e0ecdb",
+                    "on-tertiary-fixed": "#131e17",
+                    "inverse-on-surface": "#e8f4e4",
+                    "on-error": "#ffffff",
+                    "tertiary-fixed": "#d9e6da",
+                    "inverse-surface": "#293328",
+                    "error-container": "#ffdad6",
+                    "background": "#f1fdec",
+                    "secondary-container": "#91f78e",
+                    "on-primary-container": "#cbffc2",
+                    "primary-fixed-dim": "#88d982",
+                    "surface-container-highest": "#dae6d6"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.25rem",
+                    "lg": "0.5rem",
+                    "xl": "0.75rem",
+                    "full": "9999px"
+            },
+            "spacing": {
+                    "base": "4px",
+                    "sm": "12px",
+                    "xl": "32px",
+                    "xs": "8px",
+                    "container-padding": "20px",
+                    "touch-target-min": "44px",
+                    "lg": "24px",
+                    "md": "16px"
+            },
+            "fontFamily": {
+                    "headline-lg": [
+                            "Inter"
+                    ],
+                    "display-metrics": [
+                            "Inter"
+                    ],
+                    "headline-lg-mobile": [
+                            "Inter"
+                    ],
+                    "body-lg": [
+                            "Inter"
+                    ],
+                    "label-caps": [
+                            "Inter"
+                    ],
+                    "body-sm": [
+                            "Inter"
+                    ],
+                    "headline-md": [
+                            "Inter"
+                    ]
+            },
+            "fontSize": {
+                    "headline-lg": [
+                            "32px",
+                            {
+                                    "lineHeight": "40px",
+                                    "letterSpacing": "-0.01em",
+                                    "fontWeight": "700"
+                            }
+                    ],
+                    "display-metrics": [
+                            "48px",
+                            {
+                                    "lineHeight": "56px",
+                                    "letterSpacing": "-0.02em",
+                                    "fontWeight": "700"
+                            }
+                    ],
+                    "headline-lg-mobile": [
+                            "28px",
+                            {
+                                    "lineHeight": "34px",
+                                    "fontWeight": "700"
+                            }
+                    ],
+                    "body-lg": [
+                            "16px",
+                            {
+                                    "lineHeight": "24px",
+                                    "fontWeight": "400"
+                            }
+                    ],
+                    "label-caps": [
+                            "12px",
+                            {
+                                    "lineHeight": "16px",
+                                    "letterSpacing": "0.05em",
+                                    "fontWeight": "600"
+                            }
+                    ],
+                    "body-sm": [
+                            "14px",
+                            {
+                                    "lineHeight": "20px",
+                                    "fontWeight": "400"
+                            }
+                    ],
+                    "headline-md": [
+                            "20px",
+                            {
+                                    "lineHeight": "28px",
+                                    "fontWeight": "600"
+                            }
+                    ]
+            }
+        },
+        },
+      }
+    </script>
+<style>
+        /* Smooth scrolling and base resets */
+        html { scroll-behavior: smooth; }
+        body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+        .pb-safe { padding-bottom: env(safe-area-inset-bottom, 20px); }
+    </style>
+</head>
+<body class="bg-background text-on-background font-body-lg min-h-screen relative overflow-x-hidden">
+<!-- App Container (Mobile Constraint for Web) -->
+<div class="max-w-md mx-auto relative min-h-screen bg-surface-bright shadow-2xl overflow-hidden flex flex-col">
+<!-- TopAppBar (From JSON) -->
+<header class="fixed docked full-width top-0 z-40 bg-surface dark:bg-background flat no shadows max-w-md mx-auto w-full">
+<div class="flex justify-between items-center px-container-padding h-touch-target-min w-full max-w-md mx-auto">
+<button class="text-primary dark:text-primary-fixed hover:opacity-80 transition-opacity scale-95 active:transition-transform flex items-center justify-center w-10 h-10">
+<span class="material-symbols-outlined">location_on</span>
+</button>
+<h1 class="font-headline-md text-headline-md-mobile text-primary dark:text-primary-fixed tracking-tight">ZeroEmit</h1>
+<button class="text-primary dark:text-primary-fixed hover:opacity-80 transition-opacity scale-95 active:transition-transform flex items-center justify-center w-10 h-10">
+<span class="material-symbols-outlined">account_circle</span>
+</button>
+</div>
+</header>
+<!-- Main Content Area -->
+<main class="flex-1 pt-[60px] pb-[100px] px-container-padding flex flex-col gap-xl overflow-y-auto">
+<!-- Page Title & Profile Header -->
+<section class="flex flex-col items-center pt-md">
+<h2 class="sr-only">Profile</h2>
+<!-- Avatar -->
+<div class="relative group cursor-pointer mb-md">
+<div class="w-28 h-28 rounded-full overflow-hidden border-4 border-surface-container shadow-[0px_4px_20px_rgba(23,33,23,0.04)] relative z-10 bg-surface-container-highest">
+<img class="w-full h-full object-cover" data-alt="A professional headshot of a young Indian man smiling gently in a well-lit, modern indoor setting. The lighting is soft and natural, emphasizing a bright, optimistic mood consistent with a clean-energy application. The background is a blurred, minimalist light-colored wall with subtle hints of indoor plants, complementing the app's green color palette." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBRoH01nXvKin9_1Mr7acD8a4nr5CRwmbuxuSTcp7cT2iqJF0Mm3I5uxgjUMsRGOSl_x_EZZiXLOvJ0VxBaHdo9RCSZfZTqJqjXdU01vn8Nh5ojMdyKaDDdkbRqz1nEDcfZxrkCTdWp8ColY8Pc-Tm-a5On5OTc3rwU_CX49n5r2BnhLn7u7_UNBxRYX_W4lmhkZOqoOXTI9ekDr_OPmRss-NjO2jswtRxwqd4743dktq64jT2EeCGsmg"/>
+</div>
+<!-- Ambient shadow behind avatar -->
+<div class="absolute inset-0 bg-primary/20 rounded-full blur-xl scale-90 -z-10 group-hover:scale-110 transition-transform duration-500"></div>
+</div>
+<!-- User Info -->
+<div class="text-center">
+<h3 class="font-headline-lg-mobile text-headline-lg-mobile text-on-surface mb-1">Yatin Annam</h3>
+<div class="flex items-center justify-center gap-1 text-on-surface-variant bg-surface-container-low px-3 py-1 rounded-full w-fit mx-auto">
+<span class="material-symbols-outlined text-[16px]">location_on</span>
+<span class="font-body-sm text-body-sm">Chennai, India</span>
+</div>
+</div>
+</section>
+<!-- Metrics / Stats (Bento Grid Style) -->
+<section class="grid grid-cols-2 gap-sm">
+<!-- Large Highlight Card -->
+<div class="col-span-2 bg-surface-container-lowest rounded-xl p-md shadow-[0px_4px_20px_rgba(23,33,23,0.04)] flex items-center justify-between relative overflow-hidden border border-outline-variant/20">
+<div class="relative z-10">
+<p class="font-label-caps text-label-caps text-on-surface-variant mb-1 flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]">eco</span>
+                            Total Carbon Saved
+                        </p>
+<div class="flex items-baseline gap-1">
+<span class="font-display-metrics text-display-metrics text-primary">14.8</span>
+<span class="font-headline-md text-headline-md-mobile text-on-surface-variant">kg</span>
+</div>
+</div>
+<!-- Decorative Graphic -->
+<div class="absolute right-0 bottom-0 opacity-10 pointer-events-none translate-x-1/4 translate-y-1/4">
+<span class="material-symbols-outlined text-[120px] text-primary" style="font-variation-settings: 'FILL' 1;">cloud_done</span>
+</div>
+</div>
+<!-- Small Card 1 -->
+<div class="bg-surface-container-lowest rounded-xl p-md shadow-[0px_4px_20px_rgba(23,33,23,0.04)] flex flex-col justify-center items-center text-center border border-outline-variant/20">
+<div class="w-10 h-10 rounded-full bg-secondary-container/30 flex items-center justify-center text-on-secondary-container mb-2">
+<span class="material-symbols-outlined">workspace_premium</span>
+</div>
+<span class="font-headline-md text-headline-md-mobile text-on-surface">2,480</span>
+<span class="font-label-caps text-label-caps text-on-surface-variant mt-1">Points</span>
+</div>
+<!-- Small Card 2 -->
+<div class="bg-surface-container-lowest rounded-xl p-md shadow-[0px_4px_20px_rgba(23,33,23,0.04)] flex flex-col justify-center items-center text-center border border-outline-variant/20">
+<div class="w-10 h-10 rounded-full bg-secondary-container/30 flex items-center justify-center text-on-secondary-container mb-2">
+<span class="material-symbols-outlined">local_fire_department</span>
+</div>
+<span class="font-headline-md text-headline-md-mobile text-on-surface">7 Days</span>
+<span class="font-label-caps text-label-caps text-on-surface-variant mt-1">Streak</span>
+</div>
+</section>
+<!-- Menu List (Glassmorphism inspired cards) -->
+<section class="flex flex-col gap-xs">
+<!-- Group 1 -->
+<div class="bg-surface-container-lowest rounded-xl shadow-[0px_4px_20px_rgba(23,33,23,0.04)] overflow-hidden border border-outline-variant/20">
+<button class="w-full flex items-center justify-between p-md hover:bg-surface-container-low transition-colors active:scale-[0.98] border-b border-surface-container-high last:border-0 group">
+<div class="flex items-center gap-sm">
+<div class="w-8 h-8 rounded-full bg-surface-container flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-on-primary transition-colors">
+<span class="material-symbols-outlined text-[20px]">ev_station</span>
+</div>
+<span class="font-body-lg text-body-lg text-on-surface">Charging Preferences</span>
+</div>
+<span class="material-symbols-outlined text-outline-variant">chevron_right</span>
+</button>
+<button class="w-full flex items-center justify-between p-md hover:bg-surface-container-low transition-colors active:scale-[0.98] border-b border-surface-container-high last:border-0 group">
+<div class="flex items-center gap-sm">
+<div class="w-8 h-8 rounded-full bg-surface-container flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-on-primary transition-colors">
+<span class="material-symbols-outlined text-[20px]">my_location</span>
+</div>
+<span class="font-body-lg text-body-lg text-on-surface">Location</span>
+</div>
+<span class="material-symbols-outlined text-outline-variant">chevron_right</span>
+</button>
+<button class="w-full flex items-center justify-between p-md hover:bg-surface-container-low transition-colors active:scale-[0.98] border-b border-surface-container-high last:border-0 group">
+<div class="flex items-center gap-sm">
+<div class="w-8 h-8 rounded-full bg-surface-container flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-on-primary transition-colors">
+<span class="material-symbols-outlined text-[20px]">notifications</span>
+</div>
+<span class="font-body-lg text-body-lg text-on-surface">Notifications</span>
+</div>
+<span class="material-symbols-outlined text-outline-variant">chevron_right</span>
+</button>
+</div>
+<!-- Group 2 -->
+<div class="bg-surface-container-lowest rounded-xl shadow-[0px_4px_20px_rgba(23,33,23,0.04)] overflow-hidden mt-2 border border-outline-variant/20">
+<button class="w-full flex items-center justify-between p-md hover:bg-surface-container-low transition-colors active:scale-[0.98] border-b border-surface-container-high last:border-0 group">
+<div class="flex items-center gap-sm">
+<div class="w-8 h-8 rounded-full bg-surface-container flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-on-primary transition-colors">
+<span class="material-symbols-outlined text-[20px]">shield</span>
+</div>
+<span class="font-body-lg text-body-lg text-on-surface">Privacy</span>
+</div>
+<span class="material-symbols-outlined text-outline-variant">chevron_right</span>
+</button>
+<button class="w-full flex items-center justify-between p-md hover:bg-surface-container-low transition-colors active:scale-[0.98] border-b border-surface-container-high last:border-0 group">
+<div class="flex items-center gap-sm">
+<div class="w-8 h-8 rounded-full bg-surface-container flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-on-primary transition-colors">
+<span class="material-symbols-outlined text-[20px]">info</span>
+</div>
+<span class="font-body-lg text-body-lg text-on-surface">About</span>
+</div>
+<span class="material-symbols-outlined text-outline-variant">chevron_right</span>
+</button>
+</div>
+<!-- Sign Out Action -->
+<button class="mt-md w-full py-4 rounded-xl flex items-center justify-center gap-2 text-error font-headline-md text-headline-md-mobile bg-error-container/30 hover:bg-error-container/50 active:scale-[0.98] transition-all border border-error/10">
+<span class="material-symbols-outlined">logout</span>
+                    Sign Out
+                </button>
+</section>
+</main>
+<!-- BottomNavBar (From JSON) -->
+<nav class="fixed bottom-0 w-full z-50 rounded-t-xl bg-surface dark:bg-surface-container shadow-[0px_-4px_20px_rgba(23,33,23,0.04)] flex justify-around items-center h-[84px] pb-safe px-4 max-w-md mx-auto left-0 right-0">
+<button class="flex flex-col items-center justify-center text-on-surface-variant dark:text-outline hover:text-primary transition-colors active:scale-90 duration-200 w-16">
+<span class="material-symbols-outlined mb-1">home</span>
+<span class="font-label-caps text-label-caps">Home</span>
+</button>
+<button class="flex flex-col items-center justify-center text-on-surface-variant dark:text-outline hover:text-primary transition-colors active:scale-90 duration-200 w-16">
+<span class="material-symbols-outlined mb-1">query_stats</span>
+<span class="font-label-caps text-label-caps">Forecast</span>
+</button>
+<button class="flex flex-col items-center justify-center text-on-surface-variant dark:text-outline hover:text-primary transition-colors active:scale-90 duration-200 w-16">
+<span class="material-symbols-outlined mb-1">history</span>
+<span class="font-label-caps text-label-caps">Log</span>
+</button>
+<button class="flex flex-col items-center justify-center text-on-surface-variant dark:text-outline hover:text-primary transition-colors active:scale-90 duration-200 w-16">
+<span class="material-symbols-outlined mb-1">workspace_premium</span>
+<span class="font-label-caps text-label-caps">Rewards</span>
+</button>
+<!-- Active Profile Tab -->
+<button class="flex flex-col items-center justify-center text-primary dark:text-primary-fixed relative after:content-[''] after:w-1 after:h-1 after:bg-primary after:rounded-full after:mt-1 active:scale-90 transition-all duration-200 w-16">
+<span class="material-symbols-outlined mb-1" style="font-variation-settings: 'FILL' 1;">person</span>
+<span class="font-label-caps text-label-caps">Profile</span>
+</button>
+</nav>
+</div>
+</body></html>

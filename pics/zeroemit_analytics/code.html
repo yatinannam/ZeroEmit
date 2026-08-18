@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>ZeroEmit - Analytics</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "secondary": "#006e1c",
+                      "surface-variant": "#dae6d6",
+                      "primary-container": "#2e7d32",
+                      "surface-tint": "#1b6d24",
+                      "surface-dim": "#d1ddcd",
+                      "secondary-fixed": "#94f990",
+                      "on-secondary-fixed": "#002204",
+                      "surface-container": "#e5f1e1",
+                      "primary": "#0d631b",
+                      "on-surface": "#141e14",
+                      "on-primary": "#ffffff",
+                      "surface-container-low": "#ebf7e7",
+                      "on-tertiary-fixed-variant": "#3e4a41",
+                      "secondary-fixed-dim": "#78dc77",
+                      "outline-variant": "#bfcaba",
+                      "on-background": "#141e14",
+                      "on-primary-fixed-variant": "#005312",
+                      "on-tertiary": "#ffffff",
+                      "on-secondary-container": "#00731e",
+                      "outline": "#707a6c",
+                      "on-tertiary-container": "#e8f5e9",
+                      "inverse-primary": "#88d982",
+                      "on-primary-fixed": "#002204",
+                      "on-secondary-fixed-variant": "#005313",
+                      "tertiary": "#4d5950",
+                      "on-surface-variant": "#40493d",
+                      "error": "#ba1a1a",
+                      "tertiary-container": "#657167",
+                      "tertiary-fixed-dim": "#bdcabe",
+                      "surface-container-lowest": "#ffffff",
+                      "surface": "#f1fdec",
+                      "primary-fixed": "#a3f69c",
+                      "on-error-container": "#93000a",
+                      "on-secondary": "#ffffff",
+                      "surface-bright": "#f1fdec",
+                      "surface-container-high": "#e0ecdb",
+                      "on-tertiary-fixed": "#131e17",
+                      "inverse-on-surface": "#e8f4e4",
+                      "on-error": "#ffffff",
+                      "tertiary-fixed": "#d9e6da",
+                      "inverse-surface": "#293328",
+                      "error-container": "#ffdad6",
+                      "background": "#f1fdec",
+                      "secondary-container": "#91f78e",
+                      "on-primary-container": "#cbffc2",
+                      "primary-fixed-dim": "#88d982",
+                      "surface-container-highest": "#dae6d6"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.25rem",
+                      "lg": "0.5rem",
+                      "xl": "0.75rem",
+                      "full": "9999px"
+              },
+              "spacing": {
+                      "base": "4px",
+                      "sm": "12px",
+                      "xl": "32px",
+                      "xs": "8px",
+                      "container-padding": "20px",
+                      "touch-target-min": "44px",
+                      "lg": "24px",
+                      "md": "16px"
+              },
+              "fontFamily": {
+                      "headline-lg": [
+                              "Inter"
+                      ],
+                      "display-metrics": [
+                              "Inter"
+                      ],
+                      "headline-lg-mobile": [
+                              "Inter"
+                      ],
+                      "body-lg": [
+                              "Inter"
+                      ],
+                      "label-caps": [
+                              "Inter"
+                      ],
+                      "body-sm": [
+                              "Inter"
+                      ],
+                      "headline-md": [
+                              "Inter"
+                      ]
+              },
+              "fontSize": {
+                      "headline-lg": [
+                              "32px",
+                              {
+                                      "lineHeight": "40px",
+                                      "letterSpacing": "-0.01em",
+                                      "fontWeight": "700"
+                              }
+                      ],
+                      "display-metrics": [
+                              "48px",
+                              {
+                                      "lineHeight": "56px",
+                                      "letterSpacing": "-0.02em",
+                                      "fontWeight": "700"
+                              }
+                      ],
+                      "headline-lg-mobile": [
+                              "28px",
+                              {
+                                      "lineHeight": "34px",
+                                      "fontWeight": "700"
+                              }
+                      ],
+                      "body-lg": [
+                              "16px",
+                              {
+                                      "lineHeight": "24px",
+                                      "fontWeight": "400"
+                              }
+                      ],
+                      "label-caps": [
+                              "12px",
+                              {
+                                      "lineHeight": "16px",
+                                      "letterSpacing": "0.05em",
+                                      "fontWeight": "600"
+                              }
+                      ],
+                      "body-sm": [
+                              "14px",
+                              {
+                                      "lineHeight": "20px",
+                                      "fontWeight": "400"
+                              }
+                      ],
+                      "headline-md": [
+                              "20px",
+                              {
+                                      "lineHeight": "28px",
+                                      "fontWeight": "600"
+                              }
+                      ]
+              }
+            },
+          }
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .material-symbols-outlined[data-weight="fill"] {
+            font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        
+        /* Subtle chart animations */
+        @keyframes drawLine {
+            to { stroke-dashoffset: 0; }
+        }
+        .path-animate {
+            stroke-dasharray: 1000;
+            stroke-dashoffset: 1000;
+            animation: drawLine 1.5s ease-out forwards;
+        }
+    </style>
+</head>
+<body class="bg-background text-on-background font-body-lg min-h-screen pb-[100px] flex flex-col mx-auto max-w-md antialiased selection:bg-primary-container selection:text-on-primary-container">
+<!-- TopAppBar -->
+<header class="bg-surface docked full-width top-0 z-40 sticky">
+<div class="flex justify-between items-center px-container-padding h-touch-target-min w-full max-w-md mx-auto flat no shadows">
+<button aria-label="Location" class="text-primary hover:opacity-80 transition-opacity scale-95 active:transition-transform p-2 -ml-2">
+<span class="material-symbols-outlined">location_on</span>
+</button>
+<h1 class="font-headline-md text-headline-md-mobile text-primary tracking-tight">ZeroEmit</h1>
+<button aria-label="Account" class="text-primary hover:opacity-80 transition-opacity scale-95 active:transition-transform p-2 -mr-2">
+<span class="material-symbols-outlined">account_circle</span>
+</button>
+</div>
+</header>
+<!-- Main Content -->
+<main class="flex-1 px-container-padding pt-md pb-xl flex flex-col gap-md">
+<!-- Header Section -->
+<section class="mb-xs">
+<h2 class="font-headline-lg-mobile text-headline-lg-mobile text-on-surface mb-xs">Your Impact</h2>
+<p class="font-body-sm text-body-sm text-on-surface-variant">Review your contribution to a cleaner grid.</p>
+</section>
+<!-- Bento Grid: Main Stats -->
+<section class="grid grid-cols-2 gap-md">
+<!-- CO2 Saved -->
+<div class="col-span-2 bg-surface-container-lowest rounded-xl p-md shadow-[0px_4px_20px_rgba(23,33,23,0.04)] border border-surface-variant border-opacity-30 relative overflow-hidden flex flex-col justify-between min-h-[140px]">
+<div class="absolute top-0 right-0 p-md opacity-10 text-primary">
+<span class="material-symbols-outlined text-[80px]" data-weight="fill">co2</span>
+</div>
+<div>
+<h3 class="font-label-caps text-label-caps text-on-surface-variant mb-base">Total CO₂ Saved</h3>
+<div class="font-display-metrics text-display-metrics text-primary flex items-baseline gap-2">
+                        14.8 <span class="font-headline-md text-headline-md text-on-surface-variant">kg</span>
+</div>
+</div>
+<div class="flex items-center gap-2 mt-sm text-secondary">
+<span class="material-symbols-outlined text-sm">trending_up</span>
+<span class="font-body-sm text-body-sm">+24% cleaner charging vs last month</span>
+</div>
+</div>
+<!-- Sessions -->
+<div class="bg-surface-container-lowest rounded-xl p-md shadow-[0px_4px_20px_rgba(23,33,23,0.04)] flex flex-col justify-between">
+<div class="flex items-center justify-between mb-sm">
+<h3 class="font-label-caps text-label-caps text-on-surface-variant">Sessions</h3>
+<div class="w-8 h-8 rounded-full bg-primary bg-opacity-10 flex items-center justify-center text-primary">
+<span class="material-symbols-outlined text-[16px]">ev_station</span>
+</div>
+</div>
+<div class="font-headline-md text-headline-md text-on-surface">24</div>
+</div>
+<!-- Points -->
+<div class="bg-surface-container-lowest rounded-xl p-md shadow-[0px_4px_20px_rgba(23,33,23,0.04)] flex flex-col justify-between">
+<div class="flex items-center justify-between mb-sm">
+<h3 class="font-label-caps text-label-caps text-on-surface-variant">Points</h3>
+<div class="w-8 h-8 rounded-full bg-secondary bg-opacity-10 flex items-center justify-center text-secondary">
+<span class="material-symbols-outlined text-[16px]" data-weight="fill">stars</span>
+</div>
+</div>
+<div class="font-headline-md text-headline-md text-on-surface">2,480</div>
+</div>
+<!-- Avg Intensity -->
+<div class="col-span-2 bg-surface-container-lowest rounded-xl p-md shadow-[0px_4px_20px_rgba(23,33,23,0.04)] flex items-center justify-between">
+<div>
+<h3 class="font-label-caps text-label-caps text-on-surface-variant mb-base">Avg. Carbon Intensity</h3>
+<div class="font-headline-md text-headline-md text-on-surface flex items-baseline gap-1">
+                        156 <span class="font-body-sm text-body-sm text-on-surface-variant font-normal">gCO₂/kWh</span>
+</div>
+</div>
+<div class="h-12 w-24">
+<svg class="w-full h-full overflow-visible" viewbox="0 0 100 40">
+<path class="text-secondary path-animate" d="M0 30 Q 25 10, 50 20 T 100 5" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="2"></path>
+</svg>
+</div>
+</div>
+</section>
+<!-- Charts Section: Weekly Savings -->
+<section class="bg-surface-container-lowest rounded-xl p-md shadow-[0px_4px_20px_rgba(23,33,23,0.04)]">
+<div class="flex justify-between items-end mb-lg">
+<h3 class="font-headline-md text-headline-md text-on-surface">Weekly Savings</h3>
+<select class="bg-transparent border-none text-primary font-body-sm text-body-sm focus:ring-0 p-0 pr-4">
+<option>This Week</option>
+<option>Last Week</option>
+</select>
+</div>
+<!-- Simplified Bar Chart Representation -->
+<div class="h-48 flex items-end justify-between gap-2 mt-4 relative pb-6 border-b border-outline-variant border-opacity-20">
+<!-- Grid Lines -->
+<div class="absolute w-full top-0 border-t border-outline-variant border-opacity-10"></div>
+<div class="absolute w-full top-1/2 border-t border-outline-variant border-opacity-10"></div>
+<!-- Bars -->
+<div class="w-full bg-primary bg-opacity-20 rounded-t-sm h-[30%] relative group">
+<div class="absolute -bottom-6 left-1/2 -translate-x-1/2 font-label-caps text-[10px] text-on-surface-variant">M</div>
+</div>
+<div class="w-full bg-primary bg-opacity-20 rounded-t-sm h-[50%] relative group">
+<div class="absolute -bottom-6 left-1/2 -translate-x-1/2 font-label-caps text-[10px] text-on-surface-variant">T</div>
+</div>
+<div class="w-full bg-primary rounded-t-sm h-[80%] relative group shadow-[0_0_10px_rgba(13,99,27,0.3)]">
+<div class="absolute -top-8 left-1/2 -translate-x-1/2 bg-surface text-primary font-label-caps text-[10px] px-2 py-1 rounded shadow-sm opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">3.2 kg</div>
+<div class="absolute -bottom-6 left-1/2 -translate-x-1/2 font-label-caps text-[10px] text-primary font-bold">W</div>
+</div>
+<div class="w-full bg-primary bg-opacity-20 rounded-t-sm h-[40%] relative group">
+<div class="absolute -bottom-6 left-1/2 -translate-x-1/2 font-label-caps text-[10px] text-on-surface-variant">T</div>
+</div>
+<div class="w-full bg-primary bg-opacity-20 rounded-t-sm h-[60%] relative group">
+<div class="absolute -bottom-6 left-1/2 -translate-x-1/2 font-label-caps text-[10px] text-on-surface-variant">F</div>
+</div>
+<div class="w-full bg-primary bg-opacity-20 rounded-t-sm h-[20%] relative group">
+<div class="absolute -bottom-6 left-1/2 -translate-x-1/2 font-label-caps text-[10px] text-on-surface-variant">S</div>
+</div>
+<div class="w-full bg-primary bg-opacity-20 rounded-t-sm h-[35%] relative group">
+<div class="absolute -bottom-6 left-1/2 -translate-x-1/2 font-label-caps text-[10px] text-on-surface-variant">S</div>
+</div>
+</div>
+</section>
+</main>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-0 left-0 w-full z-50 flex justify-around items-center h-[84px] pb-safe px-4 bg-surface shadow-[0px_-4px_20px_rgba(23,33,23,0.04)] rounded-t-xl md:hidden">
+<button aria-label="Home" class="flex flex-col items-center justify-center text-on-surface-variant hover:text-primary transition-colors active:scale-90 transition-all duration-200 min-w-[64px]">
+<span class="material-symbols-outlined mb-1">home</span>
+<span class="font-label-caps text-[10px] tracking-wide">Home</span>
+</button>
+<button aria-label="Forecast" class="flex flex-col items-center justify-center text-on-surface-variant hover:text-primary transition-colors active:scale-90 transition-all duration-200 min-w-[64px]">
+<span class="material-symbols-outlined mb-1">query_stats</span>
+<span class="font-label-caps text-[10px] tracking-wide">Forecast</span>
+</button>
+<button aria-current="page" aria-label="Log" class="flex flex-col items-center justify-center text-primary relative after:content-[''] after:w-1 after:h-1 after:bg-primary after:rounded-full after:mt-1 hover:text-primary transition-colors active:scale-90 transition-all duration-200 min-w-[64px]">
+<span class="material-symbols-outlined mb-1" data-weight="fill">history</span>
+<span class="font-label-caps text-[10px] tracking-wide">Log</span>
+</button>
+<button aria-label="Rewards" class="flex flex-col items-center justify-center text-on-surface-variant hover:text-primary transition-colors active:scale-90 transition-all duration-200 min-w-[64px]">
+<span class="material-symbols-outlined mb-1">workspace_premium</span>
+<span class="font-label-caps text-[10px] tracking-wide">Rewards</span>
+</button>
+<button aria-label="Profile" class="flex flex-col items-center justify-center text-on-surface-variant hover:text-primary transition-colors active:scale-90 transition-all duration-200 min-w-[64px]">
+<span class="material-symbols-outlined mb-1">person</span>
+<span class="font-label-caps text-[10px] tracking-wide">Profile</span>
+</button>
+</nav>
+</body></html>

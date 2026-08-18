@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>ZeroEmit - Eco Leaderboard</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "secondary": "#006e1c",
+                    "surface-variant": "#dae6d6",
+                    "primary-container": "#2e7d32",
+                    "surface-tint": "#1b6d24",
+                    "surface-dim": "#d1ddcd",
+                    "secondary-fixed": "#94f990",
+                    "on-secondary-fixed": "#002204",
+                    "surface-container": "#e5f1e1",
+                    "primary": "#0d631b",
+                    "on-surface": "#141e14",
+                    "on-primary": "#ffffff",
+                    "surface-container-low": "#ebf7e7",
+                    "on-tertiary-fixed-variant": "#3e4a41",
+                    "secondary-fixed-dim": "#78dc77",
+                    "outline-variant": "#bfcaba",
+                    "on-background": "#141e14",
+                    "on-primary-fixed-variant": "#005312",
+                    "on-tertiary": "#ffffff",
+                    "on-secondary-container": "#00731e",
+                    "outline": "#707a6c",
+                    "on-tertiary-container": "#e8f5e9",
+                    "inverse-primary": "#88d982",
+                    "on-primary-fixed": "#002204",
+                    "on-secondary-fixed-variant": "#005313",
+                    "tertiary": "#4d5950",
+                    "on-surface-variant": "#40493d",
+                    "error": "#ba1a1a",
+                    "tertiary-container": "#657167",
+                    "tertiary-fixed-dim": "#bdcabe",
+                    "surface-container-lowest": "#ffffff",
+                    "surface": "#f1fdec",
+                    "primary-fixed": "#a3f69c",
+                    "on-error-container": "#93000a",
+                    "on-secondary": "#ffffff",
+                    "surface-bright": "#f1fdec",
+                    "surface-container-high": "#e0ecdb",
+                    "on-tertiary-fixed": "#131e17",
+                    "inverse-on-surface": "#e8f4e4",
+                    "on-error": "#ffffff",
+                    "tertiary-fixed": "#d9e6da",
+                    "inverse-surface": "#293328",
+                    "error-container": "#ffdad6",
+                    "background": "#f1fdec",
+                    "secondary-container": "#91f78e",
+                    "on-primary-container": "#cbffc2",
+                    "primary-fixed-dim": "#88d982",
+                    "surface-container-highest": "#dae6d6"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.25rem",
+                    "lg": "0.5rem",
+                    "xl": "0.75rem",
+                    "full": "9999px"
+            },
+            "spacing": {
+                    "base": "4px",
+                    "sm": "12px",
+                    "xl": "32px",
+                    "xs": "8px",
+                    "container-padding": "20px",
+                    "touch-target-min": "44px",
+                    "lg": "24px",
+                    "md": "16px"
+            },
+            "fontFamily": {
+                    "headline-lg": ["Inter"],
+                    "display-metrics": ["Inter"],
+                    "headline-lg-mobile": ["Inter"],
+                    "body-lg": ["Inter"],
+                    "label-caps": ["Inter"],
+                    "body-sm": ["Inter"],
+                    "headline-md": ["Inter"]
+            },
+            "fontSize": {
+                    "headline-lg": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.01em", "fontWeight": "700"}],
+                    "display-metrics": ["48px", {"lineHeight": "56px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                    "headline-lg-mobile": ["28px", {"lineHeight": "34px", "fontWeight": "700"}],
+                    "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                    "label-caps": ["12px", {"lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600"}],
+                    "body-sm": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                    "headline-md": ["20px", {"lineHeight": "28px", "fontWeight": "600"}]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        body {
+            background-color: theme('colors.background');
+            color: theme('colors.on-background');
+            -webkit-font-smoothing: antialiased;
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .material-symbols-outlined.fill {
+            font-variation-settings: 'FILL' 1;
+        }
+        
+        /* Subtle texture for top 3 cards */
+        .glass-card {
+            background: linear-gradient(145deg, rgba(255,255,255,1) 0%, rgba(255,255,255,0.8) 100%);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.5);
+            box-shadow: 0px 4px 20px rgba(23, 33, 23, 0.04);
+        }
+        
+        /* Specific glowing effect for current user */
+        .user-highlight-card {
+            background: linear-gradient(135deg, theme('colors.primary-fixed') 0%, theme('colors.surface-container') 100%);
+            border: 1px solid theme('colors.primary');
+            box-shadow: 0px 8px 24px rgba(13, 99, 27, 0.15);
+            position: relative;
+            overflow: hidden;
+        }
+        .user-highlight-card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: -100%;
+            width: 50%; height: 100%;
+            background: linear-gradient(to right, transparent, rgba(255,255,255,0.4), transparent);
+            transform: skewX(-20deg);
+            animation: shine 3s infinite;
+        }
+        @keyframes shine {
+            0% { left: -100%; }
+            20% { left: 200%; }
+            100% { left: 200%; }
+        }
+    </style>
+</head>
+<body class="pb-[100px] md:pb-0">
+<!-- TopAppBar -->
+<header class="bg-surface docked full-width top-0 flat no shadows flex justify-between items-center px-container-padding h-touch-target-min w-full max-w-md mx-auto sticky z-40 md:max-w-full md:px-8">
+<button class="text-on-surface-variant hover:opacity-80 transition-opacity scale-95 active:transition-transform md:hidden">
+<span class="material-symbols-outlined">location_on</span>
+</button>
+<div class="hidden md:flex items-center text-on-surface-variant gap-2 font-body-sm">
+<span class="material-symbols-outlined text-[18px]">location_on</span>
+<span>Seattle, WA</span>
+</div>
+<h1 class="font-headline-md text-headline-md-mobile text-primary tracking-tight">ZeroEmit</h1>
+<button class="text-on-surface-variant hover:opacity-80 transition-opacity scale-95 active:transition-transform md:hidden">
+<span class="material-symbols-outlined">account_circle</span>
+</button>
+<!-- Desktop Nav Items -->
+<nav class="hidden md:flex items-center gap-6">
+<a class="text-on-surface-variant hover:text-primary transition-colors font-label-caps text-label-caps flex items-center gap-2" href="#">
+<span class="material-symbols-outlined text-[20px]">home</span> Home
+            </a>
+<a class="text-on-surface-variant hover:text-primary transition-colors font-label-caps text-label-caps flex items-center gap-2" href="#">
+<span class="material-symbols-outlined text-[20px]">query_stats</span> Forecast
+            </a>
+<a class="text-on-surface-variant hover:text-primary transition-colors font-label-caps text-label-caps flex items-center gap-2" href="#">
+<span class="material-symbols-outlined text-[20px]">history</span> Log
+            </a>
+<a class="text-primary flex items-center gap-2 font-label-caps text-label-caps border-b-2 border-primary pb-1" href="#">
+<span class="material-symbols-outlined fill text-[20px]">workspace_premium</span> Rewards
+            </a>
+<button class="text-on-surface-variant hover:text-primary transition-colors ml-4">
+<span class="material-symbols-outlined text-[24px]">account_circle</span>
+</button>
+</nav>
+</header>
+<main class="max-w-md mx-auto px-container-padding pt-6 md:max-w-3xl lg:max-w-5xl">
+<div class="mb-8 text-center md:text-left">
+<h2 class="font-headline-lg-mobile text-headline-lg-mobile md:font-headline-lg md:text-headline-lg text-on-surface mb-2">Eco Leaderboard</h2>
+<p class="font-body-sm text-body-sm text-on-surface-variant">See how your sustainable actions stack up against the community.</p>
+</div>
+<!-- Motivation Card -->
+<div class="bg-surface-container rounded-xl p-md mb-8 flex items-start gap-4 border border-outline-variant/30">
+<div class="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-primary text-[24px]">trending_up</span>
+</div>
+<div>
+<h3 class="font-headline-md text-headline-md text-on-surface mb-1">Almost there, Yatin!</h3>
+<p class="font-body-sm text-body-sm text-on-surface-variant">You're only <strong class="text-primary font-semibold">280 points</strong> away from taking the #1 spot this week. Keep up the green energy usage!</p>
+</div>
+</div>
+<!-- Tabs -->
+<div class="flex bg-surface-container-high rounded-lg p-1 mb-6">
+<button class="flex-1 py-2 px-4 rounded-md bg-white shadow-sm font-label-caps text-label-caps text-primary text-center">Weekly</button>
+<button class="flex-1 py-2 px-4 rounded-md font-label-caps text-label-caps text-on-surface-variant text-center hover:bg-white/50 transition-colors">Monthly</button>
+<button class="flex-1 py-2 px-4 rounded-md font-label-caps text-label-caps text-on-surface-variant text-center hover:bg-white/50 transition-colors">All Time</button>
+</div>
+<!-- Top 3 Podium (Bento Grid Style for Desktop, Stacked on Mobile) -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+<!-- Rank 2 (Current User) -->
+<div class="user-highlight-card rounded-xl p-lg flex flex-col items-center justify-center text-center order-1 md:order-2 md:-mt-4 md:mb-4 z-10 shadow-lg relative">
+<div class="absolute top-2 right-2 bg-primary text-white text-[10px] font-bold px-2 py-1 rounded-full uppercase tracking-wider">You</div>
+<div class="w-16 h-16 rounded-full bg-white flex items-center justify-center mb-3 shadow-sm border-2 border-primary">
+<img class="w-full h-full rounded-full object-cover" data-alt="A clean, minimalist 3D avatar of a professional young man named Yatin. Soft studio lighting, light mode aesthetic, subtle green accents to imply sustainability." src="https://lh3.googleusercontent.com/aida-public/AB6AXuB_2gHX0e7Os8KzdE8YiDBaPhYGM3ZDBgr6oxenFXPB3WqnzgiRkFHHegTYOaaG0fylJNklYfG9m3baEvqem5S90MryK_5hTTFIIilAj28EN_ezVx6nYhQR4xD-8kYZEGJNyfsjd3P01JbQyNjuePw2B5t8qVjZQb6p1fsmQBOGYo2kqVO8Deunytx7HpfUBjoNGnyNYsAqKigxlwldKW2SCQzrxP9Wy4uhKNrQMpSU2bGi9HMg_oYHqg"/>
+</div>
+<div class="flex items-center justify-center w-8 h-8 rounded-full bg-surface-container-high text-on-surface font-bold text-sm absolute -top-3 shadow-md border border-white">
+                    #2
+                </div>
+<h3 class="font-headline-md text-headline-md text-on-surface">Yatin</h3>
+<div class="flex items-center gap-1 mt-1 text-primary">
+<span class="material-symbols-outlined text-[16px] fill">energy_savings_leaf</span>
+<span class="font-headline-md text-headline-md">3,540</span>
+</div>
+</div>
+<!-- Rank 1 -->
+<div class="glass-card rounded-xl p-md flex md:flex-col items-center md:justify-center text-left md:text-center order-2 md:order-1 relative">
+<div class="flex items-center justify-center w-8 h-8 rounded-full bg-[#FFD700] text-amber-900 font-bold text-sm md:absolute md:-top-3 shadow-md mr-4 md:mr-0">
+                    #1
+                </div>
+<div class="w-12 h-12 md:w-14 md:h-14 rounded-full bg-surface-container-low flex items-center justify-center md:mb-3 mr-4 md:mr-0 overflow-hidden border border-outline-variant/20">
+<img class="w-full h-full object-cover" data-alt="A clean, minimalist 3D avatar of a professional young man named Arjun. Soft studio lighting, light mode aesthetic, subtle green accents to imply sustainability." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBgap9yeto0UHGT1RXT997uRcSmXlojPYbxogh75fs_aUoh3eCSps9rOG12QoxdmcUYGRwYdkk9cHw6fyEd4S__GiZacce4e6ktwUT2K9CoDSb7zpA4ClxCzhGHSuaejDxoF-QU2vz2m72ev6PJwt931RGEPxn3P0mJm6Tg9W8I6XKsBNFZnlSEbA3myidsRkWeUEJxhsfSLKYtgkOmPravQLC0rw3T4frvD4uj0IE0oRhMQrmrA7l4Xw"/>
+</div>
+<div class="flex-1 md:flex-none">
+<h3 class="font-body-lg text-body-lg font-semibold text-on-surface">Arjun</h3>
+<div class="flex items-center gap-1 text-on-surface-variant md:justify-center">
+<span class="material-symbols-outlined text-[14px]">energy_savings_leaf</span>
+<span class="font-body-sm text-body-sm font-medium">3,820</span>
+</div>
+</div>
+</div>
+<!-- Rank 3 -->
+<div class="glass-card rounded-xl p-md flex md:flex-col items-center md:justify-center text-left md:text-center order-3 md:order-3 relative">
+<div class="flex items-center justify-center w-8 h-8 rounded-full bg-[#CD7F32] text-orange-950 font-bold text-sm md:absolute md:-top-3 shadow-md mr-4 md:mr-0">
+                    #3
+                </div>
+<div class="w-12 h-12 md:w-14 md:h-14 rounded-full bg-surface-container-low flex items-center justify-center md:mb-3 mr-4 md:mr-0 overflow-hidden border border-outline-variant/20">
+<img class="w-full h-full object-cover" data-alt="A clean, minimalist 3D avatar of a professional young woman named Priya. Soft studio lighting, light mode aesthetic, subtle green accents to imply sustainability." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAhpTQ9zZYTc0X1la9hm634AwL4KMxkW4khBLuM6omrHGC09oeKYHd9_r1UoZ1TO757wmcVSJP3HpYcmmTODzMSNdEpSyuk8iCNwmmngkjzSmwhD_pAvxK9-b9zSmM6mwCKEbmt3HjCFhbN7nV3osfZUa55eROi_GDh8WOrsh_J99aeRqFxo3ys7CT8PtmaKUsWUeUQj66eYMTPnZe32DOwwzJwKy-6DMLos6Rb0pdWm7YjIAIhDnt3tQ"/>
+</div>
+<div class="flex-1 md:flex-none">
+<h3 class="font-body-lg text-body-lg font-semibold text-on-surface">Priya</h3>
+<div class="flex items-center gap-1 text-on-surface-variant md:justify-center">
+<span class="material-symbols-outlined text-[14px]">energy_savings_leaf</span>
+<span class="font-body-sm text-body-sm font-medium">3,210</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Remaining List -->
+<div class="bg-white rounded-xl shadow-[0px_4px_20px_rgba(23,33,23,0.04)] p-2 mb-8">
+<!-- List Item 4 -->
+<div class="flex items-center p-sm border-b border-surface-variant last:border-0 hover:bg-surface-container-lowest transition-colors rounded-lg">
+<span class="font-body-sm text-body-sm text-on-surface-variant font-medium w-8 text-center">4</span>
+<div class="w-10 h-10 rounded-full bg-surface-container flex items-center justify-center mx-3 overflow-hidden text-primary font-bold">
+                    S
+                </div>
+<span class="font-body-lg text-body-lg text-on-surface flex-1">Sarah</span>
+<div class="flex items-center gap-1 text-on-surface-variant">
+<span class="font-body-sm text-body-sm">3,050</span>
+<span class="material-symbols-outlined text-[16px]">eco</span>
+</div>
+</div>
+<!-- List Item 5 -->
+<div class="flex items-center p-sm border-b border-surface-variant last:border-0 hover:bg-surface-container-lowest transition-colors rounded-lg">
+<span class="font-body-sm text-body-sm text-on-surface-variant font-medium w-8 text-center">5</span>
+<div class="w-10 h-10 rounded-full bg-surface-container flex items-center justify-center mx-3 overflow-hidden text-primary font-bold">
+                    M
+                </div>
+<span class="font-body-lg text-body-lg text-on-surface flex-1">Michael</span>
+<div class="flex items-center gap-1 text-on-surface-variant">
+<span class="font-body-sm text-body-sm">2,900</span>
+<span class="material-symbols-outlined text-[16px]">eco</span>
+</div>
+</div>
+</div>
+</main>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-0 left-0 w-full z-50 flex justify-around items-center h-[84px] pb-safe px-4 bg-surface dark:bg-surface-container shadow-[0px_-4px_20px_rgba(23,33,23,0.04)] rounded-t-xl md:hidden">
+<a class="flex flex-col items-center justify-center text-on-surface-variant dark:text-outline hover:text-primary transition-colors active:scale-90 duration-200 w-16 h-full pt-2" href="#">
+<span class="material-symbols-outlined mb-1">home</span>
+<span class="font-label-caps text-label-caps">Home</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant dark:text-outline hover:text-primary transition-colors active:scale-90 duration-200 w-16 h-full pt-2" href="#">
+<span class="material-symbols-outlined mb-1">query_stats</span>
+<span class="font-label-caps text-label-caps">Forecast</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant dark:text-outline hover:text-primary transition-colors active:scale-90 duration-200 w-16 h-full pt-2" href="#">
+<span class="material-symbols-outlined mb-1">history</span>
+<span class="font-label-caps text-label-caps">Log</span>
+</a>
+<a class="flex flex-col items-center justify-center text-primary dark:text-primary-fixed relative after:content-[''] after:w-1 after:h-1 after:bg-primary after:rounded-full after:mt-1 hover:text-primary transition-colors active:scale-90 duration-200 w-16 h-full pt-2" href="#">
+<span class="material-symbols-outlined fill mb-1">workspace_premium</span>
+<span class="font-label-caps text-label-caps">Rewards</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant dark:text-outline hover:text-primary transition-colors active:scale-90 duration-200 w-16 h-full pt-2" href="#">
+<span class="material-symbols-outlined mb-1">person</span>
+<span class="font-label-caps text-label-caps">Profile</span>
+</a>
+</nav>
+</body></html>
