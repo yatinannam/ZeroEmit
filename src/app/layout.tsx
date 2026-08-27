@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { PwaRegister } from "./components/pwa-register";
 
@@ -7,9 +7,12 @@ export const metadata: Metadata = {
   description: "Plan your EV charging around a cleaner grid.",
   applicationName: "ZeroEmit",
   manifest: "/manifest.webmanifest",
-  themeColor: "#f1fdec",
   icons: { icon: "/icons/zeroemit.svg", apple: "/icons/zeroemit.svg" },
   appleWebApp: { capable: true, statusBarStyle: "default", title: "ZeroEmit" },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#f1fdec",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

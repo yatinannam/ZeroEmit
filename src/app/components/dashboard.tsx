@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { bestWindow, formatHour, type City } from "../lib/grid";
+import { bestWindow, formatHour, type City, readStoredLocation } from "../lib/grid";
 import { useGridData } from "./use-grid-data";
 import { useCharges } from "./use-charges";
 
@@ -21,7 +21,7 @@ function BottomNav() {
 }
 
 export function Dashboard() {
-  const [location, setLocation] = useState<City>(() => { const saved = typeof window === "undefined" ? null : window.localStorage.getItem("zeroemit-location"); return saved === "Bengaluru, India" || saved === "Mumbai, India" ? saved : "Chennai, India"; });
+  const [location, setLocation] = useState<City>(readStoredLocation);
   const [locationOpen, setLocationOpen] = useState(false);
   const { data, loading, error, refresh } = useGridData(location);
   const { charges } = useCharges();
@@ -29,7 +29,7 @@ export function Dashboard() {
   const current = data?.available ? data.current : undefined;
   const recommendedWindow = data?.available ? bestWindow(data.forecast, 2) : null;
   function chooseLocation(next: City) { setLocation(next); globalThis.localStorage.setItem("zeroemit-location", next); setLocationOpen(false); }
-  return <div className="mobile-app">
+  return <div className="mobile-app" suppressHydrationWarning>
     <header className="top-app-bar"><button aria-label="Choose location" onClick={() => setLocationOpen(true)}><Icon name="pin"/></button><strong>ZeroEmit</strong><Link aria-label="Profile" href="/profile"><Icon name="user"/></Link></header>
     <main className="dashboard-content">
       <section className="greeting"><button className="location-label location-button" onClick={() => setLocationOpen(true)}><Icon name="pin" size={16}/> {location}</button><h1>Good morning</h1></section>
