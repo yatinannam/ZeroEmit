@@ -1,38 +1,30 @@
 "use client";
 import { useCallback, useSyncExternalStore } from "react";
+import { createLocalStorageStore } from "./local-storage-store";
 
 export type Charge = { id: string; energyKwh: number; chargedAt: string; city: string; carbonIntensity: number | null; loggedAt: string };
 const STORAGE_KEY = "zeroemit-charges";
 const EMPTY: Charge[] = [];
 
-const listeners = new Set<() => void>();
-function notify() { listeners.forEach((listener) => listener()); }
-function subscribe(listener: () => void) {
-  listeners.add(listener);
-  window.addEventListener("storage", listener);
-  return () => { listeners.delete(listener); window.removeEventListener("storage", listener); };
+// Charges saved before `loggedAt` existed don't have it. Backfill a sentinel
+// far-past date so streak/monthly-total date math treats them as "not
+// recent" instead of rendering "Invalid Date" or producing NaN.
+export const LEGACY_LOGGED_AT = new Date(0).toISOString();
+function normalizeCharge(raw: Charge): Charge {
+  return typeof raw.loggedAt === "string" && !Number.isNaN(Date.parse(raw.loggedAt)) ? raw : { ...raw, loggedAt: LEGACY_LOGGED_AT };
 }
 
-// useSyncExternalStore requires getSnapshot to return a referentially stable
-// value when nothing changed (otherwise it can loop). Cache the parsed array
-// against the raw string and only re-parse when the raw value actually changes.
-let cachedRaw: string | null = null;
-let cachedCharges: Charge[] = EMPTY;
-function getSnapshot(): Charge[] {
-  const raw = window.localStorage.getItem(STORAGE_KEY);
-  if (raw === cachedRaw) return cachedCharges;
-  cachedRaw = raw;
-  try { const value = JSON.parse(raw || "[]"); cachedCharges = Array.isArray(value) ? value : EMPTY; } catch { cachedCharges = EMPTY; }
-  return cachedCharges;
-}
-function getServerSnapshot(): Charge[] { return EMPTY; }
+const store = createLocalStorageStore<Charge[]>(
+  STORAGE_KEY,
+  (raw) => { const value = JSON.parse(raw); return Array.isArray(value) ? value.map(normalizeCharge) : EMPTY; },
+  (value) => JSON.stringify(value),
+  EMPTY,
+);
 
 export function useCharges() {
-  const charges = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
+  const charges = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getServerSnapshot);
   const addCharge = useCallback((charge: Omit<Charge, "id" | "loggedAt">) => {
-    const next = [{ ...charge, id: crypto.randomUUID(), loggedAt: new Date().toISOString() }, ...getSnapshot()];
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-    notify();
+    store.write([{ ...charge, id: crypto.randomUUID(), loggedAt: new Date().toISOString() }, ...store.getSnapshot()]);
   }, []);
   return { charges, addCharge };
 }

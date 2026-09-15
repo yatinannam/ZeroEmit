@@ -4,7 +4,7 @@ import Link from "next/link";
 import { FormEvent, useState } from "react";
 import { bestWindow, formatHour } from "../lib/grid";
 import { useGridData } from "./use-grid-data";
-import { useCharges } from "./use-charges";
+import { LEGACY_LOGGED_AT, useCharges } from "./use-charges";
 import { useProfile } from "./use-profile";
 import { useStoredLocation } from "./use-location";
 import { chargesInCurrentMonth, currentStreakDays, pointsToNextReward, totalPoints } from "../lib/rewards";
@@ -42,7 +42,7 @@ export function SecondaryScreen({ page }: { page: keyof typeof content }) {
   const cards = page === "forecast"
     ? (grid.data?.available ? [["Current intensity", `${Math.round(grid.data.current?.carbonIntensity || 0)} gCO₂/kWh`, grid.data.current?.isEstimated ? "Estimated · live provider" : "Live provider"], ["Best 2-hour window", bestWindow(grid.data.forecast, 2) ? `${formatHour(bestWindow(grid.data.forecast, 2)!.start.datetime)} – ${formatHour(bestWindow(grid.data.forecast, 2)!.end.datetime)}` : "No window available", "Calculated from the next 24 hours"]] : [["Current intensity", grid.loading ? "Loading…" : "Unavailable", grid.error || "Live provider data is required"], ["Best 2-hour window", "Unavailable", "Waiting for forecast data"]])
     : page === "log"
-    ? [["This month", monthCharges.length ? `${monthCharges.length} charge${monthCharges.length === 1 ? "" : "s"} · ${monthKwh.toFixed(1)} kWh` : "No data yet", monthCharges.length ? "Since the start of this month" : "Log your first charge"], ["Recent charge", charges[0] ? `${charges[0].energyKwh} kWh · ${charges[0].city}` : "No data yet", charges[0] ? `Logged ${new Date(charges[0].loggedAt).toLocaleDateString()}` : "Your history will appear here"]]
+    ? [["This month", monthCharges.length ? `${monthCharges.length} charge${monthCharges.length === 1 ? "" : "s"} · ${monthKwh.toFixed(1)} kWh` : "No data yet", monthCharges.length ? "Since the start of this month" : "Log your first charge"], ["Recent charge", charges[0] ? `${charges[0].energyKwh} kWh · ${charges[0].city}` : "No data yet", charges[0] ? (charges[0].loggedAt === LEGACY_LOGGED_AT ? "Logged before this update" : `Logged ${new Date(charges[0].loggedAt).toLocaleDateString()}`) : "Your history will appear here"]]
     : page === "rewards"
     ? [["Eco points", points ? String(points) : "No data yet", points ? "10 pts per charge, +5 for a green window" : "Log a charge to start"], ["Current streak", streak ? `${streak} day${streak === 1 ? "" : "s"}` : "No data yet", streak ? "Keep logging daily to grow it" : "Your streak starts today"]]
     : [["Name", profile.name || "Not set", "Tap edit profile to add your name"], ["Vehicle", profile.vehicle || "Not set", "Add your EV model"], ["Location", city, "Grid data is personalized"], ["Monthly impact", monthCharges.length ? `${monthKwh.toFixed(1)} kWh logged` : "No data yet", monthCharges.length ? "Since the start of this month" : "Log a charge to calculate impact"]];

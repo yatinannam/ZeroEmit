@@ -1,28 +1,20 @@
 "use client";
 import { useCallback, useSyncExternalStore } from "react";
+import { createLocalStorageStore } from "./local-storage-store";
 import { DEFAULT_CITY, type City } from "../lib/grid";
 
-const LOCATION_KEY = "zeroemit-location";
+const STORAGE_KEY = "zeroemit-location";
 
-const listeners = new Set<() => void>();
-function notify() { listeners.forEach((listener) => listener()); }
-function subscribe(listener: () => void) {
-  listeners.add(listener);
-  window.addEventListener("storage", listener);
-  return () => { listeners.delete(listener); window.removeEventListener("storage", listener); };
+function parseCity(raw: string): City {
+  return raw === "Bengaluru, India" || raw === "Mumbai, India" ? raw : DEFAULT_CITY;
 }
 
-function getSnapshot(): City {
-  const saved = window.localStorage.getItem(LOCATION_KEY);
-  return saved === "Bengaluru, India" || saved === "Mumbai, India" ? saved : DEFAULT_CITY;
-}
-function getServerSnapshot(): City { return DEFAULT_CITY; }
+// Stored as a plain string (not JSON) — parse/serialize are identity-ish
+// validation, matching the existing on-disk format for current users.
+const store = createLocalStorageStore<City>(STORAGE_KEY, parseCity, (city) => city, DEFAULT_CITY);
 
 export function useStoredLocation() {
-  const location = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
-  const setLocation = useCallback((next: City) => {
-    window.localStorage.setItem(LOCATION_KEY, next);
-    notify();
-  }, []);
+  const location = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getServerSnapshot);
+  const setLocation = useCallback((next: City) => store.write(next), []);
   return [location, setLocation] as const;
 }
