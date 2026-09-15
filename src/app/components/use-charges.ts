@@ -1,11 +1,38 @@
 "use client";
-import { useState } from "react";
+import { useCallback, useSyncExternalStore } from "react";
 
-export type Charge = { id: string; energyKwh: number; chargedAt: string; city: string; carbonIntensity: number | null };
+export type Charge = { id: string; energyKwh: number; chargedAt: string; city: string; carbonIntensity: number | null; loggedAt: string };
 const STORAGE_KEY = "zeroemit-charges";
-function readCharges(): Charge[] { if (typeof window === "undefined") return []; try { const value = JSON.parse(window.localStorage.getItem(STORAGE_KEY) || "[]"); return Array.isArray(value) ? value : []; } catch { return []; } }
+const EMPTY: Charge[] = [];
+
+const listeners = new Set<() => void>();
+function notify() { listeners.forEach((listener) => listener()); }
+function subscribe(listener: () => void) {
+  listeners.add(listener);
+  window.addEventListener("storage", listener);
+  return () => { listeners.delete(listener); window.removeEventListener("storage", listener); };
+}
+
+// useSyncExternalStore requires getSnapshot to return a referentially stable
+// value when nothing changed (otherwise it can loop). Cache the parsed array
+// against the raw string and only re-parse when the raw value actually changes.
+let cachedRaw: string | null = null;
+let cachedCharges: Charge[] = EMPTY;
+function getSnapshot(): Charge[] {
+  const raw = window.localStorage.getItem(STORAGE_KEY);
+  if (raw === cachedRaw) return cachedCharges;
+  cachedRaw = raw;
+  try { const value = JSON.parse(raw || "[]"); cachedCharges = Array.isArray(value) ? value : EMPTY; } catch { cachedCharges = EMPTY; }
+  return cachedCharges;
+}
+function getServerSnapshot(): Charge[] { return EMPTY; }
+
 export function useCharges() {
-  const [charges, setCharges] = useState<Charge[]>(readCharges);
-  function addCharge(charge: Omit<Charge, "id">) { const next = [{ ...charge, id: crypto.randomUUID() }, ...charges]; setCharges(next); window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next)); }
+  const charges = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
+  const addCharge = useCallback((charge: Omit<Charge, "id" | "loggedAt">) => {
+    const next = [{ ...charge, id: crypto.randomUUID(), loggedAt: new Date().toISOString() }, ...getSnapshot()];
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+    notify();
+  }, []);
   return { charges, addCharge };
 }
