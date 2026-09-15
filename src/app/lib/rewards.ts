@@ -1,12 +1,19 @@
 import type { Charge } from "../components/use-charges";
 
 export const POINTS_PER_CHARGE = 10;
-export const GREEN_CHARGE_THRESHOLD = 300; // gCO2/kWh — charging below this earns a bonus
+// Fallback only — used when a charge has no provider intensity_class (older
+// charges, or a provider that doesn't classify tiers). India's real grid
+// intensity commonly runs 650-800 gCO2/kWh with "yellow" starting around
+// 476 (observed from the live India Energy Atlas zone data this app uses),
+// so a fixed cutoff well below that approximates what "green" would mean.
+export const GREEN_CHARGE_FALLBACK_THRESHOLD = 450; // gCO2/kWh
 export const GREEN_CHARGE_BONUS = 5;
 export const POINTS_PER_REWARD = 200;
 
 export function pointsForCharge(charge: Charge): number {
-  const isGreen = charge.carbonIntensity !== null && charge.carbonIntensity <= GREEN_CHARGE_THRESHOLD;
+  const isGreen = charge.intensityClass
+    ? charge.intensityClass === "green"
+    : charge.carbonIntensity !== null && charge.carbonIntensity <= GREEN_CHARGE_FALLBACK_THRESHOLD;
   return POINTS_PER_CHARGE + (isGreen ? GREEN_CHARGE_BONUS : 0);
 }
 

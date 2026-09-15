@@ -20,6 +20,10 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: "#f1fdec",
+  // Without this, iOS Safari ignores env(safe-area-inset-*) entirely (they
+  // resolve to 0), so the bottom nav's safe-area padding — already written
+  // in globals.css — silently does nothing on notched/home-indicator iPhones.
+  viewportFit: "cover",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

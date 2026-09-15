@@ -10,7 +10,11 @@ cp .env.example .env.local
 bun dev
 ```
 
-Add `INDIA_ENERGY_ATLAS_API_KEY` to `.env.local` for state-level live intensity and 24-hour forecasts. The key is used only by the server route at `/api/grid`; it is never sent to the browser. The provider requires a plan that includes state forecasts. `ELECTRICITY_MAPS_API_KEY` is an optional, lower-precision regional fallback.
+Add `INDIA_ENERGY_ATLAS_API_KEY` to `.env.local` for live grid data. The key is used only by the server route at `/api/grid`; it is never sent to the browser.
+
+- **Current intensity** works on the free Sandbox tier via zone-level data (India's regional grids — Chennai and Bengaluru share the Southern zone, Mumbai is Western), falling back to the all-India aggregate if a zone lookup fails.
+- **24-hour forecasts** (used for "Best time to charge") require the Pro plan or above. On the free tier the app still shows a real, live current reading — it just can't compute a forecast-based window, and falls back to your own charging history for a personalized "usual window" instead.
+- `ELECTRICITY_MAPS_API_KEY` is an optional, lower-precision regional fallback (its free tier is limited to one zone per account).
 
 Without a configured provider, the app deliberately shows “Live data unavailable” instead of displaying fabricated values.
 
