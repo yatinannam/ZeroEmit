@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { City, GridData } from "../lib/grid";
 
 export function useGridData(city: City) {
@@ -8,9 +8,16 @@ export function useGridData(city: City) {
   const requestKey = `${city}:${requestVersion}`;
   const [completedKey, setCompletedKey] = useState("");
   const [error, setError] = useState("");
+  // Only an explicit refresh() should bypass HTTP caching — a plain mount or
+  // city change should let the browser reuse a recent response (the API
+  // route sets Cache-Control/s-maxage precisely so repeat navigations don't
+  // re-hit the rate-limited upstream provider on every page visit).
+  const forceRefresh = useRef(false);
   useEffect(() => {
     const controller = new AbortController();
-    fetch(`/api/grid?city=${encodeURIComponent(city)}`, { signal: controller.signal, cache: "no-store" }).then(async (response) => {
+    const force = forceRefresh.current;
+    forceRefresh.current = false;
+    fetch(`/api/grid?city=${encodeURIComponent(city)}`, { signal: controller.signal, cache: force ? "no-store" : "default" }).then(async (response) => {
       const result = await response.json() as GridData;
       if (!response.ok && !result.error) throw new Error("Live grid data is unavailable");
       setData(result);
@@ -19,5 +26,5 @@ export function useGridData(city: City) {
     }).catch((reason: unknown) => { if (reason instanceof DOMException && reason.name === "AbortError") return; setError("Live grid data is unavailable"); }).finally(() => { if (!controller.signal.aborted) setCompletedKey(requestKey); });
     return () => controller.abort();
   }, [city, requestKey]);
-  return { data, loading: completedKey !== requestKey, error, refresh: () => { setError(""); setRequestVersion((value) => value + 1); } };
+  return { data, loading: completedKey !== requestKey, error, refresh: () => { forceRefresh.current = true; setError(""); setRequestVersion((value) => value + 1); } };
 }
