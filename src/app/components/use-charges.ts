@@ -2,7 +2,7 @@
 import { useCallback, useSyncExternalStore } from "react";
 import { createLocalStorageStore } from "./local-storage-store";
 
-export type Charge = { id: string; energyKwh: number; chargedAt: string; city: string; carbonIntensity: number | null; loggedAt: string };
+export type Charge = { id: string; energyKwh: number; chargedAt: string; city: string; carbonIntensity: number | null; intensityClass?: string | null; loggedAt: string };
 const STORAGE_KEY = "zeroemit-charges";
 const EMPTY: Charge[] = [];
 
