@@ -1,14 +1,6 @@
 export type City = "Chennai, India" | "Bengaluru, India" | "Mumbai, India";
 
-const LOCATION_KEY = "zeroemit-location";
-
-// Reads the saved city without touching "window" during render, so SSR and the
-// first client paint render identical HTML (avoids React hydration mismatches).
-export function readStoredLocation(): City {
-  if (typeof window === "undefined") return "Chennai, India";
-  const saved = window.localStorage.getItem(LOCATION_KEY);
-  return saved === "Bengaluru, India" || saved === "Mumbai, India" ? saved : "Chennai, India";
-}
+export const DEFAULT_CITY: City = "Chennai, India";
 
 export const CITIES: Record<City, { state: string; lat: number; lon: number }> = {
   "Chennai, India": { state: "tamil-nadu", lat: 13.0827, lon: 80.2707 },

@@ -7,7 +7,14 @@ export const metadata: Metadata = {
   description: "Plan your EV charging around a cleaner grid.",
   applicationName: "ZeroEmit",
   manifest: "/manifest.webmanifest",
-  icons: { icon: "/icons/zeroemit.svg", apple: "/icons/zeroemit.svg" },
+  icons: {
+    icon: [
+      { url: "/icons/zeroemit.svg", type: "image/svg+xml" },
+      { url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icons/icon-512.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: { url: "/icons/apple-touch-icon-180.png", sizes: "180x180", type: "image/png" },
+  },
   appleWebApp: { capable: true, statusBarStyle: "default", title: "ZeroEmit" },
 };
 

@@ -14,6 +14,10 @@ Add `INDIA_ENERGY_ATLAS_API_KEY` to `.env.local` for state-level live intensity 
 
 Without a configured provider, the app deliberately shows “Live data unavailable” instead of displaying fabricated values.
 
+## Regenerating PWA icons
+
+`public/icons/zeroemit.svg` and `zeroemit-maskable.svg` are the source icons. Running `bun run icons` rasterizes them (via `sharp`) into the PNGs referenced by `app/manifest.ts` and `app/layout.tsx` (`icon-192.png`, `icon-512.png`, `icon-maskable-512.png`, `apple-touch-icon-180.png`) — a maskable icon is required for Android adaptive icons, and a PNG apple-touch-icon for iOS home-screen installs. Re-run this after editing either source SVG and commit the resulting PNGs.
+
 ## Production
 
 ```bash
