@@ -1,6 +1,9 @@
 import type { Metadata, Viewport } from "next";
+import { Inter } from "next/font/google";
 import "./globals.css";
 import { PwaRegister } from "./components/pwa-register";
+
+const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 
 export const metadata: Metadata = {
   title: "ZeroEmit — Charge cleaner",
@@ -27,5 +30,5 @@ export const viewport: Viewport = {
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
-  return <html lang="en"><body><PwaRegister />{children}</body></html>;
+  return <html lang="en" className={inter.variable}><body><PwaRegister />{children}</body></html>;
 }

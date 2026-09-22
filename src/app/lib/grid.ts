@@ -32,3 +32,12 @@ export function bestWindow(forecast: ForecastPoint[], hours = 2) {
 export function formatHour(datetime: string) {
   return new Intl.DateTimeFormat("en-IN", { hour: "numeric", minute: "2-digit" }).format(new Date(datetime));
 }
+
+// Splits out the am/pm so callers can render it smaller than the hour —
+// at the hero size the full locale string ("12:16 pm") is wide enough to wrap.
+export function formatHourParts(datetime: string) {
+  const parts = new Intl.DateTimeFormat("en-IN", { hour: "numeric", minute: "2-digit" }).formatToParts(new Date(datetime));
+  const time = parts.filter((part) => part.type !== "dayPeriod").map((part) => part.value).join("").trim();
+  const period = parts.find((part) => part.type === "dayPeriod")?.value ?? "";
+  return { time, period };
+}
