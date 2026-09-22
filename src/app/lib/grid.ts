@@ -12,7 +12,10 @@ export const CITIES: Record<City, { state: string; zone: string; lat: number; lo
 };
 
 export type ForecastPoint = { datetime: string; carbonIntensity: number };
-export type GridData = { available: boolean; city: City; current?: { carbonIntensity: number; datetime: string; isEstimated: boolean; intensityClass?: string }; forecast: ForecastPoint[]; updatedAt?: string; source: string; error?: string };
+// `forecastIsTypical` marks a forecast built from an average of real
+// historical readings per hour-of-day (used when a live forecast isn't
+// available, e.g. it needs a paid plan) rather than an actual live forecast.
+export type GridData = { available: boolean; city: City; current?: { carbonIntensity: number; datetime: string; isEstimated: boolean; intensityClass?: string }; forecast: ForecastPoint[]; forecastIsTypical?: boolean; updatedAt?: string; source: string; error?: string };
 
 export function bestWindow(forecast: ForecastPoint[], hours = 2) {
   if (forecast.length < hours) return null;

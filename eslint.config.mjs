@@ -17,6 +17,9 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Gitignored worktrees/scratch space other tooling (e.g. Kilo Code) may
+    // create inside this repo — not app code, shouldn't fail our lint gate.
+    ".kilo/**",
   ]),
 ]);
 
