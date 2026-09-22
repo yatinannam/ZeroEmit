@@ -5,14 +5,14 @@ import { pointsForCharge } from "../lib/rewards";
 import { averageEnergyKwh, typicalChargeTime } from "../lib/personalization";
 import { useGridData } from "./use-grid-data";
 import { LEGACY_LOGGED_AT, useCharges } from "./use-charges";
-import { useStoredLocation } from "./use-location";
+import { useLocationPicker } from "./use-location-picker";
 import { Icon } from "./icon-set";
 import { BottomNav, TopBar } from "./app-shell";
 import { LocationModal } from "./location-modal";
+import { PageHeader } from "./page-header";
 
 export function LogScreen() {
-  const [city, setCity] = useStoredLocation();
-  const [locationOpen, setLocationOpen] = useState(false);
+  const { location: city, locationOpen, openLocation, closeLocation, chooseLocation } = useLocationPicker();
   const [formOpen, setFormOpen] = useState(false);
   const [message, setMessage] = useState("");
   const grid = useGridData(city);
@@ -33,13 +33,9 @@ export function LogScreen() {
   }
 
   return <div className="mobile-app">
-    <TopBar onChooseLocation={() => setLocationOpen(true)}/>
+    <TopBar onChooseLocation={openLocation}/>
     <main className="dashboard-content">
-      <section className="page-header">
-        <p className="eyebrow">Charging history</p>
-        <h1>Your charging impact.</h1>
-        <p className="secondary-intro">Keep track of every charge and the emissions you avoided.</p>
-      </section>
+      <PageHeader eyebrow="Charging history" title="Your charging impact." intro="Keep track of every charge and the emissions you avoided."/>
 
       <button className="forecast-button action-button" onClick={() => setFormOpen(true)}>Log a charge <Icon name="arrow" size={18}/></button>
       {message && <p className="success-message" role="status">{message}</p>}
@@ -55,7 +51,7 @@ export function LogScreen() {
     </main>
     <BottomNav/>
 
-    {locationOpen && <LocationModal current={city} onClose={() => setLocationOpen(false)} onChoose={(next) => { setCity(next); setLocationOpen(false); }}/>}
+    {locationOpen && <LocationModal current={city} onClose={closeLocation} onChoose={chooseLocation}/>}
 
     {formOpen && <div className="modal-backdrop" role="presentation" onClick={() => setFormOpen(false)}>
       <form className="modal charge-form" onSubmit={submitCharge} onClick={(event) => event.stopPropagation()}>

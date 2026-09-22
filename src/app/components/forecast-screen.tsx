@@ -3,16 +3,18 @@
 import { useState } from "react";
 import { formatHour, relativeDayLabel, topWindows } from "../lib/grid";
 import { useGridData } from "./use-grid-data";
-import { useStoredLocation } from "./use-location";
+import { useLocationPicker } from "./use-location-picker";
+import { notificationsEnabled, requestNotificationPermission } from "./notifications";
 import { Icon } from "./icon-set";
 import { BottomNav, TopBar } from "./app-shell";
 import { LocationModal } from "./location-modal";
+import { PageHeader } from "./page-header";
 import { ForecastChart } from "./forecast-chart";
 
 export function ForecastScreen() {
-  const [location, setLocation] = useStoredLocation();
-  const [locationOpen, setLocationOpen] = useState(false);
+  const { location, locationOpen, openLocation, closeLocation, chooseLocation } = useLocationPicker();
   const [message, setMessage] = useState("");
+  const [notifsOn, setNotifsOn] = useState(() => notificationsEnabled());
   const { data, loading, error } = useGridData(location);
 
   const windows = data?.available ? topWindows(data.forecast, 2, 2) : [];
@@ -28,20 +30,15 @@ export function ForecastScreen() {
   }
 
   async function enableNotifications() {
-    if (!("Notification" in window)) { setMessage("This browser does not support notifications."); return; }
-    const permission = Notification.permission === "default" ? await Notification.requestPermission() : Notification.permission;
-    if (permission === "granted") { window.localStorage.setItem("zeroemit-reminder", "true"); setMessage("Notifications allowed on this device. Automatic charge-window alerts aren't available yet — check back here for the best time to charge."); }
-    else setMessage("Notifications are blocked. Enable them in your browser settings to receive alerts once available.");
+    const result = await requestNotificationPermission();
+    setMessage(result.message);
+    setNotifsOn(result.granted);
   }
 
   return <div className="mobile-app">
-    <TopBar onChooseLocation={() => setLocationOpen(true)}/>
+    <TopBar onChooseLocation={openLocation}/>
     <main className="dashboard-content">
-      <section className="page-header">
-        <p className="eyebrow">Carbon forecast</p>
-        <h1>Charge when the grid is cleaner.</h1>
-        <p className="secondary-intro">See the best windows for your next charge over the next 24 hours.</p>
-      </section>
+      <PageHeader eyebrow="Carbon forecast" title="Charge when the grid is cleaner." intro="See the best windows for your next charge over the next 24 hours."/>
 
       <section className="card stat-card">
         <div className="recommendation-head">
@@ -66,10 +63,10 @@ export function ForecastScreen() {
         )) : <p className="personal-note">No forecast windows available yet.</p>}
       </section>
 
-      <button className="forecast-button action-button" onClick={enableNotifications}>Enable notifications <Icon name="arrow" size={18}/></button>
-      {message && <p className="success-message" role="status">{message}</p>}
+      {notifsOn ? <p className="success-message" role="status"><Icon name="bell" size={16}/> Notifications are on for this device.</p> : <button className="forecast-button action-button" onClick={enableNotifications}>Enable notifications <Icon name="arrow" size={18}/></button>}
+      {!notifsOn && message && <p className="success-message" role="status">{message}</p>}
     </main>
     <BottomNav/>
-    {locationOpen && <LocationModal current={location} onClose={() => setLocationOpen(false)} onChoose={(next) => { setLocation(next); setLocationOpen(false); }}/>}
+    {locationOpen && <LocationModal current={location} onClose={closeLocation} onChoose={chooseLocation}/>}
   </div>;
 }

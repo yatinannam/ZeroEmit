@@ -1,12 +1,12 @@
 "use client";
 
-import { useState } from "react";
 import { currentRewardTier, currentStreakDays, estimatedCarbonSavedGrams, totalPoints } from "../lib/rewards";
 import { useCharges } from "./use-charges";
-import { useStoredLocation } from "./use-location";
+import { useLocationPicker } from "./use-location-picker";
 import { Icon } from "./icon-set";
 import { BottomNav, TopBar } from "./app-shell";
 import { LocationModal } from "./location-modal";
+import { PageHeader } from "./page-header";
 
 const ACHIEVEMENTS = [
   { key: "first-charge", title: "First Green Charge", icon: "bolt", test: (chargeCount: number) => chargeCount >= 1 },
@@ -14,8 +14,7 @@ const ACHIEVEMENTS = [
 ] as const;
 
 export function RewardsScreen() {
-  const [location, setLocation] = useStoredLocation();
-  const [locationOpen, setLocationOpen] = useState(false);
+  const { location, locationOpen, openLocation, closeLocation, chooseLocation } = useLocationPicker();
   const { charges } = useCharges();
   const points = totalPoints(charges);
   const streak = currentStreakDays(charges);
@@ -24,13 +23,9 @@ export function RewardsScreen() {
   const savedGrams = estimatedCarbonSavedGrams(charges);
 
   return <div className="mobile-app">
-    <TopBar onChooseLocation={() => setLocationOpen(true)}/>
+    <TopBar onChooseLocation={openLocation}/>
     <main className="dashboard-content">
-      <section className="page-header">
-        <p className="eyebrow">Rewards</p>
-        <h1>Your eco journey.</h1>
-        <p className="secondary-intro">Level up by charging when the grid is cleaner.</p>
-      </section>
+      <PageHeader eyebrow="Rewards" title="Your eco journey." intro="Level up by charging when the grid is cleaner."/>
 
       <section className="card stat-card">
         <div className="recommendation-head"><h2>Eco points</h2>{streak > 0 && <span className="recommended"><Icon name="fire" size={15}/> {streak} day streak</span>}</div>
@@ -60,6 +55,6 @@ export function RewardsScreen() {
       </section>
     </main>
     <BottomNav/>
-    {locationOpen && <LocationModal current={location} onClose={() => setLocationOpen(false)} onChoose={(next) => { setLocation(next); setLocationOpen(false); }}/>}
+    {locationOpen && <LocationModal current={location} onClose={closeLocation} onChoose={chooseLocation}/>}
   </div>;
 }
