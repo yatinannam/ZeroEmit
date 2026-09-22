@@ -1,2 +1,2 @@
-import { SecondaryScreen } from "../components/secondary-screen";
-export default function RewardsPage() { return <SecondaryScreen page="rewards" />; }
+import { RewardsScreen } from "../components/rewards-screen";
+export default function RewardsPage() { return <RewardsScreen />; }

@@ -8,7 +8,6 @@ export const POINTS_PER_CHARGE = 10;
 // so a fixed cutoff well below that approximates what "green" would mean.
 export const GREEN_CHARGE_FALLBACK_THRESHOLD = 450; // gCO2/kWh
 export const GREEN_CHARGE_BONUS = 5;
-export const POINTS_PER_REWARD = 200;
 
 export function pointsForCharge(charge: Charge): number {
   const isGreen = charge.intensityClass
@@ -19,11 +18,6 @@ export function pointsForCharge(charge: Charge): number {
 
 export function totalPoints(charges: Charge[]): number {
   return charges.reduce((sum, charge) => sum + pointsForCharge(charge), 0);
-}
-
-export function pointsToNextReward(points: number): number {
-  const remainder = points % POINTS_PER_REWARD;
-  return remainder === 0 ? POINTS_PER_REWARD : POINTS_PER_REWARD - remainder;
 }
 
 // Consecutive calendar days (by loggedAt) with at least one charge, walking
@@ -48,4 +42,37 @@ export function chargesInCurrentMonth(charges: Charge[]): Charge[] {
     const loggedAt = new Date(charge.loggedAt);
     return loggedAt.getFullYear() === now.getFullYear() && loggedAt.getMonth() === now.getMonth();
   });
+}
+
+// A conservative "if you'd charged without timing it" reference point — the
+// same real-grid range (650-800 gCO2/kWh) cited above for GREEN_CHARGE_FALLBACK_THRESHOLD,
+// taken at its low end so this only ever *under*-claims savings.
+export const UNTIMED_CHARGE_BASELINE = 650; // gCO2/kWh
+
+// Grams of CO2 avoided vs. the untimed baseline, for charges that captured a
+// carbonIntensity at log time. Charges without one (older entries, or a
+// provider outage) are skipped rather than guessed at.
+export function estimatedCarbonSavedGrams(charges: Charge[]): number {
+  return charges.reduce((sum, charge) => {
+    if (charge.carbonIntensity === null) return sum;
+    return sum + Math.max(0, UNTIMED_CHARGE_BASELINE - charge.carbonIntensity) * charge.energyKwh;
+  }, 0);
+}
+
+export const REWARD_TIERS = [
+  { name: "Getting Started", threshold: 0 },
+  { name: "Green Explorer", threshold: 200 },
+  { name: "Carbon Saver", threshold: 600 },
+  { name: "Grid Guardian", threshold: 1500 },
+] as const;
+
+// The tier a points total currently sits in, and the next one up (null past the top tier).
+export function currentRewardTier(points: number) {
+  let current: (typeof REWARD_TIERS)[number] = REWARD_TIERS[0];
+  let next: (typeof REWARD_TIERS)[number] | null = null;
+  for (const tier of REWARD_TIERS) {
+    if (points >= tier.threshold) current = tier;
+    else { next = tier; break; }
+  }
+  return { current, next };
 }

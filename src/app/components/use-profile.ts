@@ -22,5 +22,6 @@ const store = createLocalStorageStore<Profile>(
 export function useProfile() {
   const profile = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getServerSnapshot);
   const updateProfile = useCallback((next: Profile) => store.write(next), []);
-  return { profile, updateProfile };
+  const resetProfile = useCallback(() => store.write(DEFAULT_PROFILE), []);
+  return { profile, updateProfile, resetProfile };
 }

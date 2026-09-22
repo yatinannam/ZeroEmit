@@ -1,2 +1,2 @@
-import { SecondaryScreen } from "../components/secondary-screen";
-export default function ProfilePage() { return <SecondaryScreen page="profile" />; }
+import { ProfileScreen } from "../components/profile-screen";
+export default function ProfilePage() { return <ProfileScreen />; }

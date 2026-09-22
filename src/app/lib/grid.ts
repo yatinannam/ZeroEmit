@@ -17,20 +17,46 @@ export type ForecastPoint = { datetime: string; carbonIntensity: number };
 // available, e.g. it needs a paid plan) rather than an actual live forecast.
 export type GridData = { available: boolean; city: City; current?: { carbonIntensity: number; datetime: string; isEstimated: boolean; intensityClass?: string }; forecast: ForecastPoint[]; forecastIsTypical?: boolean; updatedAt?: string; source: string; error?: string };
 
-export function bestWindow(forecast: ForecastPoint[], hours = 2) {
-  if (forecast.length < hours) return null;
-  let best = { start: forecast[0], end: forecast[hours - 1], average: Number.POSITIVE_INFINITY };
+// Every possible `hours`-long window ranked cleanest-first, skipping windows
+// that overlap one already picked so the list shows genuinely distinct times
+// rather than the same low patch shifted by an hour.
+export function topWindows(forecast: ForecastPoint[], hours = 2, count = 3) {
+  if (forecast.length < hours) return [];
+  const candidates = [];
   for (let index = 0; index <= forecast.length - hours; index += 1) {
     const window = forecast.slice(index, index + hours);
     const average = window.reduce((sum, point) => sum + point.carbonIntensity, 0) / hours;
     const end = forecast[index + hours] || { ...window[hours - 1], datetime: new Date(new Date(window[hours - 1].datetime).getTime() + 60 * 60 * 1000).toISOString() };
-    if (average < best.average) best = { start: window[0], end, average };
+    candidates.push({ start: window[0], end, average, startIndex: index });
   }
-  return best;
+  candidates.sort((a, b) => a.average - b.average);
+  const picked: typeof candidates = [];
+  for (const candidate of candidates) {
+    if (picked.length >= count) break;
+    if (picked.some((p) => Math.abs(p.startIndex - candidate.startIndex) < hours)) continue;
+    picked.push(candidate);
+  }
+  return picked;
+}
+
+export function bestWindow(forecast: ForecastPoint[], hours = 2) {
+  return topWindows(forecast, hours, 1)[0] ?? null;
 }
 
 export function formatHour(datetime: string) {
   return new Intl.DateTimeFormat("en-IN", { hour: "numeric", minute: "2-digit" }).format(new Date(datetime));
+}
+
+// A typical-pattern window can land anywhere in the next 24h — bare "11:39 am"
+// reads as later today even when it's actually tomorrow morning. Only returns
+// a label for "today" (omitted by callers) vs. everything else, so a window
+// almost a full day out is never silently misread as imminent.
+export function relativeDayLabel(datetime: string): "Today" | "Tomorrow" | string {
+  const startOfDay = (date: Date) => new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const diffDays = Math.round((startOfDay(new Date(datetime)).getTime() - startOfDay(new Date()).getTime()) / 86_400_000);
+  if (diffDays === 0) return "Today";
+  if (diffDays === 1) return "Tomorrow";
+  return new Intl.DateTimeFormat("en-IN", { weekday: "short" }).format(new Date(datetime));
 }
 
 // Splits out the am/pm so callers can render it smaller than the hour —

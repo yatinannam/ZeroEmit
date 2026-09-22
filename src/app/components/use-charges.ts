@@ -26,5 +26,6 @@ export function useCharges() {
   const addCharge = useCallback((charge: Omit<Charge, "id" | "loggedAt">) => {
     store.write([{ ...charge, id: crypto.randomUUID(), loggedAt: new Date().toISOString() }, ...store.getSnapshot()]);
   }, []);
-  return { charges, addCharge };
+  const clearCharges = useCallback(() => store.write(EMPTY), []);
+  return { charges, addCharge, clearCharges };
 }
