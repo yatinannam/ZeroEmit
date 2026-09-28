@@ -1,0 +1,31 @@
+# Runs ZeroEmit's scheduled-notification check about every 15 minutes.
+# Vercel's Hobby plan only allows a once-a-day cron (see vercel.json), which
+# can't time a "your clean window starts at 1:00 pm" reminder, so this free
+# GitHub schedule drives it instead. GitHub may start scheduled runs a few
+# minutes late; the scheduler is written to tolerate that.
+#
+# Needs a repository secret CRON_SECRET matching the one set in Vercel.
+# Optional repository variable SITE_URL (defaults to the production URL).
+name: Push notification schedule
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Trigger the scheduler
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          SITE_URL: ${{ vars.SITE_URL || 'https://zero-emit.vercel.app' }}
+        run: |
+          if [ -z "$CRON_SECRET" ]; then echo "CRON_SECRET isn't set; skipping."; exit 0; fi
+          curl --fail-with-body --silent --show-error --max-time 60 \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            "$SITE_URL/api/push/run"

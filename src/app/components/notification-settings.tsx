@@ -4,7 +4,8 @@ import { useState } from "react";
 import { Modal } from "./modal";
 import { Icon } from "./icon-set";
 import { showToast } from "./toast";
-import { NOTIFICATION_KINDS, requestNotificationPermission, sendTestNotification, useNotificationPermission, useNotificationPrefs, type Permission } from "./notifications";
+import { isPushActive, sendServerTestPush } from "./push-client";
+import { NOTIFICATION_KINDS, requestNotificationPermission, sendTestNotification, serverPushAvailable, useNotificationPermission, useNotificationPrefs, type Permission } from "./notifications";
 
 const STATUS: Record<Permission, string> = {
   granted: "Notifications are on for this device. Choose which ones you want.",
@@ -23,7 +24,14 @@ export function NotificationSettings({ onClose }: { onClose: () => void }) {
     setError(result.granted ? "" : result.message);
   }
 
+  // With scheduled notifications active, test the real path (server, push
+  // service, phone); otherwise just this device's local notifications.
   async function sendTest() {
+    if (isPushActive()) {
+      const problem = await sendServerTestPush();
+      if (!problem) { showToast("Test sent from the server. It should arrive in a few seconds."); return; }
+      setError(problem);
+    }
     await sendTestNotification();
     showToast("Test notification sent");
   }
@@ -33,7 +41,7 @@ export function NotificationSettings({ onClose }: { onClose: () => void }) {
     {permission === "default" && <button className="primary-button" onClick={turnOn}><Icon name="bell" size={18}/> Turn on notifications</button>}
     {error && <p className="form-error" role="alert">{error}</p>}
     <div className="toggle-list">
-      {NOTIFICATION_KINDS.map((kind) => <label key={kind.key} className="toggle-row">
+      {NOTIFICATION_KINDS.filter((kind) => serverPushAvailable || !kind.serverOnly).map((kind) => <label key={kind.key} className="toggle-row">
         <span><strong>{kind.label}</strong><small>{kind.detail}</small></span>
         <input type="checkbox" role="switch" className="switch" checked={prefs[kind.key]} onChange={(event) => setPref(kind.key, event.target.checked)}/>
       </label>)}

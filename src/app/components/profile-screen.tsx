@@ -7,6 +7,7 @@ import { useProfile } from "./use-profile";
 import { useLocationPicker } from "./use-location-picker";
 import { clearNotificationFlag, resetNotificationPrefs, useNotificationPermission } from "./notifications";
 import { NotificationSettings } from "./notification-settings";
+import { removePushSubscription } from "./push-client";
 import { showToast } from "./toast";
 import { Icon, type IconName } from "./icon-set";
 import { BottomNav, TopBar } from "./app-shell";
@@ -14,7 +15,7 @@ import { LocationModal } from "./location-modal";
 import { Modal } from "./modal";
 
 const ABOUT_TEXT = "ZeroEmit helps you charge your EV when the grid is running on cleaner power. Best-time recommendations come from live regional grid data where available, or your own charging history otherwise.";
-const PRIVACY_TEXT = "Your location, vehicle, and charge history stay on this device. The only thing sent to ZeroEmit's server is your state, which is used to fetch grid data for its region. If you use your current location, your coordinates are used on this device to find the nearest city and are never sent anywhere.";
+const PRIVACY_TEXT = "Your vehicle and charge history stay on this device. ZeroEmit's server gets your state, to fetch grid data for its region. If you use your current location, your coordinates are only used on this device to find the nearest city. If you turn on scheduled notifications, the server also keeps your city name, which notifications you want, and your streak count and last charge date, so it can send reminders; turning them off or deleting your account removes that.";
 
 export function ProfileScreen() {
   const { place, location, setPlace, locationOpen, openLocation, closeLocation, chooseLocation } = useLocationPicker();
@@ -46,6 +47,7 @@ export function ProfileScreen() {
     resetProfile();
     clearNotificationFlag();
     resetNotificationPrefs();
+    void removePushSubscription();
     setPlace(null);
     setDeleteOpen(false);
     showToast("Your data has been deleted from this device");

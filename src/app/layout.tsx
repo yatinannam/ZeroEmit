@@ -5,6 +5,7 @@ import { PwaRegister } from "./components/pwa-register";
 import { ToastHost } from "./components/toast";
 import { LocationGate } from "./components/location-gate";
 import { CleanGridWatcher } from "./components/clean-grid-watcher";
+import { PushSync } from "./components/push-sync";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 
@@ -33,5 +34,5 @@ export const viewport: Viewport = {
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
-  return <html lang="en" className={inter.variable}><body><PwaRegister />{children}<LocationGate /><CleanGridWatcher /><ToastHost /></body></html>;
+  return <html lang="en" className={inter.variable}><body><PwaRegister />{children}<LocationGate /><CleanGridWatcher /><PushSync /><ToastHost /></body></html>;
 }

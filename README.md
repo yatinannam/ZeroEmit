@@ -21,7 +21,20 @@ Without a configured provider, the app deliberately shows “Live data unavailab
 
 ## Notifications
 
-Charge confirmations, rewards (levels, achievements, streak milestones) and a once-a-day clean-grid alert are sent as in-app toasts plus system notifications, each switchable in Profile → Notifications. They're triggered on the device, so the clean-grid alert only runs while the app is open (in front or in the background); alerts when the app is fully closed need Web Push from a server. The service worker (production builds only) delivers them and opens the relevant page on tap. On iPhone, notifications require adding the app to the Home Screen (iOS 16.4+).
+Each kind is switchable in Profile → Notifications, and tapping one opens the relevant page. On iPhone, notifications require adding the app to the Home Screen (iOS 16.4+).
+
+- **On the device:** charge confirmations and rewards (levels, achievements, streak milestones), plus in-app toasts.
+- **Scheduled, from the server (Web Push), even when the app is closed:** best time to charge (a reminder as today's cleanest window approaches, and at 9 pm for tonight's), a morning digest, and an evening streak reminder. Nothing is sent 10 pm – 7 am IST, and each kind at most once a day. Without push configured, "best time" falls back to an in-app check while the app is open.
+
+### Setting up scheduled notifications
+
+1. **Redis:** in Vercel → the project → Storage (Marketplace) → add **Upstash Redis** and connect it to the project. This sets `KV_REST_API_URL` / `KV_REST_API_TOKEN`.
+2. **Environment variables** in Vercel (Production), copied from your local `.env.local` (generate keys with `npx web-push generate-vapid-keys` if you don't have them):
+   `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` (your site URL), `CRON_SECRET` (any long random string).
+3. **Scheduler:** Vercel's Hobby plan only allows a once-a-day cron (`vercel.json`, used as a backup for the morning digest), so `.github/workflows/push-schedule.yml` calls `/api/push/run` every 15 minutes. Add a repository secret `CRON_SECRET` with the same value (and optionally a repository variable `SITE_URL`).
+4. **Redeploy** (the public key is baked in at build time), open the app, turn on notifications, and use **Send a test notification**: with push active it goes through the server, the same path as reminders.
+
+The scheduler refreshes grid data at most hourly per region and not at all overnight, to stay well inside the trial key's 100 calls/day. Note: GitHub pauses scheduled workflows in public repos after 60 days without commits; re-enable it from the Actions tab if that happens.
 
 ## Regenerating PWA icons
 

@@ -11,14 +11,14 @@ export type GridData = { available: boolean; state: string; current?: { carbonIn
 // hour — so "today", "tomorrow" and every displayed clock time use IST too,
 // whatever timezone the viewing device happens to be set to.
 export const IST_TIME_ZONE = "Asia/Kolkata";
-const HOUR_MS = 60 * 60_000;
+export const HOUR_MS = 60 * 60_000;
 const IST_OFFSET_MS = 5.5 * HOUR_MS; // IST has no DST, so a fixed offset is exact
 
 export function istDayKey(datetime: string | number | Date) {
   return new Intl.DateTimeFormat("en-CA", { year: "numeric", month: "2-digit", day: "2-digit", timeZone: IST_TIME_ZONE }).format(new Date(datetime));
 }
 
-function istHourStart(timestamp: number) {
+export function istHourStart(timestamp: number) {
   return Math.floor((timestamp + IST_OFFSET_MS) / HOUR_MS) * HOUR_MS - IST_OFFSET_MS;
 }
 
@@ -54,19 +54,24 @@ export type DayPlan = { points: ForecastPoint[]; windows: ChargeWindow[] };
 // The forecast starts at (or after) the current hour, so on its own it never
 // considers charging *right now* — and the live reading is often far cleaner
 // than the forecast/typical value for this hour. Merge the live reading into
-// the point covering now (adding one if the forecast starts later), drop any
-// already-past points, then split into IST "today" and "tomorrow".
-export function planByDay(data: GridData | null | undefined): { today: DayPlan; tomorrow: DayPlan } {
-  const empty = { today: { points: [], windows: [] }, tomorrow: { points: [], windows: [] } };
-  if (!data?.available) return empty;
-  const now = Date.now();
-  const nowHour = istHourStart(now);
+// the point covering now (adding one if the forecast starts later) and drop
+// any already-past points. Also used by the server's push scheduler.
+export function mergeLiveReading(data: Pick<GridData, "forecast" | "current">, now = Date.now()): ForecastPoint[] {
   let merged = data.forecast.filter((point) => new Date(point.datetime).getTime() + HOUR_MS > now);
   if (data.current) {
     const live = { carbonIntensity: data.current.carbonIntensity, isNow: true };
     const coversNow = merged[0] && new Date(merged[0].datetime).getTime() <= now;
-    merged = coversNow ? [{ ...merged[0], ...live }, ...merged.slice(1)] : [{ datetime: new Date(nowHour).toISOString(), ...live }, ...merged];
+    merged = coversNow ? [{ ...merged[0], ...live }, ...merged.slice(1)] : [{ datetime: new Date(istHourStart(now)).toISOString(), ...live }, ...merged];
   }
+  return merged;
+}
+
+// Split into IST "today" and "tomorrow" windows.
+export function planByDay(data: GridData | null | undefined): { today: DayPlan; tomorrow: DayPlan } {
+  const empty = { today: { points: [], windows: [] }, tomorrow: { points: [], windows: [] } };
+  if (!data?.available) return empty;
+  const now = Date.now();
+  const merged = mergeLiveReading(data, now);
   const todayKey = istDayKey(now);
   const tomorrowKey = istDayKey(now + 24 * HOUR_MS);
   const plan = (key: string) => ({
@@ -76,7 +81,7 @@ export function planByDay(data: GridData | null | undefined): { today: DayPlan; 
   return { today: plan(todayKey), tomorrow: plan(tomorrowKey) };
 }
 
-const istHourOfDay = (timestamp: number) => Math.floor(((timestamp + IST_OFFSET_MS) % (24 * HOUR_MS)) / HOUR_MS);
+export const istHourOfDay = (timestamp: number) => Math.floor(((timestamp + IST_OFFSET_MS) % (24 * HOUR_MS)) / HOUR_MS);
 
 // Grid intensity for when a charge actually happened (not when it was logged):
 // the live reading if it was this hour; otherwise, for a typical-pattern

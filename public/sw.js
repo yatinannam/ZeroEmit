@@ -20,6 +20,14 @@ self.addEventListener("fetch", (event) => {
   }).catch(async () => (await caches.match(request)) || (request.mode === "navigate" && (await caches.match("/"))) || Response.error()));
 });
 
+// Scheduled notifications from the server (src/app/lib/server/push-scheduler.ts):
+// { title, body, url, tag }.
+self.addEventListener("push", (event) => {
+  let payload = {};
+  try { payload = event.data ? event.data.json() : {}; } catch { payload = { body: event.data ? event.data.text() : "" }; }
+  event.waitUntil(self.registration.showNotification(payload.title || "ZeroEmit", { body: payload.body || "", icon: "/icons/icon-192.png", tag: payload.tag || "zeroemit", data: { url: payload.url || "/" } }));
+});
+
 // Each notification carries the page it's about in `data.url` (e.g. /log for
 // a charge confirmation): reuse an open ZeroEmit window if there is one.
 self.addEventListener("notificationclick", (event) => {

@@ -39,21 +39,30 @@ export function clearNotificationFlag() {
 
 // ---- Per-type preferences ---------------------------------------------------
 
-export type NotificationKind = "charges" | "rewards" | "cleanGrid";
-export const NOTIFICATION_KINDS: { key: NotificationKind; label: string; detail: string }[] = [
-  { key: "charges", label: "Charge confirmations", detail: "When you log a charge, with the points you earned" },
-  { key: "rewards", label: "Rewards and streaks", detail: "New levels, achievements and streak milestones" },
-  { key: "cleanGrid", label: "Clean-grid alerts", detail: "Once a day, when right now is the cleanest time left to charge (while ZeroEmit is open)" },
-];
-type Prefs = Record<NotificationKind, boolean>;
-const DEFAULT_PREFS: Prefs = { charges: true, rewards: true, cleanGrid: true };
+// Scheduled notifications (sent by the server even when the app is closed)
+// exist only when this build has a Web Push key; without one, "best time"
+// alerts fall back to the in-app watcher and the server-only kinds are hidden.
+export const serverPushAvailable = Boolean(process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY);
 
-const prefsStore = createLocalStorageStore<Prefs>(
-  "zeroemit-notification-prefs",
-  (raw) => ({ ...DEFAULT_PREFS, ...(JSON.parse(raw) as Partial<Prefs>) }),
-  (value) => JSON.stringify(value),
-  DEFAULT_PREFS,
-);
+export type NotificationKind = "charges" | "rewards" | "bestTime" | "dailyDigest" | "streakReminders";
+export const NOTIFICATION_KINDS: { key: NotificationKind; label: string; detail: string; serverOnly?: boolean }[] = [
+  { key: "bestTime", label: "Best time to charge", detail: serverPushAvailable ? "When today's cleanest window is about to start, and at 9 pm for tonight's" : "Once a day, when right now is the cleanest time left to charge (while ZeroEmit is open)" },
+  { key: "dailyDigest", label: "Morning digest", detail: "Around 7 am: today's best time to charge", serverOnly: true },
+  { key: "streakReminders", label: "Streak reminders", detail: "In the evening, if today's charge isn't logged and your streak is at risk", serverOnly: true },
+  { key: "charges", label: "Charge confirmations", detail: "When you log a charge, with the points you earned" },
+  { key: "rewards", label: "Rewards", detail: "New levels, achievements and streak milestones" },
+];
+export type Prefs = Record<NotificationKind, boolean>;
+const DEFAULT_PREFS: Prefs = { charges: true, rewards: true, bestTime: true, dailyDigest: true, streakReminders: true };
+
+// "cleanGrid" was the earlier name for "bestTime"; carry the choice over.
+function parsePrefs(raw: string): Prefs {
+  const stored = JSON.parse(raw) as Partial<Prefs> & { cleanGrid?: boolean };
+  const { cleanGrid, ...rest } = stored;
+  return { ...DEFAULT_PREFS, ...(cleanGrid === undefined ? {} : { bestTime: cleanGrid }), ...rest };
+}
+
+const prefsStore = createLocalStorageStore<Prefs>("zeroemit-notification-prefs", parsePrefs, (value) => JSON.stringify(value), DEFAULT_PREFS);
 
 export function useNotificationPrefs() {
   const prefs = useSyncExternalStore(prefsStore.subscribe, prefsStore.getSnapshot, prefsStore.getServerSnapshot);
@@ -110,7 +119,7 @@ export async function requestNotificationPermission(): Promise<{ granted: boolea
   if (permission !== "granted") return { granted: false, message: "Notifications are blocked for this site. Allow them in your browser's site settings, then try again." };
   try { window.localStorage.setItem(REMINDER_KEY, "true"); } catch { /* storage unavailable */ }
   // A permission grant is silent, so send one real notification to prove it works end to end.
-  await display("ZeroEmit notifications are on", { body: "You'll get charge confirmations, rewards and clean-grid alerts here.", tag: "zeroemit-enabled", data: { url: "/" } });
+  await display("ZeroEmit notifications are on", { body: "You'll get the best times to charge, charge confirmations and rewards here.", tag: "zeroemit-enabled", data: { url: "/" } });
   notifyPermissionChange();
   return { granted: true, message: "Notifications are on. You should see a confirmation now." };
 }
