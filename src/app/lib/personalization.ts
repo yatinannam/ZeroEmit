@@ -33,6 +33,18 @@ export function typicalChargeTime(charges: Charge[]): string | null {
   return best?.sample ?? null;
 }
 
+// "Today" / "Yesterday" / "Mon, 22 Sep" for a charge's `loggedAt`, by the
+// device's calendar day (it's the user's own history, on their own clock).
+export function dayHeading(iso: string): string {
+  const date = new Date(iso);
+  if (date.getTime() === 0) return "Earlier";
+  const dayStart = (value: Date) => new Date(value.getFullYear(), value.getMonth(), value.getDate()).getTime();
+  const diff = Math.round((dayStart(new Date()) - dayStart(date)) / 86_400_000);
+  if (diff === 0) return "Today";
+  if (diff === 1) return "Yesterday";
+  return new Intl.DateTimeFormat("en-IN", { weekday: "short", day: "numeric", month: "short" }).format(date);
+}
+
 export function formatTimeOfDay(time: string): string {
   const [hourStr, minuteStr] = time.split(":");
   const date = new Date();

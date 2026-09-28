@@ -1,8 +1,9 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
   reactCompiler: true,
+  // The dev badge sits over the Home tab on phones; compile/runtime errors still surface without it.
+  devIndicators: false,
   async headers() {
     return [
       {

@@ -26,5 +26,7 @@ export function useGridData(city: City) {
     }).catch((reason: unknown) => { if (reason instanceof DOMException && reason.name === "AbortError") return; setError("Live grid data is unavailable"); }).finally(() => { if (!controller.signal.aborted) setCompletedKey(requestKey); });
     return () => controller.abort();
   }, [city, requestKey]);
-  return { data, loading: completedKey !== requestKey, error, refresh: () => { forceRefresh.current = true; setError(""); setRequestVersion((value) => value + 1); } };
+  // `data` still holds the previous city's response until the new fetch
+  // lands — hide it rather than show one city's forecast under another's name.
+  return { data: data?.city === city ? data : null, loading: completedKey !== requestKey, error, refresh: () => { forceRefresh.current = true; setError(""); setRequestVersion((value) => value + 1); } };
 }

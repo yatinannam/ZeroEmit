@@ -90,7 +90,7 @@ function parseLatestItem(raw: unknown): AtlasLatestItem | null {
 }
 
 function istHour(isoTimestamp: string): number {
-  return Number(new Intl.DateTimeFormat("en-US", { hour: "numeric", hour12: false, timeZone: "Asia/Kolkata" }).format(new Date(isoTimestamp)));
+  return Number(new Intl.DateTimeFormat("en-US", { hour: "numeric", hourCycle: "h23", timeZone: "Asia/Kolkata" }).format(new Date(isoTimestamp)));
 }
 
 function buildTypicalPattern(items: unknown[]): (number | null)[] | null {
@@ -124,24 +124,29 @@ async function fetchZoneData(zone: string, headers: Record<string, string>): Pro
   return { latest, pattern, status: response.status };
 }
 
-// Projects the typical-day pattern onto the next `hours` real clock hours so
-// it can be dropped straight into bestWindow() like a real forecast.
-// bestWindow() treats consecutive array entries as consecutive clock hours —
-// skipping an hour whose bucket had no historical samples would make it
-// silently pick two points that aren't actually adjacent and label the gap
-// between them a contiguous "2-hour window". Every hour gets a point; an
-// unsampled one falls back to the overall average of the hours that do have
+const HOUR_MS = 60 * 60_000;
+const IST_OFFSET_MS = 5.5 * HOUR_MS; // IST has no DST, so a fixed offset is exact
+
+// Projects the typical-day pattern onto real clock hours, from the top of the
+// current IST hour through the end of tomorrow (IST), so the client can split
+// it into "today" and "tomorrow" and run topWindows() on each like a real
+// forecast. Points sit on whole IST hours (IST is UTC+5:30, so flooring in
+// UTC would land on :30). topWindows() treats consecutive entries as
+// consecutive clock hours — skipping an hour whose bucket had no historical
+// samples would make it silently pick two points that aren't actually
+// adjacent and call the gap a contiguous "2-hour window". Every hour gets a
+// point; an unsampled one falls back to the average of the hours that do have
 // data, so the sequence is always truly hour-by-hour contiguous.
-function projectTypicalForecast(pattern: (number | null)[], hours = 24): ForecastPoint[] {
+function projectTypicalForecast(pattern: (number | null)[]): ForecastPoint[] {
   const known = pattern.filter((value): value is number => value !== null);
   if (known.length === 0) return [];
   const fallback = known.reduce((sum, value) => sum + value, 0) / known.length;
+  const currentHourStart = Math.floor((Date.now() + IST_OFFSET_MS) / HOUR_MS) * HOUR_MS - IST_OFFSET_MS;
+  const hoursLeftToday = 24 - istHour(new Date(currentHourStart).toISOString());
   const points: ForecastPoint[] = [];
-  const now = Date.now();
-  for (let i = 1; i <= hours; i += 1) {
-    const future = new Date(now + i * 60 * 60_000);
-    const intensity = pattern[istHour(future.toISOString())] ?? fallback;
-    points.push({ datetime: future.toISOString(), carbonIntensity: intensity });
+  for (let i = 0; i < hoursLeftToday + 24; i += 1) {
+    const start = new Date(currentHourStart + i * HOUR_MS).toISOString();
+    points.push({ datetime: start, carbonIntensity: pattern[istHour(start)] ?? fallback });
   }
   return points;
 }

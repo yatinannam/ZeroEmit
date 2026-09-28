@@ -9,11 +9,14 @@ export const POINTS_PER_CHARGE = 10;
 export const GREEN_CHARGE_FALLBACK_THRESHOLD = 450; // gCO2/kWh
 export const GREEN_CHARGE_BONUS = 5;
 
-export function pointsForCharge(charge: Charge): number {
-  const isGreen = charge.intensityClass
+export function isGreenCharge(charge: Charge): boolean {
+  return charge.intensityClass
     ? charge.intensityClass === "green"
     : charge.carbonIntensity !== null && charge.carbonIntensity <= GREEN_CHARGE_FALLBACK_THRESHOLD;
-  return POINTS_PER_CHARGE + (isGreen ? GREEN_CHARGE_BONUS : 0);
+}
+
+export function pointsForCharge(charge: Charge): number {
+  return POINTS_PER_CHARGE + (isGreenCharge(charge) ? GREEN_CHARGE_BONUS : 0);
 }
 
 export function totalPoints(charges: Charge[]): number {
