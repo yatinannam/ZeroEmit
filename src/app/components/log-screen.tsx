@@ -2,7 +2,9 @@
 
 import { FormEvent, useState } from "react";
 import { intensityAt } from "../lib/grid";
-import { pointsForCharge } from "../lib/rewards";
+import { chargeOutcome, pointsForCharge } from "../lib/rewards";
+import { sendNotification } from "./notifications";
+import { showToast } from "./toast";
 import { averageEnergyKwh, dayHeading, formatTimeOfDay, typicalChargeTime } from "../lib/personalization";
 import { useGridData } from "./use-grid-data";
 import { useCharges, type Charge } from "./use-charges";
@@ -23,12 +25,11 @@ const localDate = (date: Date) => `${date.getFullYear()}-${pad(date.getMonth() +
 const localTime = (date: Date) => `${pad(date.getHours())}:${pad(date.getMinutes())}`;
 
 export function LogScreen() {
-  const { location: city, locationOpen, openLocation, closeLocation, chooseLocation } = useLocationPicker();
+  const { place, location: city, locationOpen, openLocation, closeLocation, chooseLocation } = useLocationPicker();
   const [form, setForm] = useState<{ date: string; time: string; today: string } | null>(null);
   const [formError, setFormError] = useState("");
   const [selected, setSelected] = useState<Charge | null>(null);
-  const [message, setMessage] = useState("");
-  const grid = useGridData(city);
+  const grid = useGridData(place.state);
   const { charges, addCharge, removeCharge } = useCharges();
 
   // Scoped to the selected city — different cities sit on different grids,
@@ -64,16 +65,22 @@ export function LogScreen() {
     if (when > Date.now()) { setFormError("That time hasn't happened yet — pick a time in the past."); return; }
     const intensity = intensityAt(grid.data, when);
     const charge = { energyKwh: Math.round(energy * 10) / 10, chargedAt: time, city, carbonIntensity: intensity?.carbonIntensity ?? null, intensityClass: intensity?.intensityClass ?? null, intensitySource: intensity?.source, loggedAt: new Date(when).toISOString() };
+    const { points, green, rewards } = chargeOutcome(charges, { ...charge, id: "" });
     addCharge(charge);
     setForm(null);
-    setMessage(`Charge saved — +${pointsForCharge({ ...charge, id: "" })} points.`);
+    const saved = `Charge saved: +${points} points`;
+    const day = dayHeading(charge.loggedAt);
+    const dayPhrase = day === "Today" || day === "Yesterday" ? day.toLowerCase() : `on ${day}`;
+    showToast(rewards.length ? `${saved}. ${rewards[0]}.` : green ? `${saved} (green-hour bonus)` : saved);
+    void sendNotification("charges", saved, `${charge.energyKwh} kWh ${dayPhrase} at ${formatTimeOfDay(time)}.${green ? " Includes the green-hour bonus." : ""}`, "/log");
+    if (rewards.length) void sendNotification("rewards", rewards[0], rewards.length > 1 ? `${rewards.slice(1).join(". ")}.` : "Keep charging when the grid is cleaner to earn more.", "/rewards");
   }
 
   function deleteSelected() {
     if (!selected) return;
     removeCharge(selected.id);
     setSelected(null);
-    setMessage("Charge deleted.");
+    showToast("Charge deleted");
   }
 
   return <div className="mobile-app">
@@ -82,7 +89,6 @@ export function LogScreen() {
       <PageHeader eyebrow="Charging history" title="Your charging impact." intro="Keep track of every charge and the emissions you avoided."/>
 
       <button className="primary-button" onClick={openForm}><Icon name="bolt" size={18}/> Log a charge</button>
-      {message && <p className="success-message" role="status">{message}</p>}
 
       <section className="activity">
         <h2>All charges</h2>
@@ -98,7 +104,7 @@ export function LogScreen() {
     </main>
     <BottomNav/>
 
-    {locationOpen && <LocationModal current={city} onClose={closeLocation} onChoose={chooseLocation}/>}
+    {locationOpen && <LocationModal current={place} onClose={closeLocation} onChoose={chooseLocation}/>}
 
     {form && <Modal title="Log a charge" onClose={() => setForm(null)} onSubmit={submitCharge}>
       <div className="form-row">

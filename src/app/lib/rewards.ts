@@ -69,6 +69,28 @@ export const REWARD_TIERS = [
   { name: "Grid Guardian", threshold: 1500 },
 ] as const;
 
+const STREAK_MILESTONES = [3, 7, 14, 30, 60, 100];
+
+// What logging `added` on top of `before` just earned — used for the
+// confirmation toast and notifications. `rewards` lists only newly reached
+// things (a level, an achievement, a streak milestone), most notable first.
+export function chargeOutcome(before: Charge[], added: Charge) {
+  const after = [added, ...before];
+  const points = pointsForCharge(added);
+  const green = isGreenCharge(added);
+  const rewards: string[] = [];
+  const tierBefore = currentRewardTier(totalPoints(before)).current;
+  const tierAfter = currentRewardTier(totalPoints(after)).current;
+  if (tierAfter.threshold > tierBefore.threshold) rewards.push(`New level: ${tierAfter.name}`);
+  if (green && !before.some(isGreenCharge)) rewards.push("Achievement unlocked: First Green Charge");
+  const streakBefore = currentStreakDays(before);
+  const streakAfter = currentStreakDays(after);
+  if (streakBefore < 7 && streakAfter >= 7) rewards.push("Achievement unlocked: 7 Day Streak");
+  const milestone = [...STREAK_MILESTONES].reverse().find((days) => streakBefore < days && streakAfter >= days && days !== 7);
+  if (milestone) rewards.push(`${milestone} days in a row`);
+  return { points, green, rewards };
+}
+
 // The tier a points total currently sits in, and the next one up (null past the top tier).
 export function currentRewardTier(points: number) {
   let current: (typeof REWARD_TIERS)[number] = REWARD_TIERS[0];

@@ -15,7 +15,7 @@ const ACHIEVEMENTS: { key: string; title: string; icon: IconName; unlocked: (cha
 ];
 
 export function RewardsScreen() {
-  const { location, locationOpen, openLocation, closeLocation, chooseLocation } = useLocationPicker();
+  const { place, locationOpen, openLocation, closeLocation, chooseLocation } = useLocationPicker();
   const { charges } = useCharges();
   const points = totalPoints(charges);
   const streak = currentStreakDays(charges);
@@ -56,6 +56,6 @@ export function RewardsScreen() {
       </section>
     </main>
     <BottomNav/>
-    {locationOpen && <LocationModal current={location} onClose={closeLocation} onChoose={chooseLocation}/>}
+    {locationOpen && <LocationModal current={place} onClose={closeLocation} onChoose={chooseLocation}/>}
   </div>;
 }

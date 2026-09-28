@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useSyncExternalStore } from "react";
 import { createLocalStorageStore } from "./local-storage-store";
+import { LEGACY_LABELS, placeLabel } from "../lib/places";
 
 // `loggedAt` is when the charge happened (the date + time entered in the log
 // form) — streaks and monthly totals count by it, so a charge backfilled for
@@ -16,8 +17,12 @@ const EMPTY: Charge[] = [];
 // far-past date so streak/monthly-total date math treats them as "not
 // recent" instead of rendering "Invalid Date" or producing NaN.
 export const LEGACY_LOGGED_AT = new Date(0).toISOString();
+// Charges from before location search stored "Chennai, India"-style labels;
+// relabel them so they still match the current place ("Chennai, Tamil Nadu").
 function normalizeCharge(raw: Charge): Charge {
-  return typeof raw.loggedAt === "string" && !Number.isNaN(Date.parse(raw.loggedAt)) ? raw : { ...raw, loggedAt: LEGACY_LOGGED_AT };
+  const legacyPlace = LEGACY_LABELS[raw.city];
+  const charge = legacyPlace ? { ...raw, city: placeLabel(legacyPlace) } : raw;
+  return typeof charge.loggedAt === "string" && !Number.isNaN(Date.parse(charge.loggedAt)) ? charge : { ...charge, loggedAt: LEGACY_LOGGED_AT };
 }
 
 // A hand-edited or corrupted entry with a non-numeric energy would turn every

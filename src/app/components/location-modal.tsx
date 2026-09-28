@@ -1,13 +1,12 @@
 "use client";
 
 import { Modal } from "./modal";
-import type { City } from "../lib/grid";
+import { LocationSearch } from "./location-search";
+import type { Place } from "../lib/places";
 
-const CITIES: City[] = ["Chennai, India", "Bengaluru, India", "Mumbai, India"];
-
-export function LocationModal({ current, onClose, onChoose }: { current: City; onClose: () => void; onChoose: (city: City) => void }) {
+export function LocationModal({ current, onClose, onChoose }: { current: Place; onClose: () => void; onChoose: (place: Place) => void }) {
   return <Modal title="Choose your location" onClose={onClose}>
-    <p>Grid forecasts are tailored to your selected city.</p>
-    <div className="location-options">{CITIES.map((city) => <button key={city} className={city === current ? "selected" : ""} onClick={() => onChoose(city)}>{city}<span>{city === current ? "Selected" : "Select"}</span></button>)}</div>
+    <p>Grid data comes from your state&apos;s regional grid. Your exact location stays on this device.</p>
+    <LocationSearch current={current} onChoose={onChoose}/>
   </Modal>;
 }

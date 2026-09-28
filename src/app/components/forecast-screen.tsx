@@ -15,11 +15,11 @@ type Day = "today" | "tomorrow";
 const DAYS: { key: Day; label: string }[] = [{ key: "today", label: "Today" }, { key: "tomorrow", label: "Tomorrow" }];
 
 export function ForecastScreen({ initialDay }: { initialDay: Day }) {
-  const { location, locationOpen, openLocation, closeLocation, chooseLocation } = useLocationPicker();
+  const { place, locationOpen, openLocation, closeLocation, chooseLocation } = useLocationPicker();
   const [day, setDay] = useState<Day>(initialDay);
   const [notice, setNotice] = useState<{ text: string; ok: boolean } | null>(null);
   const notifsOn = useNotificationsEnabled();
-  const { data, loading, error } = useGridData(location);
+  const { data, loading, error } = useGridData(place.state);
   const plan = planByDay(data)[day];
   const best = plan.windows[0] ?? null;
   const current = data?.available ? data.current : undefined;
@@ -75,6 +75,6 @@ export function ForecastScreen({ initialDay }: { initialDay: Day }) {
       </>}
     </main>
     <BottomNav/>
-    {locationOpen && <LocationModal current={location} onClose={closeLocation} onChoose={chooseLocation}/>}
+    {locationOpen && <LocationModal current={place} onClose={closeLocation} onChoose={chooseLocation}/>}
   </div>;
 }

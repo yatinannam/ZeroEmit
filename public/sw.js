@@ -20,11 +20,15 @@ self.addEventListener("fetch", (event) => {
   }).catch(async () => (await caches.match(request)) || (request.mode === "navigate" && (await caches.match("/"))) || Response.error()));
 });
 
+// Each notification carries the page it's about in `data.url` (e.g. /log for
+// a charge confirmation): reuse an open ZeroEmit window if there is one.
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  event.waitUntil(self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {
+  const url = new URL(event.notification.data?.url || "/", self.location.origin).href;
+  event.waitUntil(self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(async (clients) => {
     const existing = clients.find((client) => "focus" in client);
-    if (existing) return existing.focus();
-    return self.clients.openWindow("/");
+    if (!existing) return self.clients.openWindow(url);
+    const focused = await existing.focus();
+    return focused.url === url || !("navigate" in focused) ? focused : focused.navigate(url);
   }));
 });

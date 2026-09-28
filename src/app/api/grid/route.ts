@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { CITIES, City, ForecastPoint } from "../../lib/grid";
+import type { ForecastPoint } from "../../lib/grid";
+import { STATES } from "../../lib/places";
 
 const ATLAS_URL = "https://api.energymap.in/developer/v1";
 const ELECTRICITY_MAPS_URL = "https://api.electricitymaps.com/v4";
@@ -7,17 +8,17 @@ const ELECTRICITY_MAPS_URL = "https://api.electricitymaps.com/v4";
 const ATLAS = "India Energy Atlas";
 const ELECTRICITY_MAPS = "Electricity Maps";
 
-const VALID_CITIES = new Set(Object.keys(CITIES));
-
-function parseCity(raw: string | null): City | null {
-  // `raw in CITIES` or `CITIES[raw]` would also match inherited Object.prototype
-  // keys (e.g. ?city=constructor or ?city=__proto__), reaching the provider
+// Only the state is sent by the client — the user's own city/coordinates
+// never leave the device, and the state is all the data needs.
+function parseState(raw: string | null): string | null {
+  // `raw in STATES` or `STATES[raw]` would also match inherited Object.prototype
+  // keys (e.g. ?state=constructor or ?state=__proto__), reaching the provider
   // fetches with bogus coordinates and burning the shared, rate-limited API
   // quota on garbage requests. Require an exact, own-property match instead.
-  return raw && VALID_CITIES.has(raw) ? (raw as City) : null;
+  return raw && Object.hasOwn(STATES, raw) ? raw : null;
 }
 
-type GridPayload = { available: boolean; city: City; current?: { carbonIntensity: number; datetime: string; isEstimated: boolean; intensityClass?: string }; forecast: ForecastPoint[]; forecastIsTypical?: boolean; updatedAt?: string; source: string };
+type GridPayload = { available: boolean; state: string; current?: { carbonIntensity: number; datetime: string; isEstimated: boolean; intensityClass?: string }; forecast: ForecastPoint[]; forecastIsTypical?: boolean; updatedAt?: string; source: string };
 
 // In-memory cache shared across requests/users on this server instance. Both
 // configured providers are on rate-limited trial plans (the India Energy
@@ -27,12 +28,12 @@ type GridPayload = { available: boolean; city: City; current?: { carbonIntensity
 // actor — can exhaust the shared quota for everyone. A 60s TTL keeps worst
 // case upstream load well under the cap while still feeling live.
 const CACHE_TTL_MS = 60_000;
-const cache = new Map<City, { expiresAt: number; payload: GridPayload }>();
+const cache = new Map<string, { expiresAt: number; payload: GridPayload }>();
 
-// Chennai and Bengaluru both sit in the Southern regional grid, so a
-// zone-level lookup (see fetchAtlas below) serves both from one upstream
-// call — cache it by zone, separately from the per-city response cache
-// above, so the second city doesn't burn another call to the same data.
+// Every state in a regional grid (e.g. Tamil Nadu and Karnataka, both
+// Southern) shares the same zone-level data, so cache it by zone, separately
+// from the per-state response cache above, so the second state doesn't burn
+// another upstream call on the same data.
 type AtlasLatestItem = { carbon_intensity_gco2_kwh: number; timestamp: string; intensity_class?: string };
 
 // Forecast is Pro-plan-gated on the trial key this app ships with, so it
@@ -59,8 +60,8 @@ const ZONE_DATA_HISTORY_HOURS = 336; // 14 days, for the typical-pattern average
 const ZONE_DATA_CACHE_TTL_MS = 10 * 60_000;
 const zoneDataCache = new Map<string, { expiresAt: number; latest: AtlasLatestItem | null; pattern: (number | null)[] | null }>();
 
-function unavailable(city: City, error: string, status = 503) {
-  return NextResponse.json({ available: false, city, forecast: [], source: "Live grid provider", error }, { status });
+function unavailable(state: string, error: string, status = 503) {
+  return NextResponse.json({ available: false, state, forecast: [], source: "Live grid provider", error }, { status });
 }
 
 // Best-effort extraction of the provider's own message (e.g. a 402 plan or a
@@ -173,12 +174,12 @@ async function fetchStateForecast(state: string, headers: Record<string, string>
 // degrades to an empty array (dashboard shows "Unavailable" for the
 // recommended window) rather than failing the whole response, so "Current
 // intensity" still reflects real, live data even without one.
-async function fetchAtlas(city: City, coordinates: { state: string; zone: string }, key: string): Promise<ProviderResult> {
+async function fetchAtlas(state: string, zone: string, key: string): Promise<ProviderResult> {
   const headers = { "X-API-Key": key, accept: "application/json" };
 
   const [zoneData, liveForecast] = await Promise.all([
-    fetchZoneData(coordinates.zone, headers),
-    fetchStateForecast(coordinates.state, headers),
+    fetchZoneData(zone, headers),
+    fetchStateForecast(state, headers),
   ]);
 
   let forecast: ForecastPoint[] = liveForecast;
@@ -205,10 +206,10 @@ async function fetchAtlas(city: City, coordinates: { state: string; zone: string
   }
   if (!latest) return { message: "Live grid data is temporarily unavailable.", status: 502 };
 
-  return { data: { available: true, city, current: { carbonIntensity: latest.carbon_intensity_gco2_kwh, datetime: latest.timestamp, isEstimated: true, intensityClass: latest.intensity_class }, forecast, forecastIsTypical, updatedAt: latest.timestamp, source: ATLAS }, message: "", status: 0 };
+  return { data: { available: true, state, current: { carbonIntensity: latest.carbon_intensity_gco2_kwh, datetime: latest.timestamp, isEstimated: true, intensityClass: latest.intensity_class }, forecast, forecastIsTypical, updatedAt: latest.timestamp, source: ATLAS }, message: "", status: 0 };
 }
 
-async function fetchElectricityMaps(city: City, coordinates: { lat: number; lon: number }, key: string): Promise<ProviderResult> {
+async function fetchElectricityMaps(state: string, coordinates: { lat: number; lon: number }, key: string): Promise<ProviderResult> {
   const query = `lat=${coordinates.lat}&lon=${coordinates.lon}`;
   const headers = { "auth-token": key, accept: "application/json" };
   const [latestResponse, forecastResponse] = await Promise.all([
@@ -225,22 +226,22 @@ async function fetchElectricityMaps(city: City, coordinates: { lat: number; lon:
   const forecastPayload = await forecastResponse.json();
   const rawForecast: unknown = forecastPayload.forecast;
   const forecast = Array.isArray(rawForecast) ? (rawForecast as { carbonIntensity: number; datetime: string }[]).map((point) => ({ datetime: point.datetime, carbonIntensity: point.carbonIntensity })) : [];
-  return { data: { available: true, city, current: { carbonIntensity: latest.carbonIntensity, datetime: latest.datetime, isEstimated: Boolean(latest.isEstimated) }, forecast, updatedAt: forecastPayload.updatedAt || latest.updatedAt, source: ELECTRICITY_MAPS }, message: "", status: 0 };
+  return { data: { available: true, state, current: { carbonIntensity: latest.carbonIntensity, datetime: latest.datetime, isEstimated: Boolean(latest.isEstimated) }, forecast, updatedAt: forecastPayload.updatedAt || latest.updatedAt, source: ELECTRICITY_MAPS }, message: "", status: 0 };
 }
 
 export async function GET(request: NextRequest) {
-  const city = parseCity(request.nextUrl.searchParams.get("city"));
-  if (!city) return NextResponse.json({ available: false, error: "Unsupported location", forecast: [] }, { status: 400 });
-  const coordinates = CITIES[city];
+  const state = parseState(request.nextUrl.searchParams.get("state"));
+  if (!state) return NextResponse.json({ available: false, error: "Unsupported location", forecast: [] }, { status: 400 });
+  const { zone, lat, lon } = STATES[state];
 
-  const cached = cache.get(city);
+  const cached = cache.get(state);
   if (cached && cached.expiresAt > Date.now()) {
     return NextResponse.json(cached.payload, { headers: { "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600", "X-Cache": "HIT" } });
   }
 
   const atlasKey = process.env.INDIA_ENERGY_ATLAS_API_KEY;
   const electricityMapsKey = process.env.ELECTRICITY_MAPS_API_KEY;
-  if (!atlasKey && !electricityMapsKey) return unavailable(city, "Live grid data is not configured yet.");
+  if (!atlasKey && !electricityMapsKey) return unavailable(state, "Live grid data is not configured yet.");
 
   try {
     // Try each configured provider in order and use the first one that works, so
@@ -248,17 +249,17 @@ export async function GET(request: NextRequest) {
     // next provider instead of blocking the whole app.
     let last: ProviderResult = { message: "Live grid data is temporarily unavailable.", status: 502 };
     if (atlasKey) {
-      const result = await fetchAtlas(city, coordinates, atlasKey);
-      if (result.data) { cache.set(city, { expiresAt: Date.now() + CACHE_TTL_MS, payload: result.data }); return NextResponse.json(result.data, { headers: { "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600", "X-Cache": "MISS" } }); }
+      const result = await fetchAtlas(state, zone, atlasKey);
+      if (result.data) { cache.set(state, { expiresAt: Date.now() + CACHE_TTL_MS, payload: result.data }); return NextResponse.json(result.data, { headers: { "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600", "X-Cache": "MISS" } }); }
       last = result;
     }
     if (electricityMapsKey) {
-      const result = await fetchElectricityMaps(city, coordinates, electricityMapsKey);
-      if (result.data) { cache.set(city, { expiresAt: Date.now() + CACHE_TTL_MS, payload: result.data }); return NextResponse.json(result.data, { headers: { "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600", "X-Cache": "MISS" } }); }
+      const result = await fetchElectricityMaps(state, { lat, lon }, electricityMapsKey);
+      if (result.data) { cache.set(state, { expiresAt: Date.now() + CACHE_TTL_MS, payload: result.data }); return NextResponse.json(result.data, { headers: { "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600", "X-Cache": "MISS" } }); }
       last = result;
     }
-    return unavailable(city, last.message, last.status);
+    return unavailable(state, last.message, last.status);
   } catch {
-    return unavailable(city, "Could not connect to the live grid service.", 502);
+    return unavailable(state, "Could not connect to the live grid service.", 502);
   }
 }

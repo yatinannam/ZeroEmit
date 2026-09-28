@@ -2,6 +2,9 @@ import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { PwaRegister } from "./components/pwa-register";
+import { ToastHost } from "./components/toast";
+import { LocationGate } from "./components/location-gate";
+import { CleanGridWatcher } from "./components/clean-grid-watcher";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 
@@ -30,5 +33,5 @@ export const viewport: Viewport = {
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
-  return <html lang="en" className={inter.variable}><body><PwaRegister />{children}</body></html>;
+  return <html lang="en" className={inter.variable}><body><PwaRegister />{children}<LocationGate /><CleanGridWatcher /><ToastHost /></body></html>;
 }

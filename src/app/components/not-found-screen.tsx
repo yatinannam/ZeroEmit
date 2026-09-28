@@ -9,7 +9,7 @@ import { PageHeader } from "./page-header";
 
 // Inside the full app shell so an installed PWA (no browser back button) still has a way out.
 export function NotFoundScreen() {
-  const { location, locationOpen, openLocation, closeLocation, chooseLocation } = useLocationPicker();
+  const { place, locationOpen, openLocation, closeLocation, chooseLocation } = useLocationPicker();
   return <div className="mobile-app">
     <TopBar onChooseLocation={openLocation}/>
     <main className="dashboard-content">
@@ -17,6 +17,6 @@ export function NotFoundScreen() {
       <Link className="primary-button" href="/"><Icon name="home" size={18}/> Back to home</Link>
     </main>
     <BottomNav/>
-    {locationOpen && <LocationModal current={location} onClose={closeLocation} onChoose={chooseLocation}/>}
+    {locationOpen && <LocationModal current={place} onClose={closeLocation} onChoose={chooseLocation}/>}
   </div>;
 }
