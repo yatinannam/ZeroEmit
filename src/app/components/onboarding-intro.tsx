@@ -9,21 +9,43 @@ import { Icon } from "./icon-set";
 // show what the real screens look like, stay crisp, work offline and follow
 // the light/dark theme.
 
-function DayCurve() {
-  // A day that's dirty through the evening peak and dips clean around midday.
-  const values = [62, 60, 58, 55, 52, 47, 40, 33, 26, 21, 19, 21, 27, 36, 48, 60, 72, 80, 84, 82, 76, 70, 66, 63];
-  const x = (i: number) => 12 + (i / (values.length - 1)) * 256;
-  const y = (v: number) => 138 - v * 1.2;
-  const line = values.map((v, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(" ");
-  return <svg className="intro-art-svg" viewBox="0 0 280 170" role="img" aria-label="A day's grid intensity, lowest around midday">
-    <rect className="intro-band" x={x(9)} y="20" width={x(12) - x(9)} height="118" rx="6"/>
-    <line className="intro-baseline" x1="12" y1="138" x2="268" y2="138"/>
-    <path className="intro-area" d={`${line} L${x(23)},138 L${x(0)},138 Z`}/>
-    <path className="intro-line" d={line}/>
-    <circle className="intro-dot" cx={x(10)} cy={y(19)} r="13"/>
-    <path className="intro-bolt" d={`M${x(10) + 2} ${y(19) - 8} l-7 9 h5 l-2 7 l7 -9 h-5 z`}/>
-    {[["12 am", 0], ["6 am", 6], ["12 pm", 12], ["6 pm", 18]].map(([label, i]) => <text key={label} className="intro-label" x={x(i as number)} y="158" textAnchor={i === 0 ? "start" : "middle"}>{label}</text>)}
-  </svg>;
+// A 24-hour dial (12 pm at the top, 12 am at the bottom): the green arc is
+// the cleaner midday stretch, the grey one the dirtier evening peak.
+const DIAL = { cx: 140, cy: 128, r: 82 };
+function dialPoint(hour: number, radius: number) {
+  const angle = ((hour - 12) / 24) * 2 * Math.PI;
+  return { x: DIAL.cx + radius * Math.sin(angle), y: DIAL.cy - radius * Math.cos(angle) };
+}
+function dialArc(fromHour: number, toHour: number) {
+  const a = dialPoint(fromHour, DIAL.r);
+  const b = dialPoint(toHour, DIAL.r);
+  return `M${a.x.toFixed(1)} ${a.y.toFixed(1)} A${DIAL.r} ${DIAL.r} 0 ${toHour - fromHour > 12 ? 1 : 0} 1 ${b.x.toFixed(1)} ${b.y.toFixed(1)}`;
+}
+
+function DayDial() {
+  const { cx, cy, r } = DIAL;
+  const sun = dialPoint(12, 52);
+  const moon = dialPoint(0, 52);
+  return <div className="intro-dial">
+    <svg className="intro-art-svg" viewBox="0 0 280 250" role="img" aria-label="A 24-hour day: cleaner hours around midday, a dirtier peak in the evening">
+      <circle className="dial-track" cx={cx} cy={cy} r={r}/>
+      <path className="dial-dirty" d={dialArc(17.5, 22)}/>
+      <path className="dial-clean" d={dialArc(10, 15)}/>
+      {Array.from({ length: 8 }, (_, i) => { const a = dialPoint(i * 3, r - 16); const b = dialPoint(i * 3, r - 11); return <line key={i} className="dial-tick" x1={a.x} y1={a.y} x2={b.x} y2={b.y}/>; })}
+      <g className="dial-icon">
+        <circle cx={sun.x} cy={sun.y} r="6"/>
+        {Array.from({ length: 8 }, (_, i) => { const t = (i / 8) * 2 * Math.PI; return <line key={i} x1={sun.x + 9 * Math.cos(t)} y1={sun.y + 9 * Math.sin(t)} x2={sun.x + 12 * Math.cos(t)} y2={sun.y + 12 * Math.sin(t)}/>; })}
+        <path d={`M${moon.x + 4} ${moon.y - 8} a9 9 0 1 0 5 13 a7 7 0 0 1 -5 -13 z`}/>
+      </g>
+      <circle className="intro-dot" cx={cx} cy={cy} r="30"/>
+      <path className="intro-bolt" d={`M${cx + 3} ${cy - 16} l-12 18 h9 l-3 14 l12 -18 h-9 z`}/>
+      <text className="intro-label" x={cx} y={cy - r - 16} textAnchor="middle">12 pm</text>
+      <text className="intro-label" x={cx + r + 14} y={cy + 4} textAnchor="start">6 pm</text>
+      <text className="intro-label" x={cx} y={cy + r + 26} textAnchor="middle">12 am</text>
+      <text className="intro-label" x={cx - r - 14} y={cy + 4} textAnchor="end">6 am</text>
+    </svg>
+    <div className="dial-legend" aria-hidden="true"><span><i className="dial-key-clean"/>Cleaner hours</span><span><i className="dial-key-dirty"/>Evening peak</span></div>
+  </div>;
 }
 
 // A fixed sample day (IST midnight onwards) so the labels read 12 am … 11 pm.
@@ -50,7 +72,7 @@ function MiniRewards() {
 }
 
 const SLIDES = [
-  { title: "Charge when energy is cleaner.", body: "Electricity isn't equally clean throughout the day. ZeroEmit helps you find better charging windows.", Art: DayCurve },
+  { title: "Charge when energy is cleaner.", body: "Electricity isn't equally clean throughout the day. ZeroEmit helps you find better charging windows.", Art: DayDial },
   { title: "Plan your next 24 hours.", body: "See how clean the grid is likely to be, hour by hour, from India's real regional grid data, and when the cleanest windows are.", Art: MiniForecast },
   { title: "Turn cleaner choices into progress.", body: "Track CO₂ savings, earn Eco Points and build sustainable charging habits.", Art: MiniRewards },
 ];
