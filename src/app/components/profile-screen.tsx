@@ -15,6 +15,7 @@ import { LocationModal } from "./location-modal";
 import { Modal } from "./modal";
 import { ShareImpactModal } from "./share-card";
 import { useThemeChoice, type ThemeChoice } from "./theme";
+import { resetIntroSeen } from "./location-gate";
 
 const THEME_OPTIONS: { key: ThemeChoice; label: string }[] = [{ key: "system", label: "System" }, { key: "light", label: "Light" }, { key: "dark", label: "Dark" }];
 
@@ -67,6 +68,7 @@ export function ProfileScreen() {
     clearNotificationFlag();
     resetNotificationPrefs();
     void removePushSubscription();
+    resetIntroSeen();
     setPlace(null);
     setDeleteOpen(false);
     showToast("Your data has been deleted from this device");
