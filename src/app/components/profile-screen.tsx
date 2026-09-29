@@ -1,8 +1,8 @@
 "use client";
 
 import { FormEvent, useState } from "react";
-import { chargesInCurrentMonth, currentStreakDays, estimatedCarbonSavedGrams, totalPoints } from "../lib/rewards";
-import { useCharges } from "./use-charges";
+import { chargesInMonth, currentStreakDays, estimatedCarbonSavedGrams, impactSummary, totalPoints } from "../lib/rewards";
+import { LEGACY_LOGGED_AT, useCharges } from "./use-charges";
 import { useProfile } from "./use-profile";
 import { useLocationPicker } from "./use-location-picker";
 import { clearNotificationFlag, resetNotificationPrefs, useNotificationPermission } from "./notifications";
@@ -13,6 +13,18 @@ import { Icon, type IconName } from "./icon-set";
 import { BottomNav, TopBar } from "./app-shell";
 import { LocationModal } from "./location-modal";
 import { Modal } from "./modal";
+import { ShareImpactModal } from "./share-card";
+import { useThemeChoice, type ThemeChoice } from "./theme";
+
+const THEME_OPTIONS: { key: ThemeChoice; label: string }[] = [{ key: "system", label: "System" }, { key: "light", label: "Light" }, { key: "dark", label: "Dark" }];
+
+type Summary = ReturnType<typeof impactSummary>;
+const IMPACT_ROWS: { label: string; value: (summary: Summary) => string }[] = [
+  { label: "Energy charged", value: (s) => (s.count ? `${s.kwh.toFixed(1)} kWh` : "—") },
+  { label: "CO₂ avoided", value: (s) => (s.count ? `${s.co2Kg.toFixed(1)} kg` : "—") },
+  { label: "Green-charge rate", value: (s) => (s.greenRate === null ? "—" : `${Math.round(s.greenRate * 100)}%`) },
+  { label: "Charges", value: (s) => String(s.count) },
+];
 
 const ABOUT_TEXT = "ZeroEmit helps you charge your EV when the grid is running on cleaner power. Best-time recommendations come from live regional grid data where available, or your own charging history otherwise.";
 const PRIVACY_TEXT = "Your vehicle and charge history stay on this device. ZeroEmit's server gets your state, to fetch grid data for its region. If you use your current location, your coordinates are only used on this device to find the nearest city. If you turn on scheduled notifications, the server also keeps your city name, which notifications you want, and your streak count and last charge date, so it can send reminders; turning them off or deleting your account removes that.";
@@ -23,6 +35,9 @@ export function ProfileScreen() {
   const [infoModal, setInfoModal] = useState<"about" | "privacy" | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
+  const [appearanceOpen, setAppearanceOpen] = useState(false);
+  const [theme, setTheme] = useThemeChoice();
   const permission = useNotificationPermission();
   const { charges, clearCharges } = useCharges();
   const { profile, updateProfile, resetProfile } = useProfile();
@@ -30,14 +45,18 @@ export function ProfileScreen() {
   const points = totalPoints(charges);
   const streak = currentStreakDays(charges);
   const savedGrams = estimatedCarbonSavedGrams(charges);
-  const monthCharges = chargesInCurrentMonth(charges);
-  const monthKwh = monthCharges.reduce((sum, charge) => sum + charge.energyKwh, 0);
+  const thisMonth = impactSummary(chargesInMonth(charges));
+  const lastMonth = impactSummary(chargesInMonth(charges, 1));
+  // Setup date if recorded; otherwise (installs from before it was) the first charge.
+  const oldestCharge = charges.at(-1);
+  const since = profile.joinedAt ?? (oldestCharge && oldestCharge.loggedAt !== LEGACY_LOGGED_AT ? oldestCharge.loggedAt : null);
+  const sinceLabel = since ? new Intl.DateTimeFormat("en-IN", { month: "short", year: "numeric" }).format(new Date(since)) : null;
   const initials = profile.name.trim() ? profile.name.trim().split(/\s+/).slice(0, 2).map((part) => part[0].toUpperCase()).join("") : "?";
 
   function submitProfile(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
-    updateProfile({ name: String(form.get("name") || "").trim(), vehicle: String(form.get("vehicle") || "").trim() });
+    updateProfile({ ...profile, name: String(form.get("name") || "").trim(), vehicle: String(form.get("vehicle") || "").trim() });
     setEditOpen(false);
     showToast("Profile updated");
   }
@@ -57,6 +76,7 @@ export function ProfileScreen() {
     { icon: "user", label: "Profile & vehicle", onClick: () => setEditOpen(true) },
     { icon: "pin", label: "Location", onClick: openLocation },
     { icon: "bell", label: "Notifications", trailing: permission === "granted" ? "On" : permission === "denied" ? "Blocked" : "Off", onClick: () => setNotificationsOpen(true) },
+    { icon: "moon", label: "Appearance", trailing: THEME_OPTIONS.find((option) => option.key === theme)?.label, onClick: () => setAppearanceOpen(true) },
     { icon: "shield", label: "Privacy", onClick: () => setInfoModal("privacy") },
     { icon: "info", label: "About", onClick: () => setInfoModal("about") },
   ];
@@ -69,6 +89,7 @@ export function ProfileScreen() {
         <h1>{profile.name || "Add your name"}</h1>
         <p className="profile-vehicle">{profile.vehicle || "Add your EV in Profile & vehicle"}</p>
         <button className="location-label location-button" onClick={openLocation}><Icon name="pin" size={14}/> {location}</button>
+        {sinceLabel && <p className="profile-since">Charging with ZeroEmit since {sinceLabel}</p>}
       </section>
 
       <section className="metrics-grid">
@@ -77,11 +98,18 @@ export function ProfileScreen() {
         <div className="card metric"><h2>Streak</h2><strong>{streak ? <>{streak} <small>day{streak === 1 ? "" : "s"}</small></> : "—"}</strong></div>
       </section>
 
-      <section className="card settings-list">
-        {settingsRows.map((row) => <button key={row.label} className="settings-row" onClick={row.onClick}><span className="round-icon"><Icon name={row.icon} size={18}/></span><span>{row.label}</span>{row.trailing && <small className="settings-row-trailing">{row.trailing}</small>}<Icon name="chevron-right" size={18}/></button>)}
+      <section className="card stat-card impact-card">
+        <h2>Your impact</h2>
+        <table className="impact-table">
+          <thead><tr><td/><th scope="col">This month</th><th scope="col">Last month</th></tr></thead>
+          <tbody>{IMPACT_ROWS.map((row) => <tr key={row.label}><th scope="row">{row.label}</th><td>{row.value(thisMonth)}</td><td>{row.value(lastMonth)}</td></tr>)}</tbody>
+        </table>
+        {charges.length ? <button className="forecast-button action-button" onClick={() => setShareOpen(true)}><Icon name="share" size={18}/> Share my impact</button> : <p className="personal-note">Log a charge to start tracking your impact.</p>}
       </section>
 
-      <p className="personal-note">{monthCharges.length ? `${monthKwh.toFixed(1)} kWh logged this month across ${monthCharges.length} charge${monthCharges.length === 1 ? "" : "s"}.` : "Log a charge to start tracking your impact."}</p>
+      <section className="card settings-list">
+        {settingsRows.map((row) => <button key={row.label} className="settings-row" onClick={row.onClick}><span className="round-icon"><Icon name={row.icon} size={18}/></span><span>{row.label}</span>{row.trailing && <small className={row.trailing === "On" ? "settings-row-trailing settings-row-on" : "settings-row-trailing"}>{row.trailing}</small>}<Icon name="chevron-right" size={18}/></button>)}
+      </section>
 
       <button className="forecast-button action-button destructive-button" onClick={() => setDeleteOpen(true)}><Icon name="trash" size={18}/> Delete account</button>
     </main>
@@ -96,6 +124,15 @@ export function ProfileScreen() {
     </Modal>}
 
     {notificationsOpen && <NotificationSettings onClose={() => setNotificationsOpen(false)}/>}
+
+    {shareOpen && <ShareImpactModal charges={charges} name={profile.name.trim().split(/\s+/)[0] ?? ""} onClose={() => setShareOpen(false)}/>}
+
+    {appearanceOpen && <Modal title="Appearance" onClose={() => setAppearanceOpen(false)}>
+      <p>System follows your phone&apos;s light or dark setting.</p>
+      <div className="segmented" role="radiogroup" aria-label="Theme">
+        {THEME_OPTIONS.map((option) => <button key={option.key} role="radio" aria-checked={theme === option.key} className={theme === option.key ? "active" : ""} onClick={() => setTheme(option.key)}>{option.label}</button>)}
+      </div>
+    </Modal>}
 
     {infoModal && <Modal title={infoModal === "about" ? "About ZeroEmit" : "Privacy"} onClose={() => setInfoModal(null)}>
       <p>{infoModal === "about" ? ABOUT_TEXT : PRIVACY_TEXT}</p>

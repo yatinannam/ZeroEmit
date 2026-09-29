@@ -2,14 +2,16 @@
 import { useCallback, useSyncExternalStore } from "react";
 import { createLocalStorageStore } from "./local-storage-store";
 
-export type Profile = { name: string; vehicle: string };
+// `joinedAt` is when this device first finished setup (for "member since").
+export type Profile = { name: string; vehicle: string; joinedAt?: string };
 const STORAGE_KEY = "zeroemit-profile";
 const DEFAULT_PROFILE: Profile = { name: "", vehicle: "" };
 
 function normalizeProfile(raw: unknown): Profile {
   if (!raw || typeof raw !== "object") return DEFAULT_PROFILE;
   const value = raw as Record<string, unknown>;
-  return { name: typeof value.name === "string" ? value.name : "", vehicle: typeof value.vehicle === "string" ? value.vehicle : "" };
+  const joinedAt = typeof value.joinedAt === "string" && !Number.isNaN(Date.parse(value.joinedAt)) ? value.joinedAt : undefined;
+  return { name: typeof value.name === "string" ? value.name : "", vehicle: typeof value.vehicle === "string" ? value.vehicle : "", ...(joinedAt ? { joinedAt } : {}) };
 }
 
 const store = createLocalStorageStore<Profile>(

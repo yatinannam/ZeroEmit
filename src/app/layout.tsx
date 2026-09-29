@@ -6,6 +6,8 @@ import { ToastHost } from "./components/toast";
 import { LocationGate } from "./components/location-gate";
 import { CleanGridWatcher } from "./components/clean-grid-watcher";
 import { PushSync } from "./components/push-sync";
+import { ThemeSync } from "./components/theme";
+import { THEME_BOOT_SCRIPT } from "./lib/theme-boot";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 
@@ -26,7 +28,10 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#f1fdec",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#f1fdec" },
+    { media: "(prefers-color-scheme: dark)", color: "#0f1510" },
+  ],
   // Without this, iOS Safari ignores env(safe-area-inset-*) entirely (they
   // resolve to 0), so the bottom nav's safe-area padding — already written
   // in globals.css — silently does nothing on notched/home-indicator iPhones.
@@ -34,5 +39,10 @@ export const viewport: Viewport = {
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
-  return <html lang="en" className={inter.variable}><body><PwaRegister />{children}<LocationGate /><CleanGridWatcher /><PushSync /><ToastHost /></body></html>;
+  // suppressHydrationWarning: the inline script may set data-theme on <html>
+  // before React hydrates.
+  return <html lang="en" className={inter.variable} suppressHydrationWarning>
+    <head><script dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }}/></head>
+    <body><PwaRegister />{children}<LocationGate /><CleanGridWatcher /><PushSync /><ThemeSync /><ToastHost /></body>
+  </html>;
 }

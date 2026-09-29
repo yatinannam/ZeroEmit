@@ -39,12 +39,25 @@ export function currentStreakDays(charges: Charge[]): number {
   return streak;
 }
 
-export function chargesInCurrentMonth(charges: Charge[]): Charge[] {
-  const now = new Date();
+// Charges in the calendar month containing `date` (device-local, like the
+// rest of the charge history), offset by `monthsBack` (1 = the month before).
+export function chargesInMonth(charges: Charge[], monthsBack = 0, date = new Date()): Charge[] {
+  const target = new Date(date.getFullYear(), date.getMonth() - monthsBack, 1);
   return charges.filter((charge) => {
     const loggedAt = new Date(charge.loggedAt);
-    return loggedAt.getFullYear() === now.getFullYear() && loggedAt.getMonth() === now.getMonth();
+    return loggedAt.getFullYear() === target.getFullYear() && loggedAt.getMonth() === target.getMonth();
   });
+}
+
+// Totals for a set of charges. `greenRate` is the share (0–1) charged while
+// the grid was green, or null with no charges to measure.
+export function impactSummary(charges: Charge[]) {
+  return {
+    kwh: charges.reduce((sum, charge) => sum + charge.energyKwh, 0),
+    co2Kg: estimatedCarbonSavedGrams(charges) / 1000,
+    count: charges.length,
+    greenRate: charges.length ? charges.filter(isGreenCharge).length / charges.length : null,
+  };
 }
 
 // A conservative "if you'd charged without timing it" reference point — the

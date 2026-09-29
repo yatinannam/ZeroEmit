@@ -1,4 +1,4 @@
-export type IconName = "pin" | "user" | "bolt" | "arrow" | "arrow-left" | "close" | "tree" | "fire" | "clock" | "home" | "chart" | "history" | "award" | "chevron-right" | "bell" | "shield" | "info" | "trash" | "search" | "target" | "check";
+export type IconName = "pin" | "user" | "bolt" | "arrow" | "arrow-left" | "close" | "tree" | "fire" | "clock" | "home" | "chart" | "history" | "award" | "chevron-right" | "bell" | "shield" | "info" | "trash" | "search" | "target" | "check" | "moon" | "share" | "download";
 
 export function Icon({ name, size = 22 }: { name: IconName; size?: number }) {
   const common = { width: size, height: size, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 1.9, strokeLinecap: "round" as const, strokeLinejoin: "round" as const, "aria-hidden": true };
@@ -23,6 +23,9 @@ export function Icon({ name, size = 22 }: { name: IconName; size?: number }) {
     search: <><circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.2-4.2"/></>,
     target: <><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2.5"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></>,
     check: <path d="m5 12.5 4.5 4.5L19 7.5"/>,
+    moon: <path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5Z"/>,
+    share: <><path d="M12 15V3"/><path d="m7 8 5-5 5 5"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></>,
+    download: <><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></>,
     trash: <><path d="M4 7h16"/><path d="M9 7V4h6v3"/><path d="m6 7 1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13"/></>,
   };
   return <svg {...common}>{paths[name]}</svg>;

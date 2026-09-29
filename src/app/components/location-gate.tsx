@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useSyncExternalStore } from "react";
 import { useStoredLocation } from "./use-location";
+import { useProfile } from "./use-profile";
 import { LocationSearch } from "./location-search";
 import { showToast } from "./toast";
 import { DEFAULT_PLACE, placeLabel, ZONE_LABELS, zoneOf, type Place } from "../lib/places";
@@ -14,6 +15,7 @@ const noopSubscribe = () => () => {};
 // returning users too.
 export function LocationGate() {
   const [stored, setPlace] = useStoredLocation();
+  const { profile, updateProfile } = useProfile();
   const hydrated = useSyncExternalStore(noopSubscribe, () => true, () => false);
   const panelRef = useRef<HTMLDivElement>(null);
   const open = hydrated && stored === null;
@@ -24,6 +26,7 @@ export function LocationGate() {
 
   function choose(place: Place) {
     setPlace(place);
+    if (!profile.joinedAt) updateProfile({ ...profile, joinedAt: new Date().toISOString() });
     showToast(`Location set to ${placeLabel(place)} · ${ZONE_LABELS[zoneOf(place)]}`);
   }
 
