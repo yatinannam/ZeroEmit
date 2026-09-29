@@ -75,6 +75,31 @@ function parseLatestItem(raw: unknown): AtlasLatestItem | null {
   return { carbon_intensity_gco2_kwh: item.carbon_intensity_gco2_kwh, timestamp: item.timestamp, intensity_class: typeof item.intensity_class === "string" ? item.intensity_class : undefined };
 }
 
+// The newest by-zone row is often the hour still being filled in: it's
+// modelled from whatever inputs have arrived so far, so its total generation
+// is well short of a complete hour (e.g. 65 GW against ~87 GW) and its
+// intensity comes out far too low (230 against a settled 558). Used as
+// "current", that made charging *now* look cleaner than every forecast hour,
+// every time. Drop leading rows that are in the future or whose generation
+// falls under 90% of the hour before — complete hours almost never do (2 of
+// 335 over 14 days in the Western grid, and skipping one of those only means
+// showing the previous hour's reading).
+const PROVISIONAL_GENERATION_RATIO = 0.9;
+function completeItems(items: unknown[], now = Date.now()): unknown[] {
+  const generation = (raw: unknown) => (raw && typeof raw === "object" && typeof (raw as { total_generation_mw?: unknown }).total_generation_mw === "number" ? (raw as { total_generation_mw: number }).total_generation_mw : null);
+  let start = 0;
+  while (start < Math.min(2, items.length - 1)) {
+    const item = parseLatestItem(items[start]);
+    const current = generation(items[start]);
+    const previous = generation(items[start + 1]);
+    const inFuture = item !== null && Date.parse(item.timestamp) > now;
+    const partial = current !== null && previous !== null && current < previous * PROVISIONAL_GENERATION_RATIO;
+    if (!inFuture && !partial) break;
+    start += 1;
+  }
+  return items.slice(start);
+}
+
 function istHour(isoTimestamp: string): number {
   return Number(new Intl.DateTimeFormat("en-US", { hour: "numeric", hourCycle: "h23", timeZone: IST_TIME_ZONE }).format(new Date(isoTimestamp)));
 }
@@ -105,7 +130,7 @@ async function fetchZoneFromUpstream(zone: string, key: string): Promise<{ snaps
   const response = await fetch(`${ATLAS_URL}/carbon-intensity/by-zone?zone=${zone}&hours=${ZONE_DATA_HISTORY_HOURS}`, { headers: { "X-API-Key": key, accept: "application/json" } });
   if (!response.ok) return { snapshot: null, status: response.status };
   const payload = await response.json();
-  const items: unknown[] = Array.isArray(payload?.data?.items) ? payload.data.items : [];
+  const items = completeItems(Array.isArray(payload?.data?.items) ? payload.data.items : []);
   const snapshot: ZoneSnapshot = { latest: items.length > 0 ? parseLatestItem(items[0]) : null, pattern: buildTypicalPattern(items), fetchedAt: Date.now() };
   // Only cache a usable result — a 200 with empty/unparseable items would
   // otherwise freeze a transient failure, forcing requests into the
@@ -216,7 +241,7 @@ async function fetchAtlas(state: string, zone: Zone, key: string): Promise<Provi
       return { message, status: nationalResponse.status === 429 ? 429 : 502 };
     }
     const nationalPayload = await nationalResponse.json();
-    latest = parseLatestItem(nationalPayload?.data?.items?.[0]);
+    latest = parseLatestItem(completeItems(Array.isArray(nationalPayload?.data?.items) ? nationalPayload.data.items : [])[0]);
   }
   if (!latest) return { message: "Live grid data is temporarily unavailable.", status: 502 };
 
