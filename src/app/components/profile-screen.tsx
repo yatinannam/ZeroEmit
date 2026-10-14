@@ -16,6 +16,7 @@ import { Modal } from "./modal";
 import { ShareImpactModal } from "./share-card";
 import { useThemeChoice, type ThemeChoice } from "./theme";
 import { resetIntroSeen } from "./location-gate";
+import { leaveLeaderboard, useLeaderboardMembership } from "./use-leaderboard";
 
 const THEME_OPTIONS: { key: ThemeChoice; label: string }[] = [{ key: "system", label: "System" }, { key: "light", label: "Light" }, { key: "dark", label: "Dark" }];
 
@@ -28,7 +29,7 @@ const IMPACT_ROWS: { label: string; value: (summary: Summary) => string }[] = [
 ];
 
 const ABOUT_TEXT = "ZeroEmit helps you charge your EV when the grid is running on cleaner power. Best-time recommendations come from live regional grid data where available, or your own charging history otherwise.";
-const PRIVACY_TEXT = "Your vehicle and charge history stay on this device. ZeroEmit's server gets your state, to fetch grid data for its region. If you use your current location, your coordinates are only used on this device to find the nearest city. If you turn on scheduled notifications, the server also keeps your city name, which notifications you want, and your streak count and last charge date, so it can send reminders; turning them off or deleting your account removes that.";
+const PRIVACY_TEXT = "Your vehicle and charge history stay on this device. ZeroEmit's server gets your state, to fetch grid data for its region. If you use your current location, your coordinates are only used on this device to find the nearest city. If you turn on scheduled notifications, the server also keeps your city name, which notifications you want, and your streak count and last charge date, so it can send reminders; turning them off or deleting your account removes that. If you join the leaderboard, your display name, grid region and this month's Eco points and CO₂ avoided are visible to other ZeroEmit users; leaving removes them.";
 
 export function ProfileScreen() {
   const { place, location, setPlace, locationOpen, openLocation, closeLocation, chooseLocation } = useLocationPicker();
@@ -40,6 +41,7 @@ export function ProfileScreen() {
   const [appearanceOpen, setAppearanceOpen] = useState(false);
   const [theme, setTheme] = useThemeChoice();
   const permission = useNotificationPermission();
+  const leaderboardMember = useLeaderboardMembership();
   const { charges, clearCharges } = useCharges();
   const { profile, updateProfile, resetProfile } = useProfile();
 
@@ -68,6 +70,7 @@ export function ProfileScreen() {
     clearNotificationFlag();
     resetNotificationPrefs();
     void removePushSubscription();
+    void leaveLeaderboard();
     resetIntroSeen();
     setPlace(null);
     setDeleteOpen(false);
@@ -138,10 +141,11 @@ export function ProfileScreen() {
 
     {infoModal && <Modal title={infoModal === "about" ? "About ZeroEmit" : "Privacy"} onClose={() => setInfoModal(null)}>
       <p>{infoModal === "about" ? ABOUT_TEXT : PRIVACY_TEXT}</p>
+      {infoModal === "privacy" && leaderboardMember && <button className="forecast-button action-button" onClick={() => { void leaveLeaderboard(); showToast("You've left the leaderboard"); }}>Leave the leaderboard</button>}
     </Modal>}
 
     {deleteOpen && <Modal title="Delete account?" onClose={() => setDeleteOpen(false)}>
-      <p>ZeroEmit doesn&apos;t have a server account to delete — your profile, location, charge history and notification choices are only stored on this device. This clears all of it and starts you from setup. It can&apos;t be undone.</p>
+      <p>ZeroEmit doesn&apos;t have an account to sign in to. This clears your profile, location, charge history, notification choices and leaderboard entry, and starts you from setup. It can&apos;t be undone.</p>
       <button className="forecast-button action-button destructive-button" onClick={deleteAccount}><Icon name="trash" size={18}/> Delete account</button>
     </Modal>}
   </div>;
