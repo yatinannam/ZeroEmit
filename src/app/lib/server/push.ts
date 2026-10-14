@@ -16,7 +16,8 @@ export type ServerPrefs = { bestTime: boolean; dailyDigest: boolean; streakRemin
 // last sent; `badges` holds that per badge key.
 export type SentMarkers = Partial<Record<"day" | "night" | "digest" | "streak" | "overtake" | "top" | "monthEnd" | "weekly", string>> & { badges?: Record<string, string> };
 export type BadgeHint = { key: string; hint: string };
-export type WeekSummary = { charges: number; co2Kg: number; greenPercent: number };
+// `weekStart` is the week's Monday (IST); an older week's totals are stale.
+export type WeekSummary = { weekStart: string; charges: number; co2Kg: number; greenPercent: number };
 export type StoredSubscription = {
   subscription: { endpoint: string; keys: { p256dh: string; auth: string } };
   state: string;
@@ -69,8 +70,9 @@ function parseBadge(raw: unknown): BadgeHint | null | false {
 function parseWeek(raw: unknown): WeekSummary | null | false {
   if (raw === undefined || raw === null) return null;
   const week = raw as Partial<WeekSummary>;
+  if (typeof week.weekStart !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(week.weekStart)) return false;
   if (!Number.isInteger(week.charges) || !isBetween(week.charges, 0, 1000) || !isBetween(week.co2Kg, 0, 100_000) || !Number.isInteger(week.greenPercent) || !isBetween(week.greenPercent, 0, 100)) return false;
-  return { charges: week.charges, co2Kg: week.co2Kg, greenPercent: week.greenPercent };
+  return { weekStart: week.weekStart, charges: week.charges, co2Kg: week.co2Kg, greenPercent: week.greenPercent };
 }
 
 // A switch an older app doesn't send yet defaults to on; null means malformed.

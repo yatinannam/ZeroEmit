@@ -29,9 +29,11 @@ async function activeRegistration() {
   return registration?.active ? registration : null;
 }
 
-export type PushDetails = { place: Place; prefs: Prefs; streak: number; lastChargeDay: string | null };
+// `leaderboardId` is the public leaderboard id (never the key); `badge` and
+// `week` feed the badge nudge and weekly recap.
+export type PushDetails = { place: Place; prefs: Prefs; streak: number; lastChargeDay: string | null; leaderboardId: string | null; badge: { key: string; hint: string } | null; week: { weekStart: string; charges: number; co2Kg: number; greenPercent: number } };
 
-export async function syncPushSubscription({ place, prefs, streak, lastChargeDay }: PushDetails) {
+export async function syncPushSubscription({ place, prefs, streak, lastChargeDay, leaderboardId, badge, week }: PushDetails) {
   const registration = await activeRegistration();
   if (!registration || Notification.permission !== "granted") return;
   try {
@@ -39,7 +41,7 @@ export async function syncPushSubscription({ place, prefs, streak, lastChargeDay
     const response = await fetch("/api/push/subscription", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ subscription: subscription.toJSON(), state: place.state, name: place.name, prefs: { bestTime: prefs.bestTime, dailyDigest: prefs.dailyDigest, streakReminders: prefs.streakReminders }, streak, lastChargeDay }),
+      body: JSON.stringify({ subscription: subscription.toJSON(), state: place.state, name: place.name, prefs: { bestTime: prefs.bestTime, dailyDigest: prefs.dailyDigest, streakReminders: prefs.streakReminders, leaderboard: prefs.leaderboard, progress: prefs.progress }, streak, lastChargeDay, leaderboardId, badge, week }),
     });
     setPushActive(response.ok);
   } catch {

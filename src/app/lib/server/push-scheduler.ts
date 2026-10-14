@@ -101,7 +101,9 @@ function planProgress(sub: StoredSubscription, now: number): Planned[] {
   const today = istDayKey(now);
   const hour = istHourOfDay(now);
   const sunday = new Date(now + IST_OFFSET_MS).getUTCDay() === 0;
-  if (sunday && hour >= 18 && hour < 20 && sub.week && sub.week.charges > 0 && sub.sent.weekly !== today) {
+  // This week's Monday: the device's totals count only if they're this week's.
+  const monday = istDayKey(now - 6 * 24 * HOUR_MS);
+  if (sunday && hour >= 18 && hour < 20 && sub.week?.weekStart === monday && sub.week.charges > 0 && sub.sent.weekly !== today) {
     const { charges, co2Kg, greenPercent } = sub.week;
     return [{ payload: { title: "Your week in ZeroEmit", body: `This week: ${charges} charge${charges === 1 ? "" : "s"}, ${co2Kg.toFixed(1)} kg CO₂ avoided, ${greenPercent}% green.`, url: "/profile", tag: "zeroemit-weekly" }, marks: ["weekly"] }];
   }

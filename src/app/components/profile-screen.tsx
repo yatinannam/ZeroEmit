@@ -1,6 +1,7 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useEffectEvent, useState } from "react";
+import { useRouter } from "next/navigation";
 import { chargesInMonth, currentStreakDays, estimatedCarbonSavedGrams, impactSummary, totalPoints } from "../lib/rewards";
 import { LEGACY_LOGGED_AT, useCharges } from "./use-charges";
 import { useProfile } from "./use-profile";
@@ -13,7 +14,7 @@ import { Icon, type IconName } from "./icon-set";
 import { BottomNav, TopBar } from "./app-shell";
 import { LocationModal } from "./location-modal";
 import { Modal } from "./modal";
-import { ShareImpactModal } from "./share-card";
+import { ShareImpactModal, type SharePeriod } from "./share-card";
 import { useThemeChoice, type ThemeChoice } from "./theme";
 import { resetIntroSeen } from "./location-gate";
 import { leaveLeaderboard, useLeaderboardMembership } from "./use-leaderboard";
@@ -32,13 +33,16 @@ const IMPACT_ROWS: { label: string; value: (summary: Summary) => string }[] = [
 const ABOUT_TEXT = "ZeroEmit helps you charge your EV when the grid is running on cleaner power. Best-time recommendations come from live regional grid data where available, or your own charging history otherwise.";
 const PRIVACY_TEXT = "Your vehicle and charge history stay on this device. ZeroEmit's server gets your state, to fetch grid data for its region. If you use your current location, your coordinates are only used on this device to find the nearest city. If you turn on scheduled notifications, the server also keeps your city name, which notifications you want, and your streak count and last charge date, so it can send reminders; turning them off or deleting your account removes that. If you join the leaderboard, your display name, grid region and this month's Eco points and CO₂ avoided are visible to other ZeroEmit users; leaving removes them.";
 
-export function ProfileScreen() {
+// `shareLastMonth`: opened from the month-end leaderboard notification.
+export function ProfileScreen({ shareLastMonth = false }: { shareLastMonth?: boolean }) {
+  const router = useRouter();
   const { place, location, setPlace, locationOpen, openLocation, closeLocation, chooseLocation } = useLocationPicker();
   const [editOpen, setEditOpen] = useState(false);
   const [infoModal, setInfoModal] = useState<"about" | "privacy" | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
+  const [sharePeriod, setSharePeriod] = useState<SharePeriod | undefined>(undefined);
   const [appearanceOpen, setAppearanceOpen] = useState(false);
   const [theme, setTheme] = useThemeChoice();
   const permission = useNotificationPermission();
@@ -56,6 +60,14 @@ export function ProfileScreen() {
   const since = profile.joinedAt ?? (oldestCharge && oldestCharge.loggedAt !== LEGACY_LOGGED_AT ? oldestCharge.loggedAt : null);
   const sinceLabel = since ? new Intl.DateTimeFormat("en-IN", { month: "short", year: "numeric" }).format(new Date(since)) : null;
   const initials = profile.name.trim() ? profile.name.trim().split(/\s+/).slice(0, 2).map((part) => part[0].toUpperCase()).join("") : "?";
+
+  // Open once on last month, then drop ?share= so a refresh doesn't reopen it.
+  const openLastMonthShare = useEffectEvent(() => { setSharePeriod("lastMonth"); setShareOpen(true); router.replace("/profile", { scroll: false }); });
+  useEffect(() => {
+    if (!shareLastMonth) return;
+    const timer = setTimeout(openLastMonthShare, 0);
+    return () => clearTimeout(timer);
+  }, [shareLastMonth]);
 
   function submitProfile(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -131,7 +143,7 @@ export function ProfileScreen() {
 
     {notificationsOpen && <NotificationSettings onClose={() => setNotificationsOpen(false)}/>}
 
-    {shareOpen && <ShareImpactModal charges={charges} name={profile.name.trim().split(/\s+/)[0] ?? ""} onClose={() => setShareOpen(false)}/>}
+    {shareOpen && <ShareImpactModal charges={charges} name={profile.name.trim().split(/\s+/)[0] ?? ""} initialPeriod={sharePeriod} onClose={() => { setShareOpen(false); setSharePeriod(undefined); }}/>}
 
     {appearanceOpen && <Modal title="Appearance" onClose={() => setAppearanceOpen(false)}>
       <p>System follows your phone&apos;s light or dark setting.</p>

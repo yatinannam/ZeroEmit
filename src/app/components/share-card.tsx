@@ -7,7 +7,8 @@ import { Icon } from "./icon-set";
 import { Modal } from "./modal";
 import { showToast } from "./toast";
 
-type Period = "month" | "all";
+export type SharePeriod = "month" | "lastMonth" | "all";
+type Period = SharePeriod;
 type CardData = { name: string; periodLabel: string; co2Kg: number; kwh: number; greenRate: number | null; streak: number };
 
 const W = 1080;
@@ -116,12 +117,20 @@ async function drawCard(data: CardData): Promise<Blob> {
   return new Promise<Blob>((resolve, reject) => canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error("Couldn't create the image"))), "image/png"));
 }
 
+const chargesFor = (charges: Charge[], period: Period) => (period === "month" ? chargesInMonth(charges) : period === "lastMonth" ? chargesInMonth(charges, 1) : charges);
+
+function periodLabel(period: Period) {
+  if (period === "all") return "All time";
+  const now = new Date();
+  const month = period === "month" ? now : new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  return new Intl.DateTimeFormat("en-IN", { month: "long", year: "numeric" }).format(month);
+}
+
 function cardData(charges: Charge[], period: Period, name: string): CardData {
-  const selected = period === "month" ? chargesInMonth(charges) : charges;
-  const summary = impactSummary(selected);
+  const summary = impactSummary(chargesFor(charges, period));
   return {
     name,
-    periodLabel: period === "month" ? new Intl.DateTimeFormat("en-IN", { month: "long", year: "numeric" }).format(new Date()) : "All time",
+    periodLabel: periodLabel(period),
     co2Kg: summary.co2Kg,
     kwh: summary.kwh,
     greenRate: summary.greenRate,
@@ -132,8 +141,10 @@ function cardData(charges: Charge[], period: Period, name: string): CardData {
 // The image is generated as soon as the sheet opens (or the period changes),
 // so tapping Share calls navigator.share straight from the tap — Safari only
 // allows it inside the user's gesture, which an await in between would lose.
-export function ShareImpactModal({ charges, name, onClose }: { charges: Charge[]; name: string; onClose: () => void }) {
-  const [period, setPeriod] = useState<Period>(() => (chargesInMonth(charges).length ? "month" : "all"));
+// `initialPeriod`: e.g. "lastMonth" when opened from the month-end notification.
+export function ShareImpactModal({ charges, name, onClose, initialPeriod }: { charges: Charge[]; name: string; onClose: () => void; initialPeriod?: Period }) {
+  const [period, setPeriod] = useState<Period>(() => initialPeriod ?? (chargesInMonth(charges).length ? "month" : "all"));
+  const showLastMonth = period === "lastMonth" || chargesInMonth(charges, 1).length > 0;
   const [image, setImage] = useState<{ period: Period; file: File; url: string } | null>(null);
   const [failed, setFailed] = useState(false);
 
@@ -149,7 +160,7 @@ export function ShareImpactModal({ charges, name, onClose }: { charges: Charge[]
   }, [charges, period, name]);
 
   const ready = image?.period === period ? image : null;
-  const summary = impactSummary(period === "month" ? chargesInMonth(charges) : charges);
+  const summary = impactSummary(chargesFor(charges, period));
   const shareText = `I avoided ${summary.co2Kg.toFixed(1)} kg of CO₂ by charging my EV when the grid was cleaner. zero-emit.vercel.app`;
   const canShareFile = Boolean(ready && typeof navigator !== "undefined" && navigator.canShare?.({ files: [ready.file] }));
 
@@ -174,6 +185,7 @@ export function ShareImpactModal({ charges, name, onClose }: { charges: Charge[]
   return <Modal title="Share your impact" onClose={onClose}>
     <div className="segmented" role="tablist" aria-label="Period">
       <button role="tab" aria-selected={period === "month"} className={period === "month" ? "active" : ""} onClick={() => setPeriod("month")}>This month</button>
+      {showLastMonth && <button role="tab" aria-selected={period === "lastMonth"} className={period === "lastMonth" ? "active" : ""} onClick={() => setPeriod("lastMonth")}>Last month</button>}
       <button role="tab" aria-selected={period === "all"} className={period === "all" ? "active" : ""} onClick={() => setPeriod("all")}>All time</button>
     </div>
     <div className="share-preview">

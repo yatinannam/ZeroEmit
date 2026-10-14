@@ -1,6 +1,7 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useEffectEvent, useState } from "react";
+import { useRouter } from "next/navigation";
 import { intensityAt } from "../lib/grid";
 import { chargeOutcome, MAX_CHARGE_KWH as MAX_KWH, pointsForCharge } from "../lib/rewards";
 import { sendNotification } from "./notifications";
@@ -19,7 +20,10 @@ const pad = (value: number) => String(value).padStart(2, "0");
 const localDate = (date: Date) => `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 const localTime = (date: Date) => `${pad(date.getHours())}:${pad(date.getMinutes())}`;
 
-export function LogScreen() {
+// `quick`: opened from a notification's "Log a charge" button, so open the
+// form straight away, set to right now.
+export function LogScreen({ quick = false }: { quick?: boolean }) {
+  const router = useRouter();
   const { place, location: city, locationOpen, openLocation, closeLocation, chooseLocation } = useLocationPicker();
   const [form, setForm] = useState<{ date: string; time: string; today: string } | null>(null);
   const [formError, setFormError] = useState("");
@@ -40,14 +44,22 @@ export function LogScreen() {
     if (last?.heading === heading) last.items.push(charge); else groups.push({ heading, items: [charge] });
   }
 
-  function openForm() {
+  function openForm(atNow = false) {
     const now = new Date();
     // Default to the usual charging time when it's already passed today
     // (the common "log last night's charge" case), otherwise to right now.
-    const time = typicalTime && typicalTime <= localTime(now) ? typicalTime : localTime(now);
+    const time = !atNow && typicalTime && typicalTime <= localTime(now) ? typicalTime : localTime(now);
     setFormError("");
     setForm({ date: localDate(now), time, today: localDate(now) });
   }
+
+  // Open once, then drop ?quick=1 so a refresh or Back doesn't reopen it.
+  const openQuickForm = useEffectEvent(() => { openForm(true); router.replace("/log", { scroll: false }); });
+  useEffect(() => {
+    if (!quick) return;
+    const timer = setTimeout(openQuickForm, 0);
+    return () => clearTimeout(timer);
+  }, [quick]);
 
   function submitCharge(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -83,7 +95,7 @@ export function LogScreen() {
     <main className="dashboard-content">
       <PageHeader eyebrow="Charging history" title="Your charging impact." intro="Keep track of every charge and the emissions you avoided."/>
 
-      <button className="primary-button" onClick={openForm}><Icon name="bolt" size={18}/> Log a charge</button>
+      <button className="primary-button" onClick={() => openForm()}><Icon name="bolt" size={18}/> Log a charge</button>
 
       <section className="activity">
         <h2>All charges</h2>

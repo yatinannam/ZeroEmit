@@ -162,6 +162,8 @@ export function weekSummary(charges: Charge[], now = Date.now()) {
   const weekStart = Date.UTC(istNow.getUTCFullYear(), istNow.getUTCMonth(), istNow.getUTCDate()) - daysSinceMonday * DAY_MS - IST_OFFSET_MS;
   const week = charges.filter((charge) => { const at = Date.parse(charge.loggedAt); return at >= weekStart && at <= now; });
   return {
+    // The week's Monday (IST), so the server can tell a stale summary apart.
+    weekStart: new Date(weekStart + IST_OFFSET_MS).toISOString().slice(0, 10),
     charges: week.length,
     co2Kg: Math.round(estimatedCarbonSavedGrams(week) / 100) / 10,
     greenPercent: week.length ? Math.round((week.filter(isGreenCharge).length / week.length) * 100) : 0,

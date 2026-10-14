@@ -44,16 +44,18 @@ export function clearNotificationFlag() {
 // alerts fall back to the in-app watcher and the server-only kinds are hidden.
 export const serverPushAvailable = Boolean(process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY);
 
-export type NotificationKind = "charges" | "rewards" | "bestTime" | "dailyDigest" | "streakReminders";
+export type NotificationKind = "charges" | "rewards" | "bestTime" | "dailyDigest" | "streakReminders" | "leaderboard" | "progress";
 export const NOTIFICATION_KINDS: { key: NotificationKind; label: string; detail: string; serverOnly?: boolean }[] = [
   { key: "bestTime", label: "Best time to charge", detail: serverPushAvailable ? "When today's cleanest window is about to start, and at 9 pm for tonight's" : "Once a day, when right now is the cleanest time left to charge (while ZeroEmit is open)" },
   { key: "dailyDigest", label: "Morning digest", detail: "Around 7 am: today's best time to charge", serverOnly: true },
   { key: "streakReminders", label: "Streak reminders", detail: "In the evening, if today's charge isn't logged and your streak is at risk", serverOnly: true },
+  { key: "leaderboard", label: "Leaderboard updates", detail: "If someone passes you, when you reach #1, and your final rank each month (once you've joined)", serverOnly: true },
+  { key: "progress", label: "Progress and weekly recap", detail: "When a badge is nearly unlocked, and a Sunday-evening summary of your week", serverOnly: true },
   { key: "charges", label: "Charge confirmations", detail: "When you log a charge, with the points you earned" },
   { key: "rewards", label: "Rewards", detail: "New levels, achievements and streak milestones" },
 ];
 export type Prefs = Record<NotificationKind, boolean>;
-const DEFAULT_PREFS: Prefs = { charges: true, rewards: true, bestTime: true, dailyDigest: true, streakReminders: true };
+const DEFAULT_PREFS: Prefs = { charges: true, rewards: true, bestTime: true, dailyDigest: true, streakReminders: true, leaderboard: true, progress: true };
 
 // "cleanGrid" was the earlier name for "bestTime"; carry the choice over.
 function parsePrefs(raw: string): Prefs {

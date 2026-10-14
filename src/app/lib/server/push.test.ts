@@ -10,7 +10,7 @@ const base = {
   lastChargeDay: "2026-10-13",
   leaderboardId: "00000000-0000-4000-8000-000000000001",
   badge: { key: "green-10", hint: "2 more green charges to unlock Green Regular." },
-  week: { charges: 4, co2Kg: 3.2, greenPercent: 75 },
+  week: { weekStart: "2026-10-12", charges: 4, co2Kg: 3.2, greenPercent: 75 },
 };
 
 describe("parseSubscriptionBody", () => {
@@ -38,9 +38,18 @@ describe("parseSubscriptionBody", () => {
     expect(parseSubscriptionBody({ ...base, badge: { key: "made-up", hint: "x" } })).toBeNull();
     expect(parseSubscriptionBody({ ...base, badge: { key: "green-10", hint: "x".repeat(141) } })).toBeNull();
     expect(parseSubscriptionBody({ ...base, badge: { key: "green-10", hint: "" } })).toBeNull();
-    expect(parseSubscriptionBody({ ...base, week: { charges: 1.5, co2Kg: 1, greenPercent: 50 } })).toBeNull();
-    expect(parseSubscriptionBody({ ...base, week: { charges: 2, co2Kg: -1, greenPercent: 50 } })).toBeNull();
-    expect(parseSubscriptionBody({ ...base, week: { charges: 2, co2Kg: 1, greenPercent: 101 } })).toBeNull();
+    expect(parseSubscriptionBody({ ...base, week: { weekStart: "2026-10-12", charges: 1.5, co2Kg: 1, greenPercent: 50 } })).toBeNull();
+    expect(parseSubscriptionBody({ ...base, week: { weekStart: "2026-10-12", charges: 2, co2Kg: -1, greenPercent: 50 } })).toBeNull();
+    expect(parseSubscriptionBody({ ...base, week: { weekStart: "2026-10-12", charges: 2, co2Kg: 1, greenPercent: 101 } })).toBeNull();
     expect(parseSubscriptionBody({ ...base, prefs: { ...base.prefs, leaderboard: "yes" } })).toBeNull();
+  });
+});
+
+describe("parseSubscriptionBody week start", () => {
+  test("requires the week's Monday as a date", () => {
+    expect(parseSubscriptionBody({ ...base, week: { ...base.week, weekStart: "last week" } })).toBeNull();
+    const { weekStart, ...noStart } = base.week;
+    void weekStart;
+    expect(parseSubscriptionBody({ ...base, week: noStart })).toBeNull();
   });
 });

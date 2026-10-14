@@ -21,18 +21,20 @@ self.addEventListener("fetch", (event) => {
 });
 
 // Scheduled notifications from the server (src/app/lib/server/push-scheduler.ts):
-// { title, body, url, tag }.
+// { title, body, url, tag, actions? }. Actions show as buttons where the
+// platform supports them (not iPhone); "log" opens the quick-log form.
 self.addEventListener("push", (event) => {
   let payload = {};
   try { payload = event.data ? event.data.json() : {}; } catch { payload = { body: event.data ? event.data.text() : "" }; }
-  event.waitUntil(self.registration.showNotification(payload.title || "ZeroEmit", { body: payload.body || "", icon: "/icons/icon-192.png", tag: payload.tag || "zeroemit", data: { url: payload.url || "/" } }));
+  event.waitUntil(self.registration.showNotification(payload.title || "ZeroEmit", { body: payload.body || "", icon: "/icons/icon-192.png", tag: payload.tag || "zeroemit", actions: Array.isArray(payload.actions) ? payload.actions : [], data: { url: payload.url || "/" } }));
 });
 
 // Each notification carries the page it's about in `data.url` (e.g. /log for
 // a charge confirmation): reuse an open ZeroEmit window if there is one.
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  const url = new URL(event.notification.data?.url || "/", self.location.origin).href;
+  const target = event.action === "log" ? "/log?quick=1" : event.notification.data?.url || "/";
+  const url = new URL(target, self.location.origin).href;
   event.waitUntil(self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(async (clients) => {
     const existing = clients.find((client) => "focus" in client);
     if (!existing) return self.clients.openWindow(url);

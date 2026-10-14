@@ -100,17 +100,17 @@ describe("weekly recap", () => {
   const sunday = ist("2026-10-18T18:30:00");
 
   test("Sunday 6-8 pm with at least one charge, instead of a badge nudge that evening", () => {
-    const result = plan(sub({ week: { charges: 4, co2Kg: 3.2, greenPercent: 75 }, badge: { key: "green-10", hint: "1 more green charge to unlock Green Regular." } }), undefined, sunday);
+    const result = plan(sub({ week: { weekStart: "2026-10-12", charges: 4, co2Kg: 3.2, greenPercent: 75 }, badge: { key: "green-10", hint: "1 more green charge to unlock Green Regular." } }), undefined, sunday);
     expect(result.planned.map((item) => item.payload.title)).toEqual(["Your week in ZeroEmit"]);
     expect(result.planned[0].payload).toMatchObject({ body: "This week: 4 charges, 3.2 kg CO₂ avoided, 75% green.", url: "/profile" });
     expect(result.planned[0].marks).toEqual(["weekly"]);
   });
 
   test("singular, once, and skipped for an empty week or another day", () => {
-    expect(bodies(plan(sub({ week: { charges: 1, co2Kg: 0, greenPercent: 100 } }), undefined, sunday))).toEqual(["This week: 1 charge, 0.0 kg CO₂ avoided, 100% green."]);
-    expect(bodies(plan(sub({ week: { charges: 2, co2Kg: 1, greenPercent: 50 }, sent: { weekly: "2026-10-18" } }), undefined, sunday))).toEqual([]);
-    expect(bodies(plan(sub({ week: { charges: 0, co2Kg: 0, greenPercent: 0 } }), undefined, sunday))).toEqual([]);
-    expect(bodies(plan(sub({ week: { charges: 2, co2Kg: 1, greenPercent: 50 } }), undefined, ist("2026-10-17T18:30:00")))).toEqual([]);
+    expect(bodies(plan(sub({ week: { weekStart: "2026-10-12", charges: 1, co2Kg: 0, greenPercent: 100 } }), undefined, sunday))).toEqual(["This week: 1 charge, 0.0 kg CO₂ avoided, 100% green."]);
+    expect(bodies(plan(sub({ week: { weekStart: "2026-10-12", charges: 2, co2Kg: 1, greenPercent: 50 }, sent: { weekly: "2026-10-18" } }), undefined, sunday))).toEqual([]);
+    expect(bodies(plan(sub({ week: { weekStart: "2026-10-12", charges: 0, co2Kg: 0, greenPercent: 0 } }), undefined, sunday))).toEqual([]);
+    expect(bodies(plan(sub({ week: { weekStart: "2026-10-12", charges: 2, co2Kg: 1, greenPercent: 50 } }), undefined, ist("2026-10-17T18:30:00")))).toEqual([]);
   });
 });
 
@@ -121,5 +121,12 @@ describe("best-time reminders", () => {
     const result = plan(sub({ prefs: { ...sub().prefs, bestTime: true } }), { points, dayFloor: 400, liveIsGreen: false }, now);
     const night = result.planned.find((item) => item.payload.tag === "zeroemit-night");
     expect(night?.payload.actions).toEqual([{ action: "log", title: "Log a charge" }]);
+  });
+});
+
+describe("weekly recap freshness", () => {
+  test("skipped when the device's totals are from an earlier week", () => {
+    const stale = sub({ week: { weekStart: "2026-10-05", charges: 3, co2Kg: 2, greenPercent: 100 } });
+    expect(plan(stale, undefined, Date.parse("2026-10-18T18:30:00+05:30")).planned).toEqual([]);
   });
 });

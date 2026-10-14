@@ -105,10 +105,10 @@ describe("weekSummary", () => {
       at("2026-10-11T18:31:00.000Z", 600), // Mon 00:01 IST, not green, 1 kg
       at("2026-10-11T18:29:00.000Z", 400), // Sun 23:59 IST: last week
     ];
-    expect(weekSummary(charges, NOW)).toEqual({ charges: 2, co2Kg: 6, greenPercent: 50 });
+    expect(weekSummary(charges, NOW)).toEqual({ weekStart: "2026-10-12", charges: 2, co2Kg: 6, greenPercent: 50 });
   });
 
   test("an empty week is all zeros", () => {
-    expect(weekSummary([], NOW)).toEqual({ charges: 0, co2Kg: 0, greenPercent: 0 });
+    expect(weekSummary([], NOW)).toEqual({ weekStart: "2026-10-12", charges: 0, co2Kg: 0, greenPercent: 0 });
   });
 });
