@@ -2,7 +2,8 @@
 
 import { FormEvent, useEffect, useEffectEvent, useState } from "react";
 import { useRouter } from "next/navigation";
-import { intensityAt } from "../lib/grid";
+import { intensityAt, istHourOfDay } from "../lib/grid";
+import { chargeTiming, hourlyPattern, type ChargeTiming } from "../lib/timing";
 import { chargeOutcome, MAX_CHARGE_KWH as MAX_KWH, pointsForCharge } from "../lib/rewards";
 import { sendNotification } from "./notifications";
 import { showToast } from "./toast";
@@ -71,15 +72,19 @@ export function LogScreen({ quick = false }: { quick?: boolean }) {
     if (Number.isNaN(when)) { setFormError("Pick a valid date and time."); return; }
     if (when > Date.now()) { setFormError("That time hasn't happened yet — pick a time in the past."); return; }
     const intensity = intensityAt(grid.data, when);
-    const charge = { energyKwh: Math.round(energy * 10) / 10, chargedAt: time, city, carbonIntensity: intensity?.carbonIntensity ?? null, intensityClass: intensity?.intensityClass ?? null, intensitySource: intensity?.source, loggedAt: new Date(when).toISOString() };
-    const { points, green, rewards } = chargeOutcome(charges, { ...charge, id: "" });
+    // Timing against the region's typical day; unknown without grid data.
+    const pattern = grid.data?.available ? hourlyPattern(grid.data.forecast) : null;
+    const timing: ChargeTiming | undefined = pattern?.some((value) => value !== null) ? chargeTiming(pattern, istHourOfDay(when)) : undefined;
+    const charge = { energyKwh: Math.round(energy * 10) / 10, chargedAt: time, city, carbonIntensity: intensity?.carbonIntensity ?? null, intensityClass: intensity?.intensityClass ?? null, intensitySource: intensity?.source, ...(timing ? { timing } : {}), loggedAt: new Date(when).toISOString() };
+    const { points, rewards } = chargeOutcome(charges, { ...charge, id: "" });
+    const bonus = timing === "best" ? "+10 for charging in one of the day's best windows" : timing === "cleaner" ? "+5 for a cleaner-than-average hour" : null;
     addCharge(charge);
     setForm(null);
     const saved = `Charge saved: +${points} points`;
     const day = dayHeading(charge.loggedAt);
     const dayPhrase = day === "Today" || day === "Yesterday" ? day.toLowerCase() : `on ${day}`;
-    showToast(rewards.length ? `${saved}. ${rewards[0]}.` : green ? `${saved} (green-hour bonus)` : saved);
-    void sendNotification("charges", saved, `${charge.energyKwh} kWh ${dayPhrase} at ${formatTimeOfDay(time)}.${green ? " Includes the green-hour bonus." : ""}`, "/log");
+    showToast(rewards.length ? `${saved}. ${rewards[0]}.` : bonus ? `${saved}, including ${bonus}` : saved);
+    void sendNotification("charges", saved, `${charge.energyKwh} kWh ${dayPhrase} at ${formatTimeOfDay(time)}.${bonus ? ` Includes ${bonus}.` : ""}`, "/log");
     if (rewards.length) void sendNotification("rewards", rewards[0], rewards.length > 1 ? `${rewards.slice(1).join(". ")}.` : "Keep charging when the grid is cleaner to earn more.", "/rewards");
   }
 

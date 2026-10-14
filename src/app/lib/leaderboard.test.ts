@@ -62,7 +62,7 @@ describe("toLeaderboardCharges", () => {
 
   test("keeps only this IST month's charges, dated in IST", () => {
     const out = toLeaderboardCharges([charge("2026-10-31T19:00:00.000Z"), charge("2026-10-31T18:00:00.000Z"), charge("2026-09-30T10:00:00.000Z")], "2026-10");
-    expect(out).toEqual([{ date: "2026-10-31", kwh: 18, intensity: 420, green: true }]);
+    expect(out).toEqual([{ date: "2026-10-31", kwh: 18, intensity: 420, green: true, hour: 23, timing: null }]); // 23:30 IST
   });
 
   test("green follows the app's rule: the provider's class wins over the fallback threshold", () => {
@@ -116,5 +116,37 @@ describe("validateDisplayName with joiners", () => {
     expect(validateDisplayName("\u200D\u200D")).toBeNull();
     expect(validateDisplayName("Asha\u200D")).toBeNull();
     expect(validateDisplayName("\u200CAsha")).toBeNull();
+  });
+});
+
+describe("scoreMonth with timing (option A)", () => {
+  // Typical day: 600 everywhere except a clean midday window and a slightly cleaner 8 am.
+  const pattern = Array.from({ length: 24 }, () => 600 as number | null);
+  pattern[12] = 300; pattern[13] = 300; pattern[2] = 350; pattern[3] = 350; pattern[20] = 380; pattern[21] = 380; pattern[8] = 500;
+  const timed = (date: string, hour: number | null, timing: "best" | "cleaner" | "other" | null): LeaderboardCharge => ({ date, kwh: 20, intensity: 600, green: false, hour, timing });
+
+  test("the server's own pattern decides the bonus, whatever the device claims", () => {
+    const entries = [timed("2026-10-01", 12, "other"), timed("2026-10-02", 8, "best"), timed("2026-10-03", 18, "best")];
+    expect(scoreMonth(entries, MONTH, TODAY, pattern).points).toBe(20 + 15 + 10);
+  });
+
+  test("without server data, the device's claim is used", () => {
+    expect(scoreMonth([timed("2026-10-01", 12, "best"), timed("2026-10-02", 8, "cleaner")], MONTH, TODAY, null).points).toBe(20 + 15);
+  });
+
+  test("charges from before timing keep the old green rule", () => {
+    expect(scoreMonth([entry("2026-10-01", 20, 400, true)], MONTH, TODAY, pattern).points).toBe(15);
+  });
+
+  test("a full month at the cap is 31 x 2 x 20 = 1240 points", () => {
+    const month = Array.from({ length: 31 }, (_, i) => `2026-10-${String(i + 1).padStart(2, "0")}`).flatMap((date) => [timed(date, 12, "other"), timed(date, 13, "other"), timed(date, 2, "other")]);
+    expect(scoreMonth(month, MONTH, "2026-10-31", pattern).points).toBe(1240);
+  });
+});
+
+describe("toLeaderboardCharges with timing", () => {
+  test("sends the IST hour and the device's timing", () => {
+    const charge: Charge = { id: "x", energyKwh: 18, chargedAt: "12:30", city: "Chennai, Tamil Nadu", carbonIntensity: 520, intensityClass: "yellow", loggedAt: "2026-10-10T07:00:00.000Z", timing: "best" };
+    expect(toLeaderboardCharges([charge], "2026-10")).toEqual([{ date: "2026-10-10", kwh: 18, intensity: 520, green: true, hour: 12, timing: "best" }]);
   });
 });

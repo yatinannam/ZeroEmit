@@ -20,7 +20,7 @@ describe("parseMemberBody", () => {
   const valid = { id: uuid(1), key: uuid(2), name: "Asha", zone: "western", charges: [{ date: "2026-10-01", kwh: 18, intensity: 420, green: true }] };
 
   test("accepts a valid body", () => {
-    expect(parseMemberBody(valid)).toEqual(valid as never);
+    expect(parseMemberBody(valid)).toEqual({ ...valid, charges: [{ ...valid.charges[0], hour: null, timing: null }] } as never); // missing hour and timing read as unknown
   });
 
   test("rejects bad ids, keys, names, zones, charges and oversized lists", () => {
@@ -33,6 +33,15 @@ describe("parseMemberBody", () => {
     expect(parseMemberBody({ ...valid, charges: [{ date: "2026-10-01", kwh: 0, intensity: null, green: false }] })).toBeNull();
     expect(parseMemberBody({ ...valid, charges: Array(101).fill(valid.charges[0]) })).toBeNull();
     expect(parseMemberBody(null)).toBeNull();
+  });
+
+  test("accepts the charge hour and timing claim, and rejects bad ones", () => {
+    const withTiming = (hour: unknown, timing: unknown) => parseMemberBody({ ...valid, charges: [{ date: "2026-10-01", kwh: 18, intensity: 420, green: true, hour, timing }] });
+    expect(withTiming(12, "best")?.charges[0]).toMatchObject({ hour: 12, timing: "best" });
+    expect(withTiming(null, null)?.charges[0]).toMatchObject({ hour: null, timing: null });
+    expect(withTiming(24, "best")).toBeNull();
+    expect(withTiming(1.5, "best")).toBeNull();
+    expect(withTiming(12, "great")).toBeNull();
   });
 
   test("a tiny but positive charge is accepted, not a reason to reject the whole sync", () => {

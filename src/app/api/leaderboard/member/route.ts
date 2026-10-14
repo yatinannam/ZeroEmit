@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { validateDisplayName } from "../../../lib/leaderboard";
 import { readLimitedJson } from "../../../lib/server/http";
+import { getZoneSnapshot } from "../../../lib/server/grid-source";
 import { isUuid, leaderboardConfigured, parseMemberBody, removeMember, submitMember } from "../../../lib/server/leaderboard";
 
 const NOT_CONFIGURED = { error: "The leaderboard isn't set up on this server." };
@@ -22,7 +23,10 @@ export async function POST(request: NextRequest) {
   try {
     // On Vercel the first x-forwarded-for entry is the client's address.
     const ip = request.headers.get("x-forwarded-for")?.split(",")[0].trim() || request.headers.get("x-real-ip");
-    const result = await submitMember(input, Date.now(), ip);
+    // The region's typical day, from cached grid data only (no provider call),
+    // so the server judges each charge's timing itself.
+    const pattern = await getZoneSnapshot(input.zone, { allowUpstream: false }).then(({ snapshot }) => snapshot?.pattern ?? null).catch(() => null);
+    const result = await submitMember(input, Date.now(), ip, pattern);
     if (!result.ok) return NextResponse.json({ error: SUBMIT_ERRORS[result.status] }, { status: result.status });
     return NextResponse.json({ rank: result.rank, points: result.points, co2Kg: result.co2Kg });
   } catch {

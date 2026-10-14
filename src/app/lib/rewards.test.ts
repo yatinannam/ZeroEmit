@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { Charge } from "../components/use-charges";
-import { achievements, chargeOutcome, closestBadge, weekSummary } from "./rewards";
+import { achievements, chargeOutcome, closestBadge, isGreenCharge, pointsForCharge, weekSummary } from "./rewards";
 
 let nextId = 0;
 // A charge `daysAgo` days back at `hour`:00, 20 kWh unless given.
@@ -110,5 +110,26 @@ describe("weekSummary", () => {
 
   test("an empty week is all zeros", () => {
     expect(weekSummary([], NOW)).toEqual({ weekStart: "2026-10-12", charges: 0, co2Kg: 0, greenPercent: 0 });
+  });
+});
+
+describe("points with timing (option A)", () => {
+  const timed = (timing: "best" | "cleaner" | "other", intensity: number | null = 600): Charge => ({ ...charge(1, 12, intensity), timing });
+
+  test("10 for logging, plus 10 in a best window or 5 at a cleaner hour", () => {
+    expect(pointsForCharge(timed("best"))).toBe(20);
+    expect(pointsForCharge(timed("cleaner"))).toBe(15);
+    expect(pointsForCharge(timed("other"))).toBe(10);
+  });
+
+  test("charges logged before timing existed keep their old points", () => {
+    expect(pointsForCharge(charge(1, 12, 400))).toBe(15);
+    expect(pointsForCharge(charge(1, 12, 600))).toBe(10);
+  });
+
+  test("a green charge is one in a best window once timing is known", () => {
+    expect(isGreenCharge(timed("best", 600))).toBe(true);
+    expect(isGreenCharge(timed("other", 400))).toBe(false);
+    expect(isGreenCharge(charge(1, 12, 400))).toBe(true); // legacy rule
   });
 });

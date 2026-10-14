@@ -1,4 +1,5 @@
 import type { Charge } from "../components/use-charges";
+import { TIMING_BONUS } from "./timing";
 
 export const POINTS_PER_CHARGE = 10;
 // Fallback only — used when a charge has no provider intensity_class (older
@@ -7,6 +8,7 @@ export const POINTS_PER_CHARGE = 10;
 // 476 (observed from the live India Energy Atlas zone data this app uses),
 // so a fixed cutoff well below that approximates what "green" would mean.
 export const GREEN_CHARGE_FALLBACK_THRESHOLD = 450; // gCO2/kWh
+// The old bonus, kept for charges logged before timing was recorded.
 export const GREEN_CHARGE_BONUS = 5;
 // Largest charge the log form accepts; the leaderboard clamps to it too.
 // Comfortably above the largest EV battery sold in India (~100 kWh) — a
@@ -14,14 +16,23 @@ export const GREEN_CHARGE_BONUS = 5;
 // form's "typical" default.
 export const MAX_CHARGE_KWH = 150;
 
-export function isGreenCharge(charge: Charge): boolean {
+// The grid's absolute rating, which is how charges were judged before their
+// timing was recorded.
+function legacyGreen(charge: Charge): boolean {
   return charge.intensityClass
     ? charge.intensityClass === "green"
     : charge.carbonIntensity !== null && charge.carbonIntensity <= GREEN_CHARGE_FALLBACK_THRESHOLD;
 }
 
+// A "green" charge is one in one of the day's best windows for the region
+// (lib/timing.ts); charges from before timing keep the old absolute rule.
+export function isGreenCharge(charge: Charge): boolean {
+  return charge.timing ? charge.timing === "best" : legacyGreen(charge);
+}
+
+// 10 for logging, plus the timing bonus (+10 best window, +5 cleaner hour).
 export function pointsForCharge(charge: Charge): number {
-  return POINTS_PER_CHARGE + (isGreenCharge(charge) ? GREEN_CHARGE_BONUS : 0);
+  return POINTS_PER_CHARGE + (charge.timing ? TIMING_BONUS[charge.timing] : legacyGreen(charge) ? GREEN_CHARGE_BONUS : 0);
 }
 
 export function totalPoints(charges: Charge[]): number {
@@ -103,8 +114,8 @@ export function achievements(charges: Charge[], streak: number): Achievement[] {
   const kwh = charges.reduce((sum, charge) => sum + charge.energyKwh, 0);
   const offPeak = charges.filter((charge) => !isPeakCharge(charge)).length;
   const rows: Omit<Achievement, "unlocked">[] = [
-    { key: "first-green", title: "First Green Charge", description: "Charge while the grid is green", current: green, target: 1, unit: "" },
-    { key: "green-10", title: "Green Regular", description: "10 charges in green hours", current: green, target: 10, unit: "" },
+    { key: "first-green", title: "First Green Charge", description: "Charge in one of the day's best windows", current: green, target: 1, unit: "" },
+    { key: "green-10", title: "Green Regular", description: "10 charges in best windows", current: green, target: 10, unit: "" },
     { key: "streak-7", title: "7 Day Streak", description: "Charge 7 days in a row", current: streak, target: 7, unit: " days" },
     { key: "streak-30", title: "30 Day Streak", description: "Charge 30 days in a row", current: streak, target: 30, unit: " days" },
     { key: "peak-dodger", title: "Peak Dodger", description: "5 charges outside the 6-10 pm peak", current: offPeak, target: 5, unit: "" },

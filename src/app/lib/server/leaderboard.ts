@@ -2,6 +2,7 @@ import { createHash, timingSafeEqual } from "node:crypto";
 import { istDayKey } from "../grid";
 import { istMonthKey, LEADERBOARD_SIZE, MAX_SUBMITTED_CHARGES, scoreMonth, validateDisplayName, ZONES, type LeaderboardCharge, type LeaderboardResponse, type LeaderboardRow, type LeaderboardScope } from "../leaderboard";
 import type { Zone } from "../places";
+import { CHARGE_TIMINGS, type ChargeTiming } from "../timing";
 import { redis, redisConfigured, redisTransaction } from "./redis";
 
 export const leaderboardConfigured = redisConfigured;
@@ -41,7 +42,12 @@ function parseCharge(raw: unknown): LeaderboardCharge | null {
   if (typeof charge.kwh !== "number" || !Number.isFinite(charge.kwh) || charge.kwh <= 0) return null;
   if (charge.intensity !== null && (typeof charge.intensity !== "number" || !Number.isFinite(charge.intensity))) return null;
   if (typeof charge.green !== "boolean") return null;
-  return { date: charge.date, kwh: charge.kwh, intensity: charge.intensity as number | null, green: charge.green };
+  // Optional (older apps don't send them); null means "not known".
+  const hour = charge.hour ?? null;
+  if (hour !== null && !(Number.isInteger(hour) && (hour as number) >= 0 && (hour as number) <= 23)) return null;
+  const timing = charge.timing ?? null;
+  if (timing !== null && !(CHARGE_TIMINGS as unknown[]).includes(timing)) return null;
+  return { date: charge.date, kwh: charge.kwh, intensity: charge.intensity as number | null, green: charge.green, hour: hour as number | null, timing: timing as ChargeTiming | null };
 }
 
 export function parseMemberBody(body: unknown): MemberInput | null {
@@ -76,7 +82,9 @@ async function withinHourlyLimit(name: string, limit: number, now: number) {
 // `ip` is the caller's address. New members are capped per address, so a
 // script minting fresh ids can't flood the board or burn through the Redis
 // quota that push reminders share. High enough for a class on one Wi-Fi.
-export async function submitMember(input: MemberInput, now = Date.now(), ip: string | null = null): Promise<SubmitResult> {
+// `pattern`: the region's typical day (by IST hour), to judge each charge's
+// timing on the server; null when the server has no grid data for it.
+export async function submitMember(input: MemberInput, now = Date.now(), ip: string | null = null, pattern: (number | null)[] | null = null): Promise<SubmitResult> {
   const [rawMember, removed] = await redis<(string | null)[]>("MGET", memberKey(input.id), removedKey(input.id));
   if (removed) return { ok: false, status: 410 };
   const existing = rawMember ? JSON.parse(rawMember) as MemberRecord : null;
@@ -86,7 +94,7 @@ export async function submitMember(input: MemberInput, now = Date.now(), ip: str
   if (!(await withinHourlyLimit(`lb:rate:${input.id}`, UPDATES_PER_HOUR, now))) return { ok: false, status: 429 };
 
   const month = istMonthKey(now);
-  const { points, co2Kg } = scoreMonth(input.charges, month, istDayKey(now));
+  const { points, co2Kg } = scoreMonth(input.charges, month, istDayKey(now), pattern);
   const sameMonth = existing !== null && existing.month === month;
   const scoredAt = sameMonth && existing.points === points ? existing.scoredAt : now;
   const record: MemberRecord = { name: input.name, zone: input.zone, keyHash, month, points, co2Kg, scoredAt, updatedAt: now };

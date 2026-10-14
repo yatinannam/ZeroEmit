@@ -1,7 +1,8 @@
 import type { Charge } from "../components/use-charges";
-import { istDayKey } from "./grid";
+import { istDayKey, istHourOfDay } from "./grid";
 import { ZONE_LABELS, type Zone } from "./places";
 import { GREEN_CHARGE_BONUS, isGreenCharge, MAX_CHARGE_KWH, POINTS_PER_CHARGE, UNTIMED_CHARGE_BASELINE } from "./rewards";
+import { chargeTiming, TIMING_BONUS, type ChargeTiming } from "./timing";
 
 // Rules shared by the app (building what it sends) and the server (which
 // recomputes the score itself rather than trusting a number from the client).
@@ -11,7 +12,9 @@ export const MAX_INTENSITY = 2000;
 export const LEADERBOARD_SIZE = 50;
 export const ZONES = Object.keys(ZONE_LABELS) as Zone[];
 
-export type LeaderboardCharge = { date: string; kwh: number; intensity: number | null; green: boolean };
+// `hour` (IST, 0–23) and `timing` (the device's judgement) came later;
+// older apps don't send them.
+export type LeaderboardCharge = { date: string; kwh: number; intensity: number | null; green: boolean; hour?: number | null; timing?: ChargeTiming | null };
 export type LeaderboardScope = "all" | Zone;
 export type LeaderboardRow = { rank: number; name: string; zone: Zone; points: number; co2Kg: number; isMe: boolean };
 export type LeaderboardResponse = { month: string; total: number; rows: LeaderboardRow[]; me: LeaderboardRow | null };
@@ -24,7 +27,7 @@ export function toLeaderboardCharges(charges: Charge[], month: string): Leaderbo
   return charges
     .filter((charge) => istMonthKey(charge.loggedAt) === month)
     .slice(0, MAX_SUBMITTED_CHARGES)
-    .map((charge) => ({ date: istDayKey(charge.loggedAt), kwh: charge.energyKwh, intensity: charge.carbonIntensity, green: isGreenCharge(charge) }));
+    .map((charge) => ({ date: istDayKey(charge.loggedAt), kwh: charge.energyKwh, intensity: charge.carbonIntensity, green: isGreenCharge(charge), hour: istHourOfDay(Date.parse(charge.loggedAt)), timing: charge.timing ?? null }));
 }
 
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
@@ -36,16 +39,27 @@ function isRealDay(date: string) {
   return !Number.isNaN(timestamp) && istDayKey(timestamp) === date;
 }
 
+// The timing bonus for one charge. A charge logged with timing is re-judged
+// from the server's own typical day for the region (`pattern`) at the charge's
+// IST hour, so a device can't claim a best window it didn't charge in; the
+// device's claim only stands when the server has no grid data. Charges from
+// before timing keep the old green bonus.
+function bonusFor(entry: LeaderboardCharge, intensity: number | null, pattern: (number | null)[] | null) {
+  if (!entry.timing) return entry.green && intensity !== null ? GREEN_CHARGE_BONUS : 0;
+  const timing = pattern && entry.hour !== null && entry.hour !== undefined ? chargeTiming(pattern, entry.hour) : entry.timing;
+  return TIMING_BONUS[timing];
+}
+
 // Points and CO2 avoided for `month` ("YYYY-MM"), counting days up to `today`
 // ("YYYY-MM-DD") and at most the best MAX_COUNTED_PER_DAY charges a day —
 // charges are self-reported, so this bounds what logging fake ones can earn.
-export function scoreMonth(entries: LeaderboardCharge[], month: string, today: string): { points: number; co2Kg: number } {
+export function scoreMonth(entries: LeaderboardCharge[], month: string, today: string, pattern: (number | null)[] | null = null): { points: number; co2Kg: number } {
   const byDay = new Map<string, { points: number; grams: number }[]>();
   for (const entry of entries) {
     if (!entry.date.startsWith(`${month}-`) || entry.date > today || !isRealDay(entry.date)) continue;
     const kwh = clamp(entry.kwh, 0, MAX_CHARGE_KWH);
     const intensity = entry.intensity === null ? null : clamp(entry.intensity, 0, MAX_INTENSITY);
-    const points = POINTS_PER_CHARGE + (entry.green && intensity !== null ? GREEN_CHARGE_BONUS : 0);
+    const points = POINTS_PER_CHARGE + bonusFor(entry, intensity, pattern);
     const grams = intensity === null ? 0 : Math.max(0, UNTIMED_CHARGE_BASELINE - intensity) * kwh;
     const day = byDay.get(entry.date) ?? [];
     day.push({ points, grams });

@@ -1,6 +1,7 @@
 "use client";
 
-import { achievements, currentRewardTier, currentStreakDays, estimatedCarbonSavedGrams, GREEN_CHARGE_BONUS, POINTS_PER_CHARGE, REWARD_TIERS, totalPoints } from "../lib/rewards";
+import { achievements, currentRewardTier, currentStreakDays, estimatedCarbonSavedGrams, POINTS_PER_CHARGE, REWARD_TIERS, totalPoints } from "../lib/rewards";
+import { TIMING_BONUS } from "../lib/timing";
 import { useCharges } from "./use-charges";
 import { useLocationPicker } from "./use-location-picker";
 import { Icon, type IconName } from "./icon-set";
@@ -16,7 +17,8 @@ const BADGE_ICONS: Record<string, IconName> = {
 
 const EARN_ROWS: { icon: IconName; title: string; detail: string; reward: string }[] = [
   { icon: "history", title: "Log a charge", detail: "Every charge you log", reward: `+${POINTS_PER_CHARGE}` },
-  { icon: "bolt", title: "Charge in green hours", detail: "When the grid is running cleanest", reward: `+${GREEN_CHARGE_BONUS} bonus` },
+  { icon: "bolt", title: "Charge in a best window", detail: "One of the day's 3 cleanest 2-hour windows for your region", reward: `+${TIMING_BONUS.best} bonus` },
+  { icon: "clock", title: "Charge at a cleaner hour", detail: "Any hour cleaner than your region's daily average", reward: `+${TIMING_BONUS.cleaner} bonus` },
   { icon: "fire", title: "Keep a streak", detail: "Charge on consecutive days", reward: "Badges" },
 ];
 

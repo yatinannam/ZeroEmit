@@ -2,6 +2,7 @@
 import { useCallback, useSyncExternalStore } from "react";
 import { createLocalStorageStore } from "./local-storage-store";
 import { LEGACY_LABELS, placeLabel } from "../lib/places";
+import type { ChargeTiming } from "../lib/timing";
 
 // `loggedAt` is when the charge happened (the date + time entered in the log
 // form) — streaks and monthly totals count by it, so a charge backfilled for
@@ -9,7 +10,9 @@ import { LEGACY_LABELS, placeLabel } from "../lib/places";
 // hold the time they were logged instead, which was the same day in practice.
 // `intensitySource` says where `carbonIntensity` came from: the live reading
 // ("live") or the typical value for that hour of day ("typical").
-export type Charge = { id: string; energyKwh: number; chargedAt: string; city: string; carbonIntensity: number | null; intensityClass?: string | null; intensitySource?: "live" | "typical"; loggedAt: string };
+// `timing`: how the charge was timed against the region's typical day when it
+// was logged (lib/timing.ts) — absent on charges from before it was recorded.
+export type Charge = { id: string; energyKwh: number; chargedAt: string; city: string; carbonIntensity: number | null; intensityClass?: string | null; intensitySource?: "live" | "typical"; timing?: ChargeTiming; loggedAt: string };
 const STORAGE_KEY = "zeroemit-charges";
 const EMPTY: Charge[] = [];
 
