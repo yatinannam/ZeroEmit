@@ -1,0 +1,78 @@
+import { beforeEach, describe, expect, test } from "bun:test";
+
+// Minimal browser stand-ins: localStorage (read by the stores) and fetch
+// (answering each request with the next queued status).
+const storage = new Map<string, string>();
+Object.assign(globalThis, {
+  window: {
+    localStorage: { getItem: (key: string) => storage.get(key) ?? null, setItem: (key: string, value: string) => { storage.set(key, String(value)); } },
+    addEventListener() {},
+    removeEventListener() {},
+  },
+});
+let statuses: (number | "offline")[] = [];
+const requests: { method: string; body: string }[] = [];
+globalThis.fetch = (async (_url: string | URL | Request, init?: RequestInit) => {
+  requests.push({ method: init?.method ?? "GET", body: String(init?.body ?? "") });
+  const status = statuses.shift() ?? 200;
+  if (status === "offline") throw new TypeError("Failed to fetch");
+  return new Response(JSON.stringify({ rank: 1 }), { status });
+}) as typeof fetch;
+
+const { getLeaderboardVersion, joinLeaderboard, leaveLeaderboard, retryPendingLeave, syncLeaderboard } = await import("./use-leaderboard");
+const PENDING = "zeroemit-leaderboard-pending-leave";
+const joined = () => JSON.parse(storage.get("zeroemit-leaderboard") ?? "null");
+
+beforeEach(async () => {
+  storage.clear();
+  requests.length = 0;
+  statuses = [200];
+  await joinLeaderboard("Asha", "western", []);
+  requests.length = 0;
+});
+
+describe("leaveLeaderboard", () => {
+  test("a removal the server confirms leaves nothing pending", async () => {
+    statuses = [200];
+    expect(await leaveLeaderboard()).toBe(true);
+    expect(joined()).toBeNull();
+    expect(JSON.parse(storage.get(PENDING) ?? "null")).toBeNull();
+  });
+
+  test("a removal that fails is kept and retried until the server confirms it", async () => {
+    const { id, key } = joined();
+    statuses = [502];
+    expect(await leaveLeaderboard()).toBe(false);
+    expect(joined()).toBeNull();
+    expect(JSON.parse(storage.get(PENDING) ?? "null")).toEqual({ id, key });
+
+    statuses = ["offline"];
+    await retryPendingLeave();
+    expect(JSON.parse(storage.get(PENDING) ?? "null")).toEqual({ id, key });
+
+    statuses = [200];
+    await retryPendingLeave();
+    expect(JSON.parse(storage.get(PENDING) ?? "null")).toBeNull();
+    expect(requests.map((request) => [request.method, JSON.parse(request.body)])).toEqual([["DELETE", { id, key }], ["DELETE", { id, key }], ["DELETE", { id, key }]]);
+  });
+
+  test("a removal the server says isn't ours to make stops retrying", async () => {
+    statuses = [403];
+    await leaveLeaderboard();
+    expect(JSON.parse(storage.get(PENDING) ?? "null")).toBeNull();
+  });
+});
+
+describe("syncLeaderboard", () => {
+  test("a successful sync bumps the board version so open boards refetch; a failed one doesn't", async () => {
+    const before = getLeaderboardVersion();
+    statuses = [200];
+    await syncLeaderboard("western", []);
+    expect(getLeaderboardVersion()).toBe(before + 1);
+    statuses = [502];
+    await syncLeaderboard("western", []);
+    statuses = ["offline"];
+    await syncLeaderboard("western", []);
+    expect(getLeaderboardVersion()).toBe(before + 1);
+  });
+});

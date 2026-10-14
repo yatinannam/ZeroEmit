@@ -8,6 +8,7 @@ export const leaderboardConfigured = redisConfigured;
 
 const RETENTION_S = 70 * 24 * 60 * 60;
 const UPDATES_PER_HOUR = 30;
+const NEW_MEMBERS_PER_ADDRESS_PER_HOUR = 20;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 // `scoredAt` is when `points` last changed — it breaks ties, so it must not
@@ -57,15 +58,23 @@ async function getMember(id: string): Promise<MemberRecord | null> {
   return raw ? JSON.parse(raw) as MemberRecord : null;
 }
 
-export async function submitMember(input: MemberInput, now = Date.now()): Promise<SubmitResult> {
+// Counts one more event in this hour's bucket; true while still within `limit`.
+async function withinHourlyLimit(name: string, limit: number, now: number) {
+  const key = `${name}:${Math.floor(now / 3_600_000)}`;
+  const count = await redis<number>("INCR", key);
+  if (count === 1) await redis("EXPIRE", key, 3600);
+  return count <= limit;
+}
+
+// `ip` is the caller's address. New members are capped per address, so a
+// script minting fresh ids can't flood the board or burn through the Redis
+// quota that push reminders share. High enough for a class on one Wi-Fi.
+export async function submitMember(input: MemberInput, now = Date.now(), ip: string | null = null): Promise<SubmitResult> {
   const existing = await getMember(input.id);
   const keyHash = hashKey(input.key);
   if (existing && !sameHash(existing.keyHash, keyHash)) return { ok: false, status: 403 };
-
-  const rateKey = `lb:rate:${input.id}:${Math.floor(now / 3_600_000)}`;
-  const updates = await redis<number>("INCR", rateKey);
-  if (updates === 1) await redis("EXPIRE", rateKey, 3600);
-  if (updates > UPDATES_PER_HOUR) return { ok: false, status: 429 };
+  if (!existing && ip && !(await withinHourlyLimit(`lb:new:${ip}`, NEW_MEMBERS_PER_ADDRESS_PER_HOUR, now))) return { ok: false, status: 429 };
+  if (!(await withinHourlyLimit(`lb:rate:${input.id}`, UPDATES_PER_HOUR, now))) return { ok: false, status: 429 };
 
   const month = istMonthKey(now);
   const { points, co2Kg } = scoreMonth(input.charges, month, istDayKey(now));

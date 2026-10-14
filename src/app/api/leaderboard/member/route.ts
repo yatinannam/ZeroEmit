@@ -17,7 +17,9 @@ export async function POST(request: NextRequest) {
   const input = parseMemberBody(await readJson(request));
   if (!input) return NextResponse.json({ error: "Invalid request" }, { status: 400 });
   try {
-    const result = await submitMember(input);
+    // On Vercel the first x-forwarded-for entry is the client's address.
+    const ip = request.headers.get("x-forwarded-for")?.split(",")[0].trim() || request.headers.get("x-real-ip");
+    const result = await submitMember(input, Date.now(), ip);
     if (!result.ok) return NextResponse.json({ error: result.status === 403 ? "Not your entry" : "Too many updates" }, { status: result.status });
     return NextResponse.json({ rank: result.rank, points: result.points, co2Kg: result.co2Kg });
   } catch {

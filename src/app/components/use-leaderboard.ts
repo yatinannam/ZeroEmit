@@ -49,19 +49,70 @@ export async function joinLeaderboard(name: string, zone: Zone, charges: Charge[
   }
 }
 
+// Bumped after each sync the server accepts, so an open board refetches and
+// shows the new score (the sync runs a moment after a charge is logged).
+let version = 0;
+const versionListeners = new Set<() => void>();
+export function getLeaderboardVersion() { return version; }
+function subscribeToVersion(listener: () => void) {
+  versionListeners.add(listener);
+  return () => { versionListeners.delete(listener); };
+}
+export function useLeaderboardVersion() {
+  return useSyncExternalStore(subscribeToVersion, getLeaderboardVersion, () => 0);
+}
+
 export async function syncLeaderboard(zone: Zone, charges: Charge[]) {
   const membership = store.getSnapshot();
   if (!membership) return;
-  try { await submit(membership, zone, charges); } catch { /* offline: the next change syncs again */ }
+  try {
+    const response = await submit(membership, zone, charges);
+    if (!response.ok) return;
+    version += 1;
+    versionListeners.forEach((listener) => listener());
+  } catch { /* offline: the next change syncs again */ }
 }
 
-// Forgets the entry on this device first, so the UI updates at once; if the
-// request fails, the entry drops off at the monthly reset.
+// An entry this device has left but the server hasn't confirmed removing yet.
+// It holds the only copy of the key, so it's kept until the removal goes
+// through — otherwise the name would stay public with no way to take it down.
+type PendingLeave = { id: string; key: string };
+const pendingLeave = createLocalStorageStore<PendingLeave | null>(
+  "zeroemit-leaderboard-pending-leave",
+  (raw) => {
+    const value = JSON.parse(raw) as Partial<PendingLeave> | null;
+    return value && typeof value.id === "string" && typeof value.key === "string" ? { id: value.id, key: value.key } : null;
+  },
+  (value) => JSON.stringify(value),
+  null,
+);
+
+// True once there's nothing left to retry: removed, or refused for good
+// (400/403 — not something a retry could change).
+async function sendLeave(entry: PendingLeave) {
+  try {
+    const response = await fetch("/api/leaderboard/member", { method: "DELETE", headers: { "content-type": "application/json" }, body: JSON.stringify(entry) });
+    return response.ok || response.status === 400 || response.status === 403;
+  } catch {
+    return false;
+  }
+}
+
+// Forgets the entry on this device at once, so the UI updates; the removal is
+// retried (see retryPendingLeave) until the server confirms it. Resolves to
+// whether it went through now.
 export async function leaveLeaderboard() {
   const membership = store.getSnapshot();
-  if (!membership) return;
+  if (!membership) return true;
+  const entry = { id: membership.id, key: membership.key };
   store.write(null);
-  try {
-    await fetch("/api/leaderboard/member", { method: "DELETE", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: membership.id, key: membership.key }) });
-  } catch { /* see above */ }
+  pendingLeave.write(entry);
+  const done = await sendLeave(entry);
+  if (done) pendingLeave.write(null);
+  return done;
+}
+
+export async function retryPendingLeave() {
+  const entry = pendingLeave.getSnapshot();
+  if (entry && await sendLeave(entry)) pendingLeave.write(null);
 }

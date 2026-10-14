@@ -14,16 +14,23 @@ import { useCharges } from "./use-charges";
 import { useStoredLocation } from "./use-location";
 import { useLocationPicker } from "./use-location-picker";
 import { useProfile } from "./use-profile";
-import { joinLeaderboard, leaveLeaderboard, useLeaderboardMembership } from "./use-leaderboard";
+import { joinLeaderboard, leaveLeaderboard, useLeaderboardMembership, useLeaderboardVersion } from "./use-leaderboard";
+
+// Shared by the leaderboard page and Profile → Privacy.
+export const LEFT_MESSAGE = "You've left the leaderboard";
+export const LEAVE_PENDING_MESSAGE = "You've left. Your name will be removed from the board as soon as you're back online.";
 
 type BoardState = { status: "loading" } | { status: "ready"; data: LeaderboardResponse } | { status: "error" } | { status: "unavailable" };
 
-// Fetches the board for `scope`; `refresh` bumps force a reload (after joining
-// or leaving). The result is tagged with its request so a stale response never
-// shows under a newer scope.
+// Fetches the board for `scope`; `refresh` bumps (after joining or leaving)
+// and accepted syncs (a newly logged charge) reload it. The result is tagged
+// with its request so a response never shows under a different scope; while
+// the same board reloads, the previous result stays up instead of "Loading".
 function useBoard(scope: LeaderboardScope, me: string | null, refresh: number): BoardState {
-  const request = `${scope}|${me ?? ""}|${refresh}`;
-  const [result, setResult] = useState<{ request: string; state: BoardState } | null>(null);
+  const version = useLeaderboardVersion();
+  const view = `${scope}|${me ?? ""}`;
+  const request = `${view}|${refresh}|${version}`;
+  const [result, setResult] = useState<{ request: string; view: string; state: BoardState } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -36,11 +43,12 @@ function useBoard(scope: LeaderboardScope, me: string | null, refresh: number): 
         return { status: "ready", data: await response.json() as LeaderboardResponse };
       })
       .catch((): BoardState => ({ status: "error" }))
-      .then((state) => { if (!cancelled) setResult({ request, state }); });
+      .then((state) => { if (!cancelled) setResult({ request, view, state }); });
     return () => { cancelled = true; };
-  }, [scope, me, request]);
+  }, [scope, me, view, request]);
 
-  return result?.request === request ? result.state : { status: "loading" };
+  if (result?.request === request) return result.state;
+  return result?.view === view && result.state.status === "ready" ? result.state : { status: "loading" };
 }
 
 function LeaderboardItem({ row }: { row: LeaderboardRow }) {
@@ -131,8 +139,7 @@ export function LeaderboardScreen() {
   const state = useBoard(regional && zone ? zone : "all", membership?.id ?? null, refresh);
 
   async function leave() {
-    await leaveLeaderboard();
-    showToast("You've left the leaderboard");
+    showToast(await leaveLeaderboard() ? LEFT_MESSAGE : LEAVE_PENDING_MESSAGE);
     setRefresh((n) => n + 1);
   }
 

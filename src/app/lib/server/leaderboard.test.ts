@@ -112,6 +112,14 @@ describe("submitMember + readLeaderboard", () => {
     expect((await submitMember(member(1, 1), NOW + 3_600_000)).ok).toBe(true); // next hour
   });
 
+  test("one network address can create at most 20 new members an hour", async () => {
+    for (let n = 1; n <= 20; n += 1) expect((await submitMember(member(n, 1), NOW, "203.0.113.7")).ok).toBe(true);
+    expect(await submitMember(member(21, 1), NOW, "203.0.113.7")).toEqual({ ok: false, status: 429 });
+    expect((await submitMember(member(1, 2), NOW, "203.0.113.7")).ok).toBe(true); // existing members still update
+    expect((await submitMember(member(22, 1), NOW, "198.51.100.1")).ok).toBe(true); // other addresses unaffected
+    expect((await submitMember(member(23, 1), NOW + 3_600_000, "203.0.113.7")).ok).toBe(true); // next hour
+  });
+
   test("a new month starts a fresh board; last month's set keeps its entry", async () => {
     const september = Date.parse("2026-09-20T06:30:00.000Z");
     await submitMember({ ...member(1, 0), charges: [{ date: "2026-09-20", kwh: 20, intensity: 600, green: false }] }, september);

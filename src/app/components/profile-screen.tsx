@@ -17,6 +17,7 @@ import { ShareImpactModal } from "./share-card";
 import { useThemeChoice, type ThemeChoice } from "./theme";
 import { resetIntroSeen } from "./location-gate";
 import { leaveLeaderboard, useLeaderboardMembership } from "./use-leaderboard";
+import { LEAVE_PENDING_MESSAGE, LEFT_MESSAGE } from "./leaderboard";
 
 const THEME_OPTIONS: { key: ThemeChoice; label: string }[] = [{ key: "system", label: "System" }, { key: "light", label: "Light" }, { key: "dark", label: "Dark" }];
 
@@ -141,7 +142,7 @@ export function ProfileScreen() {
 
     {infoModal && <Modal title={infoModal === "about" ? "About ZeroEmit" : "Privacy"} onClose={() => setInfoModal(null)}>
       <p>{infoModal === "about" ? ABOUT_TEXT : PRIVACY_TEXT}</p>
-      {infoModal === "privacy" && leaderboardMember && <button className="forecast-button action-button" onClick={() => { void leaveLeaderboard(); showToast("You've left the leaderboard"); }}>Leave the leaderboard</button>}
+      {infoModal === "privacy" && leaderboardMember && <button className="forecast-button action-button" onClick={() => { void leaveLeaderboard().then((done) => showToast(done ? LEFT_MESSAGE : LEAVE_PENDING_MESSAGE)); }}>Leave the leaderboard</button>}
     </Modal>}
 
     {deleteOpen && <Modal title="Delete account?" onClose={() => setDeleteOpen(false)}>

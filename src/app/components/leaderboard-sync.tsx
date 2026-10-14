@@ -4,16 +4,19 @@ import { useEffect } from "react";
 import { zoneOf } from "../lib/places";
 import { useCharges } from "./use-charges";
 import { useStoredLocation } from "./use-location";
-import { syncLeaderboard, useLeaderboardMembership } from "./use-leaderboard";
+import { retryPendingLeave, syncLeaderboard, useLeaderboardMembership } from "./use-leaderboard";
 
 // While this device is on the leaderboard, re-sends this month's charges when
 // they change (or the user's grid region does) so the server can rescore.
-// Mounted once in the layout.
+// Also finishes a leave that couldn't reach the server last time. Mounted
+// once in the layout.
 export function LeaderboardSync() {
   const joined = useLeaderboardMembership() !== null;
   const [place] = useStoredLocation();
   const { charges } = useCharges();
   const zone = place ? zoneOf(place) : null;
+
+  useEffect(() => { void retryPendingLeave(); }, []);
 
   useEffect(() => {
     if (!joined || !zone) return;
