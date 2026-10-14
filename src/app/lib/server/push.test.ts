@@ -1,5 +1,9 @@
-import { describe, expect, test } from "bun:test";
-import { parseSubscriptionBody } from "./push";
+import { beforeEach, describe, expect, mock, test } from "bun:test";
+import { fakeRedisModule, resetFakeRedis } from "./test-redis";
+
+mock.module("./redis", () => fakeRedisModule);
+const { listSubscriptions, parseSubscriptionBody, removeSubscription, saveSubscription, updateSubscriptionState } = await import("./push");
+beforeEach(() => { resetFakeRedis(); });
 
 const base = {
   subscription: { endpoint: "https://fcm.googleapis.com/fcm/send/abc123", keys: { p256dh: "BNcRdreALRFXTkOOUHK1EtK2wtaz5Ry4YfYCA_0QTpQtUbVlUls0VJXg7A8u-Ts1XbjhazAkj7I99e8QcYP7DkM", auth: "tBHItJI5svbpez7KI4CCXg" } },
@@ -51,5 +55,38 @@ describe("parseSubscriptionBody week start", () => {
     const { weekStart, ...noStart } = base.week;
     void weekStart;
     expect(parseSubscriptionBody({ ...base, week: noStart })).toBeNull();
+  });
+});
+
+describe("subscription storage", () => {
+  const value = () => parseSubscriptionBody(base)!;
+
+  test("a settings update from the device keeps what the scheduler recorded, and the reverse", async () => {
+    await saveSubscription(value());
+    const [stored] = await listSubscriptions();
+    await updateSubscriptionState(stored, { sent: { day: "2026-10-14" }, lb: { month: "2026-10", rank: 2, aboveId: null, leaderboardId: base.leaderboardId } });
+    // The device turns a switch off while (or after) the scheduler ran.
+    await saveSubscription({ ...value(), prefs: { ...value().prefs, leaderboard: false } });
+    const [after] = await listSubscriptions();
+    expect(after.prefs.leaderboard).toBe(false);
+    expect(after.sent).toEqual({ day: "2026-10-14" });
+    expect(after.lb?.rank).toBe(2);
+    // And a scheduler write made with an older copy doesn't undo the switch.
+    await updateSubscriptionState(stored, { sent: { day: "2026-10-14", digest: "2026-10-14" } });
+    expect((await listSubscriptions())[0].prefs.leaderboard).toBe(false);
+  });
+
+  test("a scheduler write for a removed subscription doesn't bring it back", async () => {
+    await saveSubscription(value());
+    const [stored] = await listSubscriptions();
+    await removeSubscription(base.subscription.endpoint);
+    await updateSubscriptionState(stored, { sent: { day: "2026-10-14" } });
+    expect(await listSubscriptions()).toEqual([]);
+  });
+
+  test("subscriptions stored before the split keep their sent markers", async () => {
+    const legacy = { ...value(), sent: { digest: "2026-10-13" }, updatedAt: 1 };
+    fakeRedisModule.redis("HSET", "push:subs", "legacy-id", JSON.stringify(legacy));
+    expect((await listSubscriptions())[0].sent).toEqual({ digest: "2026-10-13" });
   });
 });

@@ -2,7 +2,7 @@ import { createHash, timingSafeEqual } from "node:crypto";
 import webpush from "web-push";
 import { STATES } from "../places";
 import { achievements } from "../rewards";
-import { redis, redisConfigured } from "./redis";
+import { redis, redisConfigured, redisTransaction } from "./redis";
 
 const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
 const privateKey = process.env.VAPID_PRIVATE_KEY;
@@ -31,7 +31,9 @@ export type StoredSubscription = {
   badge: BadgeHint | null;
   week: WeekSummary | null;
   // The leaderboard rank seen on the last run, to notice being overtaken.
-  lb?: { month: string; rank: number };
+  // `aboveId` tells "someone passed you" apart from "a newcomer pushed you
+  // down"; `leaderboardId` ties it to the entry it was seen for.
+  lb?: { month: string; rank: number; aboveId: string | null; leaderboardId: string };
   sent: SentMarkers;
   updatedAt: number;
 };
@@ -40,6 +42,11 @@ export type StoredSubscription = {
 export type PushPayload = { title: string; body: string; url: string; tag: string; actions?: { action: string; title: string }[] };
 
 const SUBS_KEY = "push:subs";
+// What the scheduler records (sent markers, last-seen rank) lives in its own
+// hash, so the device saving its settings and the scheduler saving its state
+// never overwrite each other's newer data.
+const STATE_KEY = "push:state";
+type SchedulerState = Pick<StoredSubscription, "sent" | "lb">;
 
 // web-push POSTs to whatever endpoint a subscription names, so an unchecked
 // endpoint would let anyone make this server send requests to arbitrary
@@ -113,19 +120,15 @@ export function parseSubscriptionBody(body: unknown): Omit<StoredSubscription, "
 
 const idFor = (endpoint: string) => createHash("sha256").update(endpoint).digest("hex");
 
-// Keeps the "already sent today" markers across updates, so changing a
-// setting mid-day doesn't re-send a reminder that already went out.
-export async function saveSubscription(value: Omit<StoredSubscription, "sent" | "updatedAt">) {
-  const id = idFor(value.subscription.endpoint);
-  const existing = await redis<string | null>("HGET", SUBS_KEY, id);
-  const previous = existing ? JSON.parse(existing) as StoredSubscription : null;
-  // The last-seen rank only means something for the same leaderboard entry.
-  const lb = previous?.leaderboardId && previous.leaderboardId === value.leaderboardId ? previous.lb : undefined;
-  await redis("HSET", SUBS_KEY, id, JSON.stringify({ ...value, sent: previous?.sent ?? {}, ...(lb ? { lb } : {}), updatedAt: Date.now() } satisfies StoredSubscription));
+// Only the device's settings: the scheduler's state is kept separately, so
+// the "already sent today" markers survive a mid-day settings change.
+export async function saveSubscription(value: Omit<StoredSubscription, "sent" | "updatedAt" | "lb">) {
+  await redis("HSET", SUBS_KEY, idFor(value.subscription.endpoint), JSON.stringify({ ...value, updatedAt: Date.now() }));
 }
 
 export async function removeSubscription(endpoint: string) {
-  await redis("HDEL", SUBS_KEY, idFor(endpoint));
+  const id = idFor(endpoint);
+  await redisTransaction([["HDEL", SUBS_KEY, id], ["HDEL", STATE_KEY, id]]);
 }
 
 export async function getSubscription(endpoint: string): Promise<StoredSubscription | null> {
@@ -138,17 +141,28 @@ export async function claimTestSlot(endpoint: string) {
   return (await redis<string | null>("SET", `push:test:${idFor(endpoint)}`, "1", "NX", "EX", 30)) !== null;
 }
 
+// Every subscription with its scheduler state. State left over for a
+// subscription that's since been removed is ignored, so it can't revive it.
 export async function listSubscriptions(): Promise<StoredSubscription[]> {
-  const flat = await redis<string[]>("HGETALL", SUBS_KEY) ?? [];
+  const [subsFlat, statesFlat] = await redisTransaction([["HGETALL", SUBS_KEY], ["HGETALL", STATE_KEY]]) as [string[] | null, string[] | null];
+  const states = new Map<string, SchedulerState>();
+  for (let i = 1; i < (statesFlat ?? []).length; i += 2) {
+    try { states.set(statesFlat![i - 1], JSON.parse(statesFlat![i]) as SchedulerState); } catch { /* skip a corrupt entry */ }
+  }
   const subs: StoredSubscription[] = [];
-  for (let i = 1; i < flat.length; i += 2) {
-    try { subs.push(JSON.parse(flat[i]) as StoredSubscription); } catch { /* skip a corrupt entry */ }
+  for (let i = 1; i < (subsFlat ?? []).length; i += 2) {
+    try {
+      const sub = JSON.parse(subsFlat![i]) as StoredSubscription;
+      // Subscriptions saved before the split carried their state inline.
+      const state = states.get(subsFlat![i - 1]) ?? { sent: sub.sent ?? {}, lb: sub.lb };
+      subs.push({ ...sub, sent: state.sent ?? {}, lb: state.lb });
+    } catch { /* skip a corrupt entry */ }
   }
   return subs;
 }
 
-export async function updateSubscriptionState(sub: StoredSubscription, state: { sent: SentMarkers; lb?: StoredSubscription["lb"] }) {
-  await redis("HSET", SUBS_KEY, idFor(sub.subscription.endpoint), JSON.stringify({ ...sub, sent: state.sent, lb: state.lb }));
+export async function updateSubscriptionState(sub: StoredSubscription, state: SchedulerState) {
+  await redis("HSET", STATE_KEY, idFor(sub.subscription.endpoint), JSON.stringify(state));
 }
 
 // Returns false (and forgets the subscription) when the push service says it

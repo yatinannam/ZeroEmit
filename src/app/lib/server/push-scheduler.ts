@@ -3,7 +3,7 @@ import { istMonthKey } from "../leaderboard";
 import { STATES, type Zone } from "../places";
 import { GREEN_CHARGE_FALLBACK_THRESHOLD } from "../rewards";
 import { getZoneSnapshot, isFresh, projectTypicalForecast } from "./grid-source";
-import { memberStanding, type Standing } from "./leaderboard";
+import { boardStandings, type Standing } from "./leaderboard";
 import { listSubscriptions, sendPush, updateSubscriptionState, type PushPayload, type SentMarkers, type StoredSubscription } from "./push";
 import { redis } from "./redis";
 
@@ -84,15 +84,23 @@ function planLeaderboard(sub: StoredSubscription, standings: Standings, now: num
   }
 
   if (current) {
-    const previous = sub.lb?.month === month ? sub.lb.rank : null;
-    if (previous !== null && current.rank > previous && current.above && sub.sent.overtake !== today) {
-      planned.push({ payload: { title: "You've been overtaken", body: `${current.above} passed you on the leaderboard. You're now #${current.rank} this month.`, url: "/rewards/leaderboard", tag: "zeroemit-leaderboard" }, marks: ["overtake"] });
+    // Only a rank seen this month, for this same leaderboard entry, compares.
+    const remembered = sub.lb && sub.lb.month === month && sub.lb.leaderboardId === sub.leaderboardId ? sub.lb : null;
+    if (remembered && current.rank > remembered.rank && sub.sent.overtake !== today) {
+      // Name someone only if they're newly above you; otherwise a newcomer
+      // higher up pushed everyone down, and the person above didn't move.
+      const passedBy = current.above && current.aboveId !== remembered.aboveId ? current.above : null;
+      const payload = passedBy
+        ? { title: "You've been overtaken", body: `${passedBy} passed you on the leaderboard. You're now #${current.rank} this month.` }
+        : { title: "Leaderboard update", body: `You dropped to #${current.rank} on the leaderboard this month.` };
+      planned.push({ payload: { ...payload, url: "/rewards/leaderboard", tag: "zeroemit-leaderboard" }, marks: ["overtake"] });
     } else if (current.rank === 1 && current.total >= 2 && sub.sent.top !== month) {
       planned.push({ payload: { title: "Top of the leaderboard", body: "You're #1 on the leaderboard this month. Keep charging clean to stay there.", url: "/rewards/leaderboard", tag: "zeroemit-leaderboard" }, marks: ["top"] });
     }
   }
 
-  return { planned, lb: current ? { month, rank: current.rank } : sub.lb };
+  const lb = current && sub.leaderboardId ? { month, rank: current.rank, aboveId: current.aboveId, leaderboardId: sub.leaderboardId } : sub.lb;
+  return { planned, lb };
 }
 
 // Sunday-evening recap of the week, or on other evenings a nudge about the
@@ -109,7 +117,12 @@ function planProgress(sub: StoredSubscription, now: number): Planned[] {
   }
   const lastNudge = sub.badge ? sub.sent.badges?.[sub.badge.key] : undefined;
   const daysSince = lastNudge ? (Date.parse(today) - Date.parse(lastNudge)) / (24 * HOUR_MS) : Infinity;
-  if (hour === 18 && sub.badge && daysSince >= BADGE_NUDGE_EVERY_DAYS) {
+  // The hint is from the device's last sync: a streak badge's "1 more day"
+  // only holds while the streak is alive (a charge today or yesterday).
+  const yesterday = istDayKey(now - 24 * HOUR_MS);
+  const stillTrue = !sub.badge?.key.startsWith("streak-") || sub.lastChargeDay === today || sub.lastChargeDay === yesterday;
+  // One evening push at most: none after this Sunday's recap went out.
+  if (hour === 18 && sub.badge && stillTrue && daysSince >= BADGE_NUDGE_EVERY_DAYS && sub.sent.weekly !== today) {
     return [{ payload: { title: "Almost there", body: sub.badge.hint, url: "/rewards", tag: "zeroemit-badge" }, marks: [], badge: sub.badge.key }];
   }
   return [];
@@ -194,13 +207,22 @@ function planGrid(sub: StoredSubscription, zonePlan: ZonePlan | undefined, now: 
   return planned;
 }
 
-// A failed lookup just skips leaderboard news for that subscriber this run.
-async function loadStandings(leaderboardId: string, now: number, lastMonth: string | null): Promise<Standings | undefined> {
+// Every joined subscriber's standing from one read of this month's board
+// (and, only while the month-end result can go out, last month's) — a few
+// Redis commands per run however many subscribers there are. A failed
+// lookup just skips leaderboard news this run.
+async function loadBoards(subs: StoredSubscription[], now: number) {
+  const ids = subs.filter((sub) => sub.leaderboardId && sub.prefs.leaderboard).map((sub) => sub.leaderboardId!);
+  const hour = istHourOfDay(now);
+  const monthEndWindow = istDayKey(now).endsWith("-01") && hour >= 9 && hour < 12;
   try {
-    const [current, previous] = await Promise.all([memberStanding(leaderboardId, istMonthKey(now)), lastMonth ? memberStanding(leaderboardId, lastMonth) : null]);
-    return { current, lastMonth: previous };
+    const [current, lastMonth] = await Promise.all([
+      boardStandings(istMonthKey(now), ids),
+      monthEndWindow ? boardStandings(istMonthKey(now - 24 * HOUR_MS), ids) : new Map<string, Standing>(),
+    ]);
+    return { current, lastMonth };
   } catch {
-    return undefined;
+    return null;
   }
 }
 
@@ -219,10 +241,9 @@ export async function runPushSchedule(now = Date.now()) {
     let sent = 0;
     let failed = 0;
     const today = istDayKey(now);
-    // Last month's board only matters for the month-end result on the 1st.
-    const lastMonth = today.endsWith("-01") ? istMonthKey(now - 24 * HOUR_MS) : null;
+    const boards = await loadBoards(subs, now);
     for (const sub of subs) {
-      const standings = sub.leaderboardId && sub.prefs.leaderboard ? await loadStandings(sub.leaderboardId, now, lastMonth) : undefined;
+      const standings = boards && sub.leaderboardId && sub.prefs.leaderboard ? { current: boards.current.get(sub.leaderboardId) ?? null, lastMonth: boards.lastMonth.get(sub.leaderboardId) ?? null } : undefined;
       const { planned, lb } = plan(sub, plansByZone.get(STATES[sub.state]?.zone), now, standings);
       const markers: SentMarkers = { ...sub.sent, badges: { ...sub.sent.badges } };
       for (const { payload, marks, badge } of planned) {

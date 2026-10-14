@@ -109,3 +109,12 @@ describe("validateDisplayName", () => {
     expect(validateDisplayName("Lundgren")).toBe("Lundgren");
   });
 });
+
+describe("validateDisplayName with joiners", () => {
+  test("a joiner can't hide a blocked word or make a name invisible", () => {
+    expect(validateDisplayName("sh\u200Dit")).toBeNull();
+    expect(validateDisplayName("\u200D\u200D")).toBeNull();
+    expect(validateDisplayName("Asha\u200D")).toBeNull();
+    expect(validateDisplayName("\u200CAsha")).toBeNull();
+  });
+});

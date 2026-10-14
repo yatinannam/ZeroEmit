@@ -70,11 +70,19 @@ const BLOCKED_WORDS = new Set(["fuck", "fucker", "shit", "bitch", "bastard", "cu
 // …while these are blocked anywhere in the name, ignoring case and spacing.
 const BLOCKED_ANYWHERE = ["fuck", "nigger", "madarchod", "bhenchod", "behenchod", "chutiya"];
 
+// A joiner that isn't between two letters (or combining marks) has no job to
+// do there — at the edges, or hiding inside a blocked word's spelling.
+const STRAY_JOINER = new RegExp("(^|[^\\p{L}\\p{M}])[\\u200C\\u200D]|[\\u200C\\u200D]($|[^\\p{L}\\p{M}])", "u");
+const JOINERS = /[‌‍]/g;
+
 export function validateDisplayName(raw: unknown): string | null {
   if (typeof raw !== "string") return null;
   const name = raw.trim().replace(/\s+/g, " ");
-  if (name.length < 2 || name.length > 20 || !NAME_PATTERN.test(name)) return null;
-  const lower = name.toLowerCase();
+  if (!NAME_PATTERN.test(name) || STRAY_JOINER.test(name)) return null;
+  // Length and the block lists apply to what's visible, without joiners.
+  const visible = name.replace(JOINERS, "");
+  if (visible.length < 2 || visible.length > 20) return null;
+  const lower = visible.toLowerCase();
   if (lower.split(" ").some((word) => BLOCKED_WORDS.has(word))) return null;
   const squashed = lower.replace(/[^a-z]/g, "");
   return BLOCKED_ANYWHERE.some((word) => squashed.includes(word)) ? null : name;

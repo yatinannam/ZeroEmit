@@ -119,25 +119,34 @@ export async function removeMember(id: string, key: string): Promise<"ok" | "for
   return "ok";
 }
 
-export type Standing = { rank: number; total: number; points: number; co2Kg: number | null; above: string | null };
+export type Standing = { rank: number; total: number; points: number; co2Kg: number | null; above: string | null; aboveId: string | null };
 
-// Where a member stands on `month`'s All India board, for the push
-// scheduler. Points come from the board itself (the member record only holds
-// the latest month), so CO₂ is known only while the record is that month's.
-export async function memberStanding(id: string, month: string): Promise<Standing | null> {
-  const key = boardKey(month, "all");
-  const index = await redis<number | null>("ZREVRANK", key, id);
-  if (index === null) return null;
-  const [total, score, aboveIds] = await redisTransaction([
-    ["ZCARD", key],
-    ["ZSCORE", key, id],
-    ["ZREVRANGE", key, Math.max(0, index - 1), Math.max(0, index - 1)],
-  ]) as [number, string | null, string[]];
-  const aboveId = index > 0 ? aboveIds[0] : null;
-  const [ownRaw, aboveRaw] = await redis<(string | null)[]>("MGET", memberKey(id), memberKey(aboveId ?? id));
-  const own = ownRaw ? JSON.parse(ownRaw) as MemberRecord : null;
-  const above = aboveId && aboveRaw ? (JSON.parse(aboveRaw) as MemberRecord).name : null;
-  return { rank: index + 1, total, points: Math.floor(Number(score ?? 0)), co2Kg: own && own.month === month ? own.co2Kg : null, above };
+// Where each of `ids` stands on `month`'s All India board, for the push
+// scheduler: one read of the whole board plus one MGET for the records it
+// needs, however many subscribers there are (the free Redis tier is billed
+// per command). Points come from the board itself — the member record only
+// holds the latest month — so CO₂ is known only while the record is that
+// month's. Members not on the board are left out.
+export async function boardStandings(month: string, ids: string[]): Promise<Map<string, Standing>> {
+  const standings = new Map<string, Standing>();
+  if (!ids.length) return standings;
+  const flat = await redis<string[]>("ZREVRANGE", boardKey(month, "all"), 0, -1, "WITHSCORES");
+  const order: string[] = [];
+  const scores = new Map<string, number>();
+  for (let i = 0; i < flat.length; i += 2) { order.push(flat[i]); scores.set(flat[i], Number(flat[i + 1])); }
+  const indexOf = new Map(order.map((id, index) => [id, index]));
+  const onBoard = ids.filter((id) => indexOf.has(id));
+  if (!onBoard.length) return standings;
+  const aboveOf = (id: string) => { const index = indexOf.get(id)!; return index > 0 ? order[index - 1] : null; };
+  const needed = [...new Set(onBoard.flatMap((id) => [id, aboveOf(id)].filter((value): value is string => value !== null)))];
+  const raws = await redis<(string | null)[]>("MGET", ...needed.map(memberKey));
+  const records = new Map(needed.map((id, index) => [id, raws[index] ? JSON.parse(raws[index]!) as MemberRecord : null]));
+  for (const id of onBoard) {
+    const own = records.get(id);
+    const aboveId = aboveOf(id);
+    standings.set(id, { rank: indexOf.get(id)! + 1, total: order.length, points: Math.floor(scores.get(id)!), co2Kg: own && own.month === month ? own.co2Kg : null, above: aboveId ? records.get(aboveId)?.name ?? null : null, aboveId });
+  }
+  return standings;
 }
 
 const toRow = (rank: number, record: MemberRecord, isMe: boolean): LeaderboardRow => ({ rank, name: record.name, zone: record.zone, points: record.points, co2Kg: record.co2Kg, isMe });

@@ -58,10 +58,15 @@ export type Prefs = Record<NotificationKind, boolean>;
 const DEFAULT_PREFS: Prefs = { charges: true, rewards: true, bestTime: true, dailyDigest: true, streakReminders: true, leaderboard: true, progress: true };
 
 // "cleanGrid" was the earlier name for "bestTime"; carry the choice over.
-function parsePrefs(raw: string): Prefs {
+// The leaderboard and progress switches came later: for someone who had
+// turned every scheduled notification off, they start off too, so the update
+// doesn't quietly subscribe them again.
+export function parsePrefs(raw: string): Prefs {
   const stored = JSON.parse(raw) as Partial<Prefs> & { cleanGrid?: boolean };
   const { cleanGrid, ...rest } = stored;
-  return { ...DEFAULT_PREFS, ...(cleanGrid === undefined ? {} : { bestTime: cleanGrid }), ...rest };
+  const prefs = { ...DEFAULT_PREFS, ...(cleanGrid === undefined ? {} : { bestTime: cleanGrid }), ...rest };
+  const anyScheduledOn = prefs.bestTime || prefs.dailyDigest || prefs.streakReminders;
+  return { ...prefs, leaderboard: rest.leaderboard ?? anyScheduledOn, progress: rest.progress ?? anyScheduledOn };
 }
 
 const prefsStore = createLocalStorageStore<Prefs>("zeroemit-notification-prefs", parsePrefs, (value) => JSON.stringify(value), DEFAULT_PREFS);

@@ -1,42 +1,10 @@
 import { beforeEach, describe, expect, mock, test } from "bun:test";
 import type { LeaderboardCharge } from "../leaderboard";
 
-// In-memory stand-in for the Upstash REST client — only the commands the
-// leaderboard uses, with Redis's ordering (score desc, then member desc).
-const strings = new Map<string, string>();
-const zsets = new Map<string, Map<string, number>>();
-const zrevOrder = (key: string) => [...(zsets.get(key) ?? new Map<string, number>()).entries()]
-  .sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? 1 : -1))
-  .map(([member]) => member);
-async function fakeRedis(...command: (string | number)[]): Promise<unknown> {
-  const [name, key, ...args] = command.map(String);
-  switch (name) {
-    case "GET": return strings.get(key) ?? null;
-    case "SET": strings.set(key, args[0]); return "OK";
-    case "DEL": return strings.delete(key) ? 1 : 0;
-    case "MGET": return [key, ...args].map((k) => strings.get(k) ?? null);
-    case "INCR": { const next = Number(strings.get(key) ?? 0) + 1; strings.set(key, String(next)); return next; }
-    case "EXPIRE": return 1;
-    case "ZADD": { const set = zsets.get(key) ?? new Map<string, number>(); set.set(args[1], Number(args[0])); zsets.set(key, set); return 1; }
-    case "ZREM": return zsets.get(key)?.delete(args[0]) ? 1 : 0;
-    case "ZCARD": return zsets.get(key)?.size ?? 0;
-    case "ZSCORE": { const score = zsets.get(key)?.get(args[0]); return score === undefined ? null : String(score); }
-    case "ZREVRANGE": return zrevOrder(key).slice(Number(args[0]), Number(args[1]) + 1);
-    case "ZREVRANK": { const index = zrevOrder(key).indexOf(args[0]); return index === -1 ? null : index; }
-    default: throw new Error(`fake redis: unsupported ${name}`);
-  }
-}
-// Every call to the client is one round trip to Upstash; a transaction is one.
-let roundTrips = 0;
-const countedRedis = (...command: (string | number)[]) => { roundTrips += 1; return fakeRedis(...command); };
-async function fakeTransaction(commands: (string | number)[][]): Promise<unknown[]> {
-  roundTrips += 1;
-  const results: unknown[] = [];
-  for (const command of commands) results.push(await fakeRedis(...command));
-  return results;
-}
-mock.module("./redis", () => ({ redis: countedRedis, redisTransaction: fakeTransaction, redisConfigured: true }));
-const { memberStanding, parseMemberBody, readLeaderboard, removeMember, submitMember } = await import("./leaderboard");
+import { fakeRedis, fakeRedisModule, resetFakeRedis } from "./test-redis";
+
+mock.module("./redis", () => fakeRedisModule);
+const { boardStandings, parseMemberBody, readLeaderboard, removeMember, submitMember } = await import("./leaderboard");
 
 const NOW = Date.parse("2026-10-14T06:30:00.000Z"); // noon IST, 14 Oct
 const uuid = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
@@ -46,7 +14,7 @@ const charges = (count: number, green = false): LeaderboardCharge[] =>
 const member = (n: number, count: number, extra: Partial<{ name: string; zone: "western" | "southern"; key: string; green: boolean }> = {}) =>
   ({ id: uuid(n), key: extra.key ?? uuid(1000 + n), name: extra.name ?? `Player ${n}`, zone: extra.zone ?? "western", charges: charges(count, extra.green) });
 
-beforeEach(() => { strings.clear(); zsets.clear(); roundTrips = 0; });
+beforeEach(() => { resetFakeRedis(); });
 
 describe("parseMemberBody", () => {
   const valid = { id: uuid(1), key: uuid(2), name: "Asha", zone: "western", charges: [{ date: "2026-10-01", kwh: 18, intensity: 420, green: true }] };
@@ -143,16 +111,16 @@ describe("submitMember + readLeaderboard", () => {
     expect((await readLeaderboard("all", null, NOW)).rows[0].points).toBe(20);
     // The member record holds only the latest month (only the current board
     // is ever shown), but September's set still lists them.
-    expect(zsets.get("lb:2026-09:all")?.has(uuid(1))).toBe(true);
+    expect(fakeRedis.zsets.get("lb:2026-09:all")?.has(uuid(1))).toBe(true);
   });
 });
 
 describe("round trips", () => {
   test("an update to an existing member takes at most 4 round trips", async () => {
     await submitMember(member(1, 3), NOW);
-    roundTrips = 0;
+    fakeRedis.roundTrips = 0;
     await submitMember(member(1, 4), NOW + 1000);
-    expect(roundTrips).toBeLessThanOrEqual(4);
+    expect(fakeRedis.roundTrips).toBeLessThanOrEqual(4);
   });
 });
 
@@ -177,25 +145,29 @@ describe("removeMember", () => {
   });
 });
 
-describe("memberStanding", () => {
-  test("rank, total, points, CO2 and who is directly above", async () => {
+describe("boardStandings", () => {
+  test("rank, total, points, CO2 and who is above, for many members from one read of the board", async () => {
     await submitMember(member(1, 5), NOW); // 50 points
     await submitMember(member(2, 3, { green: true }), NOW); // 45 points, (650-300) x 20 x 3 = 21 kg
     await submitMember(member(3, 2), NOW); // 20 points
-    expect(await memberStanding(uuid(2), "2026-10")).toEqual({ rank: 2, total: 3, points: 45, co2Kg: 21, above: "Player 1" });
-    expect(await memberStanding(uuid(1), "2026-10")).toMatchObject({ rank: 1, above: null });
+    fakeRedis.roundTrips = 0;
+    const standings = await boardStandings("2026-10", [uuid(2), uuid(1), uuid(9)]);
+    expect(standings.get(uuid(2))).toEqual({ rank: 2, total: 3, points: 45, co2Kg: 21, above: "Player 1", aboveId: uuid(1) });
+    expect(standings.get(uuid(1))).toMatchObject({ rank: 1, above: null, aboveId: null });
+    expect(standings.has(uuid(9))).toBe(false);
+    expect(fakeRedis.roundTrips).toBeLessThanOrEqual(2);
   });
 
-  test("null when not on that month's board", async () => {
-    await submitMember(member(1, 1), NOW);
-    expect(await memberStanding(uuid(9), "2026-10")).toBeNull();
-    expect(await memberStanding(uuid(1), "2026-09")).toBeNull();
-  });
-
-  test("last month's standing keeps rank and points, but not CO2 once the record moved on", async () => {
+  test("last month keeps rank and points, but not CO2 once the record moved on", async () => {
     const september = Date.parse("2026-09-20T06:30:00.000Z");
     await submitMember({ ...member(1, 0), charges: [{ date: "2026-09-20", kwh: 20, intensity: 600, green: false }] }, september);
     await submitMember(member(1, 2), NOW);
-    expect(await memberStanding(uuid(1), "2026-09")).toEqual({ rank: 1, total: 1, points: 10, co2Kg: null, above: null });
+    expect((await boardStandings("2026-09", [uuid(1)])).get(uuid(1))).toEqual({ rank: 1, total: 1, points: 10, co2Kg: null, above: null, aboveId: null });
+  });
+
+  test("no members asked for, no reads", async () => {
+    fakeRedis.roundTrips = 0;
+    expect((await boardStandings("2026-10", [])).size).toBe(0);
+    expect(fakeRedis.roundTrips).toBe(0);
   });
 });
