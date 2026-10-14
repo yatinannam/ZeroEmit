@@ -38,7 +38,8 @@ export async function joinLeaderboard(name: string, zone: Zone, charges: Charge[
   try {
     const response = await submit(membership, zone, charges);
     if (!response.ok) {
-      const error = response.status === 400 ? "That name can't be used. Try another one." : response.status === 429 ? "Too many updates. Try again in a while." : "Couldn't join the leaderboard. Try again.";
+      const { code } = await response.json().catch(() => ({})) as { code?: string };
+      const error = code === "name" ? "That name can't be used. Try another one." : response.status === 429 ? "Too many updates. Try again in a while." : "Couldn't join the leaderboard. Try again.";
       return { ok: false, error };
     }
     const body = await response.json() as { rank: number };
@@ -62,29 +63,41 @@ export function useLeaderboardVersion() {
   return useSyncExternalStore(subscribeToVersion, getLeaderboardVersion, () => 0);
 }
 
+// Resolves to false when the update didn't go through (offline, rate limit,
+// server error), so the caller can try again later.
 export async function syncLeaderboard(zone: Zone, charges: Charge[]) {
   const membership = store.getSnapshot();
-  if (!membership) return;
+  if (!membership) return true;
   try {
     const response = await submit(membership, zone, charges);
-    if (!response.ok) return;
+    // 410: this entry already left (e.g. from another tab), so forget it here too.
+    if (response.status === 410) { store.write(null); return true; }
+    if (!response.ok) return false;
     version += 1;
     versionListeners.forEach((listener) => listener());
-  } catch { /* offline: the next change syncs again */ }
+    return true;
+  } catch {
+    return false;
+  }
 }
 
-// An entry this device has left but the server hasn't confirmed removing yet.
-// It holds the only copy of the key, so it's kept until the removal goes
+// Entries this device has left but the server hasn't confirmed removing yet.
+// Each holds the only copy of its key, so it's kept until the removal goes
 // through — otherwise the name would stay public with no way to take it down.
 type PendingLeave = { id: string; key: string };
-const pendingLeave = createLocalStorageStore<PendingLeave | null>(
+const NO_PENDING: PendingLeave[] = [];
+const isPendingLeave = (value: unknown): value is PendingLeave =>
+  Boolean(value && typeof value === "object" && typeof (value as PendingLeave).id === "string" && typeof (value as PendingLeave).key === "string");
+const pendingLeaves = createLocalStorageStore<PendingLeave[]>(
   "zeroemit-leaderboard-pending-leave",
   (raw) => {
-    const value = JSON.parse(raw) as Partial<PendingLeave> | null;
-    return value && typeof value.id === "string" && typeof value.key === "string" ? { id: value.id, key: value.key } : null;
+    const value: unknown = JSON.parse(raw);
+    // Older versions stored a single entry rather than a list.
+    const list = Array.isArray(value) ? value : [value];
+    return list.filter(isPendingLeave).map(({ id, key }) => ({ id, key }));
   },
   (value) => JSON.stringify(value),
-  null,
+  NO_PENDING,
 );
 
 // True once there's nothing left to retry: removed, or refused for good
@@ -106,13 +119,16 @@ export async function leaveLeaderboard() {
   if (!membership) return true;
   const entry = { id: membership.id, key: membership.key };
   store.write(null);
-  pendingLeave.write(entry);
+  pendingLeaves.write([...pendingLeaves.getSnapshot(), entry]);
   const done = await sendLeave(entry);
-  if (done) pendingLeave.write(null);
+  if (done) pendingLeaves.write(pendingLeaves.getSnapshot().filter((pending) => pending.id !== entry.id));
   return done;
 }
 
 export async function retryPendingLeave() {
-  const entry = pendingLeave.getSnapshot();
-  if (entry && await sendLeave(entry)) pendingLeave.write(null);
+  const pending = pendingLeaves.getSnapshot();
+  if (!pending.length) return;
+  const outcomes = await Promise.all(pending.map(sendLeave));
+  const done = new Set(pending.filter((_, index) => outcomes[index]).map((entry) => entry.id));
+  pendingLeaves.write(pendingLeaves.getSnapshot().filter((entry) => !done.has(entry.id)));
 }

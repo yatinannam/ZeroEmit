@@ -38,6 +38,11 @@ describe("scoreMonth", () => {
     expect(scoreMonth([entry("2026-10-01", 20, 5000)], MONTH, TODAY)).toEqual({ points: 10, co2Kg: 0 });
   });
 
+  test("dates that aren't real days are ignored", () => {
+    const result = scoreMonth([entry("2026-10-00"), entry("2026-10-32"), entry("2026-10-01")], MONTH, "2026-10-31");
+    expect(result.points).toBe(10);
+  });
+
   test("a full month at the cap is 31 x 2 x 15 = 930 points", () => {
     const month = Array.from({ length: 31 }, (_, i) => `2026-10-${String(i + 1).padStart(2, "0")}`)
       .flatMap((date) => [entry(date, 20, 300, true), entry(date, 20, 300, true), entry(date, 20, 300, true)]);
@@ -78,6 +83,15 @@ describe("validateDisplayName", () => {
 
   test("accepts letters in any script", () => {
     expect(validateDisplayName("राहुल")).toBe("राहुल");
+  });
+
+  test("accepts the zero-width joiners Malayalam and Bengali keyboards insert", () => {
+    expect(validateDisplayName("ശ്രീ‍കാന്ത്")).toBe("ശ്രീ‍കാന്ത്");
+    expect(validateDisplayName("রাজ‌শ্রী")).toBe("রাজ‌শ্রী");
+  });
+
+  test("ordinary names that share a blocked word's spelling pass", () => {
+    expect(validateDisplayName("Dick Smith")).toBe("Dick Smith");
   });
 
   test("rejects too short, too long, symbols and non-strings", () => {

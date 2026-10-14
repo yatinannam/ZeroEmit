@@ -25,7 +25,16 @@ async function fakeRedis(...command: (string | number)[]): Promise<unknown> {
     default: throw new Error(`fake redis: unsupported ${name}`);
   }
 }
-mock.module("./redis", () => ({ redis: fakeRedis, redisConfigured: true }));
+// Every call to the client is one round trip to Upstash; a transaction is one.
+let roundTrips = 0;
+const countedRedis = (...command: (string | number)[]) => { roundTrips += 1; return fakeRedis(...command); };
+async function fakeTransaction(commands: (string | number)[][]): Promise<unknown[]> {
+  roundTrips += 1;
+  const results: unknown[] = [];
+  for (const command of commands) results.push(await fakeRedis(...command));
+  return results;
+}
+mock.module("./redis", () => ({ redis: countedRedis, redisTransaction: fakeTransaction, redisConfigured: true }));
 const { parseMemberBody, readLeaderboard, removeMember, submitMember } = await import("./leaderboard");
 
 const NOW = Date.parse("2026-10-14T06:30:00.000Z"); // noon IST, 14 Oct
@@ -36,7 +45,7 @@ const charges = (count: number, green = false): LeaderboardCharge[] =>
 const member = (n: number, count: number, extra: Partial<{ name: string; zone: "western" | "southern"; key: string; green: boolean }> = {}) =>
   ({ id: uuid(n), key: extra.key ?? uuid(1000 + n), name: extra.name ?? `Player ${n}`, zone: extra.zone ?? "western", charges: charges(count, extra.green) });
 
-beforeEach(() => { strings.clear(); zsets.clear(); });
+beforeEach(() => { strings.clear(); zsets.clear(); roundTrips = 0; });
 
 describe("parseMemberBody", () => {
   const valid = { id: uuid(1), key: uuid(2), name: "Asha", zone: "western", charges: [{ date: "2026-10-01", kwh: 18, intensity: 420, green: true }] };
@@ -55,6 +64,10 @@ describe("parseMemberBody", () => {
     expect(parseMemberBody({ ...valid, charges: [{ date: "2026-10-01", kwh: 0, intensity: null, green: false }] })).toBeNull();
     expect(parseMemberBody({ ...valid, charges: Array(101).fill(valid.charges[0]) })).toBeNull();
     expect(parseMemberBody(null)).toBeNull();
+  });
+
+  test("a tiny but positive charge is accepted, not a reason to reject the whole sync", () => {
+    expect(parseMemberBody({ ...valid, charges: [{ date: "2026-10-01", kwh: 0.05, intensity: 420, green: true }] })).not.toBeNull();
   });
 });
 
@@ -133,6 +146,15 @@ describe("submitMember + readLeaderboard", () => {
   });
 });
 
+describe("round trips", () => {
+  test("an update to an existing member takes at most 4 round trips", async () => {
+    await submitMember(member(1, 3), NOW);
+    roundTrips = 0;
+    await submitMember(member(1, 4), NOW + 1000);
+    expect(roundTrips).toBeLessThanOrEqual(4);
+  });
+});
+
 describe("removeMember", () => {
   test("removes the entry from every list; the key is required", async () => {
     await submitMember(member(1, 3), NOW);
@@ -140,6 +162,13 @@ describe("removeMember", () => {
     expect(await removeMember(uuid(1), uuid(1001))).toBe("ok");
     expect((await readLeaderboard("all", uuid(1), NOW))).toEqual({ month: "2026-10", total: 0, rows: [], me: null });
     expect((await readLeaderboard("western", null, NOW)).rows).toHaveLength(0);
+  });
+
+  test("a sync that arrives after leaving can't put the entry back", async () => {
+    await submitMember(member(1, 3), NOW);
+    await removeMember(uuid(1), uuid(1001));
+    expect(await submitMember(member(1, 3), NOW + 1000)).toEqual({ ok: false, status: 410 });
+    expect((await readLeaderboard("all", null, NOW)).rows).toHaveLength(0);
   });
 
   test("removing someone who isn't there is fine", async () => {

@@ -2,7 +2,7 @@ import { createHash, timingSafeEqual } from "node:crypto";
 import { istDayKey } from "../grid";
 import { istMonthKey, LEADERBOARD_SIZE, MAX_SUBMITTED_CHARGES, scoreMonth, validateDisplayName, ZONES, type LeaderboardCharge, type LeaderboardResponse, type LeaderboardRow, type LeaderboardScope } from "../leaderboard";
 import type { Zone } from "../places";
-import { redis, redisConfigured } from "./redis";
+import { redis, redisConfigured, redisTransaction } from "./redis";
 
 export const leaderboardConfigured = redisConfigured;
 
@@ -15,7 +15,7 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{
 // move when a re-sync leaves the score where it was.
 type MemberRecord = { name: string; zone: Zone; keyHash: string; month: string; points: number; co2Kg: number; scoredAt: number; updatedAt: number };
 export type MemberInput = { id: string; key: string; name: string; zone: Zone; charges: LeaderboardCharge[] };
-export type SubmitResult = { ok: true; rank: number; points: number; co2Kg: number } | { ok: false; status: 403 | 429 };
+export type SubmitResult = { ok: true; rank: number; points: number; co2Kg: number } | { ok: false; status: 403 | 410 | 429 };
 
 export const isUuid = (value: unknown): value is string => typeof value === "string" && UUID_PATTERN.test(value);
 export const isZone = (value: unknown): value is Zone => typeof value === "string" && (ZONES as string[]).includes(value);
@@ -36,7 +36,9 @@ function parseCharge(raw: unknown): LeaderboardCharge | null {
   if (!raw || typeof raw !== "object") return null;
   const charge = raw as Record<string, unknown>;
   if (typeof charge.date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(charge.date)) return null;
-  if (typeof charge.kwh !== "number" || !Number.isFinite(charge.kwh) || charge.kwh < 0.1) return null;
+  // Any positive amount: scoring clamps it, and refusing one odd old charge
+  // would reject every sync from that device.
+  if (typeof charge.kwh !== "number" || !Number.isFinite(charge.kwh) || charge.kwh <= 0) return null;
   if (charge.intensity !== null && (typeof charge.intensity !== "number" || !Number.isFinite(charge.intensity))) return null;
   if (typeof charge.green !== "boolean") return null;
   return { date: charge.date, kwh: charge.kwh, intensity: charge.intensity as number | null, green: charge.green };
@@ -58,6 +60,11 @@ async function getMember(id: string): Promise<MemberRecord | null> {
   return raw ? JSON.parse(raw) as MemberRecord : null;
 }
 
+// Set when a member leaves, so a sync that was already on its way can't
+// recreate the entry under a key the device has forgotten.
+const removedKey = (id: string) => `lb:removed:${id}`;
+const REMOVED_MARKER_S = 24 * 60 * 60;
+
 // Counts one more event in this hour's bucket; true while still within `limit`.
 async function withinHourlyLimit(name: string, limit: number, now: number) {
   const key = `${name}:${Math.floor(now / 3_600_000)}`;
@@ -70,7 +77,9 @@ async function withinHourlyLimit(name: string, limit: number, now: number) {
 // script minting fresh ids can't flood the board or burn through the Redis
 // quota that push reminders share. High enough for a class on one Wi-Fi.
 export async function submitMember(input: MemberInput, now = Date.now(), ip: string | null = null): Promise<SubmitResult> {
-  const existing = await getMember(input.id);
+  const [rawMember, removed] = await redis<(string | null)[]>("MGET", memberKey(input.id), removedKey(input.id));
+  if (removed) return { ok: false, status: 410 };
+  const existing = rawMember ? JSON.parse(rawMember) as MemberRecord : null;
   const keyHash = hashKey(input.key);
   if (existing && !sameHash(existing.keyHash, keyHash)) return { ok: false, status: 403 };
   if (!existing && ip && !(await withinHourlyLimit(`lb:new:${ip}`, NEW_MEMBERS_PER_ADDRESS_PER_HOUR, now))) return { ok: false, status: 429 };
@@ -80,17 +89,20 @@ export async function submitMember(input: MemberInput, now = Date.now(), ip: str
   const { points, co2Kg } = scoreMonth(input.charges, month, istDayKey(now));
   const sameMonth = existing !== null && existing.month === month;
   const scoredAt = sameMonth && existing.points === points ? existing.scoredAt : now;
-  // Moved region this month: leave the old region's list (All India stays).
-  if (sameMonth && existing.zone !== input.zone) await redis("ZREM", boardKey(month, existing.zone), input.id);
-
   const record: MemberRecord = { name: input.name, zone: input.zone, keyHash, month, points, co2Kg, scoredAt, updatedAt: now };
-  const scopes: LeaderboardScope[] = ["all", input.zone];
-  for (const scope of scopes) {
-    await redis("ZADD", boardKey(month, scope), sortScore(points, scoredAt), input.id);
-    await redis("EXPIRE", boardKey(month, scope), RETENTION_S);
-  }
-  await redis("SET", memberKey(input.id), JSON.stringify(record), "EX", RETENTION_S);
-  const rank = await redis<number | null>("ZREVRANK", boardKey(month, "all"), input.id);
+  const score = sortScore(points, scoredAt);
+  // One atomic round trip, so concurrent syncs can't leave the member in two
+  // region lists. Moved region this month: leave the old region's list.
+  const results = await redisTransaction([
+    ...(sameMonth && existing.zone !== input.zone ? [["ZREM", boardKey(month, existing.zone), input.id]] : []),
+    ["ZADD", boardKey(month, "all"), score, input.id],
+    ["EXPIRE", boardKey(month, "all"), RETENTION_S],
+    ["ZADD", boardKey(month, input.zone), score, input.id],
+    ["EXPIRE", boardKey(month, input.zone), RETENTION_S],
+    ["SET", memberKey(input.id), JSON.stringify(record), "EX", RETENTION_S],
+    ["ZREVRANK", boardKey(month, "all"), input.id],
+  ]);
+  const rank = results.at(-1) as number | null;
   return { ok: true, rank: (rank ?? 0) + 1, points, co2Kg };
 }
 
@@ -98,9 +110,12 @@ export async function removeMember(id: string, key: string): Promise<"ok" | "for
   const existing = await getMember(id);
   if (!existing) return "ok";
   if (!sameHash(existing.keyHash, hashKey(key))) return "forbidden";
-  await redis("ZREM", boardKey(existing.month, "all"), id);
-  await redis("ZREM", boardKey(existing.month, existing.zone), id);
-  await redis("DEL", memberKey(id));
+  await redisTransaction([
+    ["ZREM", boardKey(existing.month, "all"), id],
+    ["ZREM", boardKey(existing.month, existing.zone), id],
+    ["DEL", memberKey(id)],
+    ["SET", removedKey(id), "1", "EX", REMOVED_MARKER_S],
+  ]);
   return "ok";
 }
 

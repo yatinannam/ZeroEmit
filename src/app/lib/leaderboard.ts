@@ -29,13 +29,20 @@ export function toLeaderboardCharges(charges: Charge[], month: string): Leaderbo
 
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
 
+// "2026-10-00" or "2026-02-30" match YYYY-MM-DD but aren't days; letting them
+// through would count as extra days past the monthly cap.
+function isRealDay(date: string) {
+  const timestamp = Date.parse(`${date}T12:00:00+05:30`);
+  return !Number.isNaN(timestamp) && istDayKey(timestamp) === date;
+}
+
 // Points and CO2 avoided for `month` ("YYYY-MM"), counting days up to `today`
 // ("YYYY-MM-DD") and at most the best MAX_COUNTED_PER_DAY charges a day —
 // charges are self-reported, so this bounds what logging fake ones can earn.
 export function scoreMonth(entries: LeaderboardCharge[], month: string, today: string): { points: number; co2Kg: number } {
   const byDay = new Map<string, { points: number; grams: number }[]>();
   for (const entry of entries) {
-    if (!entry.date.startsWith(`${month}-`) || entry.date > today) continue;
+    if (!entry.date.startsWith(`${month}-`) || entry.date > today || !isRealDay(entry.date)) continue;
     const kwh = clamp(entry.kwh, 0, MAX_CHARGE_KWH);
     const intensity = entry.intensity === null ? null : clamp(entry.intensity, 0, MAX_INTENSITY);
     const points = POINTS_PER_CHARGE + (entry.green && intensity !== null ? GREEN_CHARGE_BONUS : 0);
@@ -55,10 +62,11 @@ export function scoreMonth(entries: LeaderboardCharge[], month: string, today: s
 
 // Built at runtime: TypeScript rejects \p{…} in a regex literal at this
 // project's ES2017 target. \p{M} covers combining marks, e.g. the vowel
-// signs in Devanagari names.
-const NAME_PATTERN = new RegExp("^[\\p{L}\\p{M}\\p{N}]+( [\\p{L}\\p{M}\\p{N}]+)*$", "u");
+// signs in Devanagari names; U+200C/U+200D are the zero-width (non-)joiners
+// Malayalam and Bengali keyboards insert inside words.
+const NAME_PATTERN = new RegExp("^[\\p{L}\\p{M}\\p{N}\\u200C\\u200D]+( [\\p{L}\\p{M}\\p{N}\\u200C\\u200D]+)*$", "u");
 // Whole words only, so names like "Dickens" or "Lundgren" pass…
-const BLOCKED_WORDS = new Set(["fuck", "fucker", "shit", "bitch", "bastard", "cunt", "dick", "asshole", "slut", "whore", "nigger", "chutiya", "madarchod", "bhenchod", "behenchod", "gandu", "randi", "bsdk", "lund", "harami", "porn", "sex"]);
+const BLOCKED_WORDS = new Set(["fuck", "fucker", "shit", "bitch", "bastard", "cunt", "asshole", "slut", "whore", "nigger", "chutiya", "madarchod", "bhenchod", "behenchod", "gandu", "randi", "bsdk", "lund", "harami", "porn", "sex"]);
 // …while these are blocked anywhere in the name, ignoring case and spacing.
 const BLOCKED_ANYWHERE = ["fuck", "nigger", "madarchod", "bhenchod", "behenchod", "chutiya"];
 

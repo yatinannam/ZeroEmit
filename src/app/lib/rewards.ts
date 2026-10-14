@@ -9,6 +9,9 @@ export const POINTS_PER_CHARGE = 10;
 export const GREEN_CHARGE_FALLBACK_THRESHOLD = 450; // gCO2/kWh
 export const GREEN_CHARGE_BONUS = 5;
 // Largest charge the log form accepts; the leaderboard clamps to it too.
+// Comfortably above the largest EV battery sold in India (~100 kWh) — a
+// typo like 1800 would otherwise inflate every total and become the next
+// form's "typical" default.
 export const MAX_CHARGE_KWH = 150;
 
 export function isGreenCharge(charge: Charge): boolean {

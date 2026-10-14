@@ -15,10 +15,6 @@ import { LocationModal } from "./location-modal";
 import { Modal } from "./modal";
 import { PageHeader } from "./page-header";
 
-// Comfortably above the largest EV battery sold in India (~100 kWh) — a
-// typo like 1800 would otherwise inflate every total and become the next
-// form's "typical" default.
-
 const pad = (value: number) => String(value).padStart(2, "0");
 const localDate = (date: Date) => `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 const localTime = (date: Date) => `${pad(date.getHours())}:${pad(date.getMinutes())}`;
