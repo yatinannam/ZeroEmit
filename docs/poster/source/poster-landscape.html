@@ -2,7 +2,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
 *{box-sizing:border-box;margin:0}
-body{width:2400px;height:1240px;font-family:Inter,sans-serif;background:#f1fdec;color:#141e14;overflow:hidden}
+body{width:2400px;height:1386px;font-family:Inter,sans-serif;background:#f1fdec;color:#141e14;overflow:hidden}
 header{display:flex;align-items:center;justify-content:space-between;padding:56px 80px 40px;background:linear-gradient(120deg,#0d631b,#2e7d32);color:#fff;position:relative;overflow:hidden}
 header::after{content:"";position:absolute;right:-120px;top:-180px;width:560px;height:560px;border-radius:50%;background:rgba(255,255,255,.07)}
 .brand{display:flex;align-items:center;gap:28px}.logo{width:104px;height:104px;border-radius:26px;background:#cbffc2;display:grid;place-items:center}
@@ -21,6 +21,7 @@ main{display:grid;grid-template-columns:repeat(6,1fr);gap:28px;padding:28px 80px
 .screen p{margin-top:18px;font-size:20px;line-height:1.4;color:#40493d;max-width:340px}
 footer{position:absolute;left:0;right:0;bottom:0;display:flex;justify-content:space-between;align-items:center;padding:26px 80px;background:#fff;border-top:2px solid #dae6d6;font-size:21px;color:#40493d}
 footer b{color:#0d631b}.url{font-size:30px;font-weight:800;color:#0d631b}
+.scan{display:flex;align-items:center;gap:22px}.qr{width:150px;height:150px;flex:none;background:#fff;border:2px solid #dae6d6;border-radius:14px;overflow:hidden}.qr svg{display:block;width:100%;height:100%}.scan-text span{display:block;margin-top:6px;font-size:20px;color:#40493d}
 </style></head><body>
 <header>
   <div class="brand"><div class="logo"><svg viewBox="0 0 24 24"><path d="M13 2 4 14h7l-1 8 9-12h-7z" fill="#0d631b"/></svg></div>
@@ -38,13 +39,13 @@ footer b{color:#0d631b}.url{font-size:30px;font-weight:800;color:#0d631b}
 <main>
   <div class="screen"><div class="step"><span class="num">1</span><h2>Main UI</h2></div><div class="phone"><img src="home.png"></div><p>Home shows the best time to charge today, the live grid reading and your streak.</p></div>
   <div class="screen"><div class="step"><span class="num">2</span><h2>Time-slot<br>recommendations</h2></div><div class="phone"><img src="forecast.png"></div><p>Hour-by-hour forecast with the top charging windows for today and tomorrow.</p></div>
-  <div class="screen"><div class="step"><span class="num">3</span><h2>Rewards</h2></div><div class="phone"><img src="rewards.png"></div><p>Eco points and levels, plus 8 badges with live progress. Green-hour charges earn a bonus.</p></div>
+  <div class="screen"><div class="step"><span class="num">3</span><h2>Rewards</h2></div><div class="phone"><img src="rewards.png"></div><p>Eco points and levels, plus 8 badges with live progress. Charging in the day's best windows earns a bonus.</p></div>
   <div class="screen"><div class="step"><span class="num">4</span><h2>Leaderboard</h2></div><div class="phone"><img src="leaderboard.png"></div><p>Opt-in monthly ranking, All India or by grid region. Scores are recomputed on the server.</p></div>
   <div class="screen"><div class="step"><span class="num">5</span><h2>Your impact</h2></div><div class="phone"><img src="impact.png"></div><p>The result for the driver: kWh charged, CO₂ avoided and green-charge rate, month by month.</p></div>
   <div class="screen"><div class="step"><span class="num">6</span><h2>Shareable<br>result</h2></div><div class="phone"><img src="share.png"></div><p>A one-tap impact card drivers can share or download.</p></div>
 </main>
 <footer>
   <div><b>Built with</b> Next.js 16 · React 19 · PWA (installable, offline) · Web Push reminders · Upstash Redis · Vercel &nbsp;|&nbsp; <b>Data</b> India Energy Atlas &nbsp;|&nbsp; Screens shown with sample data</div>
-  <div class="url">zero-emit.vercel.app</div>
+  <div class="scan"><div class="qr" role="img" aria-label="QR code for zero-emit.vercel.app"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 33 33" shape-rendering="crispEdges"><path fill="#ffffff" d="M0 0h33v33H0z"/><path stroke="#141e14" d="M2 2.5h7m1 0h1m1 0h1m1 0h1m5 0h1m3 0h7M2 3.5h1m5 0h1m2 0h3m4 0h1m2 0h1m2 0h1m5 0h1M2 4.5h1m1 0h3m1 0h1m3 0h1m2 0h1m1 0h5m2 0h1m1 0h3m1 0h1M2 5.5h1m1 0h3m1 0h1m1 0h2m1 0h2m1 0h3m1 0h1m3 0h1m1 0h3m1 0h1M2 6.5h1m1 0h3m1 0h1m1 0h1m3 0h3m1 0h3m3 0h1m1 0h3m1 0h1M2 7.5h1m5 0h1m1 0h1m3 0h4m3 0h2m1 0h1m5 0h1M2 8.5h7m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h7M10 9.5h2m2 0h1m1 0h1m2 0h1m1 0h1M2 10.5h1m3 0h1m1 0h14m1 0h5m2 0h1M4 11.5h3m2 0h2m2 0h1m5 0h2m3 0h1m1 0h5M2 12.5h1m1 0h1m1 0h1m1 0h1m6 0h3m2 0h1m1 0h1m3 0h1m3 0h1M3 13.5h2m1 0h2m1 0h7m1 0h3m2 0h1m1 0h1m1 0h2m1 0h2M4 14.5h3m1 0h1m3 0h2m1 0h1m3 0h1m1 0h3m5 0h1M3 15.5h1m6 0h1m1 0h5m1 0h1m1 0h1m3 0h7M2 16.5h1m1 0h1m2 0h4m2 0h2m3 0h2m4 0h5m1 0h1M6 17.5h2m2 0h2m4 0h1m2 0h4m1 0h2m3 0h2M2 18.5h2m1 0h1m1 0h4m4 0h5m1 0h1m1 0h1m1 0h1m3 0h1M2 19.5h3m6 0h1m1 0h1m10 0h4m1 0h2M6 20.5h1m1 0h2m2 0h1m2 0h3m1 0h1m8 0h1m1 0h1M4 21.5h2m1 0h1m2 0h4m1 0h1m1 0h3m1 0h2m1 0h1m4 0h2M2 22.5h4m1 0h3m1 0h3m1 0h1m3 0h1m2 0h6m2 0h1M10 23.5h1m2 0h4m1 0h1m2 0h2m3 0h1m3 0h1M2 24.5h7m1 0h5m3 0h2m1 0h2m1 0h1m1 0h3m1 0h1M2 25.5h1m5 0h1m3 0h1m1 0h1m1 0h1m2 0h1m2 0h1m3 0h1m2 0h2M2 26.5h1m1 0h3m1 0h1m1 0h1m2 0h1m1 0h4m1 0h8m1 0h2M2 27.5h1m1 0h3m1 0h1m4 0h3m3 0h5m5 0h1M2 28.5h1m1 0h3m1 0h1m3 0h1m1 0h1m2 0h1m2 0h2m1 0h1m3 0h4M2 29.5h1m5 0h1m2 0h3m2 0h3m2 0h3m1 0h3m1 0h2M2 30.5h7m1 0h2m4 0h1m5 0h2m5 0h1"/></svg></div><div class="scan-text"><div class="url">zero-emit.vercel.app</div><span>Scan to open the app</span></div></div>
 </footer>
 </body></html>
