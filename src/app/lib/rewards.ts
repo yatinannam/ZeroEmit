@@ -84,7 +84,36 @@ export const REWARD_TIERS = [
   { name: "Grid Guardian", threshold: 1500 },
 ] as const;
 
-const STREAK_MILESTONES = [3, 7, 14, 30, 60, 100];
+// The evening peak (6-10 pm), when India's grid leans hardest on coal.
+const PEAK_HOURS = { from: 18, to: 22 };
+const isPeakCharge = (charge: Charge) => {
+  const hour = Number(charge.chargedAt.slice(0, 2));
+  return hour >= PEAK_HOURS.from && hour < PEAK_HOURS.to;
+};
+
+export type Achievement = { key: string; title: string; description: string; current: number; target: number; unit: string; unlocked: boolean };
+
+// Every badge with its progress; `current` is capped at `target`.
+export function achievements(charges: Charge[], streak: number): Achievement[] {
+  const green = charges.filter(isGreenCharge).length;
+  const savedKg = estimatedCarbonSavedGrams(charges) / 1000;
+  const kwh = charges.reduce((sum, charge) => sum + charge.energyKwh, 0);
+  const offPeak = charges.filter((charge) => !isPeakCharge(charge)).length;
+  const rows: Omit<Achievement, "unlocked">[] = [
+    { key: "first-green", title: "First Green Charge", description: "Charge while the grid is green", current: green, target: 1, unit: "" },
+    { key: "green-10", title: "Green Regular", description: "10 charges in green hours", current: green, target: 10, unit: "" },
+    { key: "streak-7", title: "7 Day Streak", description: "Charge 7 days in a row", current: streak, target: 7, unit: " days" },
+    { key: "streak-30", title: "30 Day Streak", description: "Charge 30 days in a row", current: streak, target: 30, unit: " days" },
+    { key: "peak-dodger", title: "Peak Dodger", description: "5 charges outside the 6-10 pm peak", current: offPeak, target: 5, unit: "" },
+    { key: "co2-10", title: "Carbon Cutter", description: "Avoid 10 kg of CO₂", current: savedKg, target: 10, unit: " kg" },
+    { key: "co2-50", title: "Climate Champion", description: "Avoid 50 kg of CO₂", current: savedKg, target: 50, unit: " kg" },
+    { key: "kwh-100", title: "100 kWh Club", description: "Charge 100 kWh in total", current: kwh, target: 100, unit: " kWh" },
+  ];
+  return rows.map((row) => ({ ...row, current: Math.min(row.current, row.target), unlocked: row.current >= row.target }));
+}
+
+// 7 and 30 days are badges, announced as achievements instead.
+const STREAK_MILESTONES = [3, 14, 60, 100];
 
 // What logging `added` on top of `before` just earned — used for the
 // confirmation toast and notifications. `rewards` lists only newly reached
@@ -97,11 +126,11 @@ export function chargeOutcome(before: Charge[], added: Charge) {
   const tierBefore = currentRewardTier(totalPoints(before)).current;
   const tierAfter = currentRewardTier(totalPoints(after)).current;
   if (tierAfter.threshold > tierBefore.threshold) rewards.push(`New level: ${tierAfter.name}`);
-  if (green && !before.some(isGreenCharge)) rewards.push("Achievement unlocked: First Green Charge");
   const streakBefore = currentStreakDays(before);
   const streakAfter = currentStreakDays(after);
-  if (streakBefore < 7 && streakAfter >= 7) rewards.push("Achievement unlocked: 7 Day Streak");
-  const milestone = [...STREAK_MILESTONES].reverse().find((days) => streakBefore < days && streakAfter >= days && days !== 7);
+  const unlockedBefore = new Set(achievements(before, streakBefore).filter((badge) => badge.unlocked).map((badge) => badge.key));
+  for (const badge of achievements(after, streakAfter)) if (badge.unlocked && !unlockedBefore.has(badge.key)) rewards.push(`Achievement unlocked: ${badge.title}`);
+  const milestone = [...STREAK_MILESTONES].reverse().find((days) => streakBefore < days && streakAfter >= days);
   if (milestone) rewards.push(`${milestone} days in a row`);
   return { points, green, rewards };
 }
