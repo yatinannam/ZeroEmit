@@ -4,7 +4,7 @@ import type { LeaderboardCharge } from "../leaderboard";
 import { fakeRedis, fakeRedisModule, resetFakeRedis } from "./test-redis";
 
 mock.module("./redis", () => fakeRedisModule);
-const { boardStandings, parseMemberBody, readLeaderboard, removeMember, submitMember } = await import("./leaderboard");
+const { boardStandings, parseMemberBody, readLeaderboard, removeMember, removeMembersByName, submitMember } = await import("./leaderboard");
 
 const NOW = Date.parse("2026-10-14T06:30:00.000Z"); // noon IST, 14 Oct
 const uuid = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
@@ -169,5 +169,21 @@ describe("boardStandings", () => {
     fakeRedis.roundTrips = 0;
     expect((await boardStandings("2026-10", [])).size).toBe(0);
     expect(fakeRedis.roundTrips).toBe(0);
+  });
+});
+
+describe("removeMembersByName (admin)", () => {
+  test("removes this month's entries with that name in that region, case-insensitively, and blocks a late sync", async () => {
+    await submitMember(member(1, 2, { name: "Yatin Annam", zone: "southern" }), NOW);
+    await submitMember(member(2, 3, { name: "Yatin Annam", zone: "western" }), NOW);
+    await submitMember(member(3, 1, { name: "Hrishi", zone: "southern" }), NOW);
+    expect(await removeMembersByName("yatin annam", "southern", NOW)).toBe(1);
+    expect((await readLeaderboard("all", null, NOW)).rows.map((row) => `${row.name}/${row.zone}`)).toEqual(["Yatin Annam/western", "Hrishi/southern"]);
+    expect((await readLeaderboard("southern", null, NOW)).rows.map((row) => row.name)).toEqual(["Hrishi"]);
+    expect(await submitMember(member(1, 2, { name: "Yatin Annam", zone: "southern" }), NOW + 1000)).toEqual({ ok: false, status: 410 });
+  });
+
+  test("nothing to remove is fine", async () => {
+    expect(await removeMembersByName("Nobody", "southern", NOW)).toBe(0);
   });
 });

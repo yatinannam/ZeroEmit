@@ -119,6 +119,30 @@ export async function removeMember(id: string, key: string): Promise<"ok" | "for
   return "ok";
 }
 
+// Admin removal for an entry whose device can no longer leave (lost data,
+// another browser) or an offensive name: every member of this month's board
+// with that display name (case-insensitive) in that region. Each gets the
+// same "removed" marker as a normal leave, so a late sync can't restore it.
+export async function removeMembersByName(name: string, zone: Zone, now = Date.now()): Promise<number> {
+  const month = istMonthKey(now);
+  const ids = await redis<string[]>("ZREVRANGE", boardKey(month, "all"), 0, -1);
+  if (!ids.length) return 0;
+  const raws = await redis<(string | null)[]>("MGET", ...ids.map(memberKey));
+  const target = name.trim().toLowerCase();
+  const matches = ids.filter((_, index) => {
+    const record = raws[index] ? JSON.parse(raws[index]!) as MemberRecord : null;
+    return record !== null && record.zone === zone && record.name.toLowerCase() === target;
+  });
+  if (!matches.length) return 0;
+  await redisTransaction(matches.flatMap((id) => [
+    ["ZREM", boardKey(month, "all"), id],
+    ["ZREM", boardKey(month, zone), id],
+    ["DEL", memberKey(id)],
+    ["SET", removedKey(id), "1", "EX", REMOVED_MARKER_S],
+  ]));
+  return matches.length;
+}
+
 export type Standing = { rank: number; total: number; points: number; co2Kg: number | null; above: string | null; aboveId: string | null };
 
 // Where each of `ids` stands on `month`'s All India board, for the push

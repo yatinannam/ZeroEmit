@@ -119,13 +119,17 @@ export function LeaderboardCard() {
   const state = useBoard("all", membership?.id ?? null, refresh);
   if (state.status === "unavailable") return null;
 
-  return <section className="card stat-card leaderboard-card">
-    <div className="recommendation-head"><h2>Leaderboard</h2><span className="chip">This month</span></div>
-    <BoardBody state={state} limit={5}/>
-    {!membership && <button className="primary-button" onClick={() => setJoinOpen(true)}>Join the leaderboard</button>}
-    <Link className="forecast-button" href="/rewards/leaderboard">See full leaderboard <Icon name="arrow" size={18}/></Link>
+  // The join form sits outside the card: inside it, the card's small
+  // uppercase section-label style would apply to the form's title too.
+  return <>
+    <section className="card stat-card leaderboard-card">
+      <div className="recommendation-head"><h2>Leaderboard</h2><span className="chip">This month</span></div>
+      <BoardBody state={state} limit={5}/>
+      {!membership && <button className="primary-button" onClick={() => setJoinOpen(true)}>Join the leaderboard</button>}
+      <Link className="forecast-button" href="/rewards/leaderboard">See full leaderboard <Icon name="arrow" size={18}/></Link>
+    </section>
     {joinOpen && <JoinModal onClose={() => setJoinOpen(false)} onJoined={() => { setJoinOpen(false); setRefresh((n) => n + 1); }}/>}
-  </section>;
+  </>;
 }
 
 // /rewards/leaderboard: top 50, All India or the user's region.
