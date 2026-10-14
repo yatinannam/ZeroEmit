@@ -44,8 +44,8 @@ one drops off at the monthly reset.
 - `lb:member:<publicId>` — JSON: `{ name, zone, keyHash, month, points, co2Kg, updatedAt }`.
 - `lb:<YYYY-MM>:all` and `lb:<YYYY-MM>:<zone>` — sorted sets, member = publicId,
   score = points (ties broken by earlier `updatedAt` via a fractional score component).
-- Month sorted sets expire ~70 days after creation; member records expire 70 days
-  after their last update.
+- Month sorted sets and member records expire 70 days after their last write (a
+  month's set stops being written when the month ends, so it lasts ~70 days past it).
 - Nothing else: no charge history, city, coordinates or push data.
 
 ## Anti-cheat (best effort)
@@ -89,7 +89,9 @@ Redis is not configured.
 ## Client
 
 - `components/use-leaderboard.ts` — localStorage store `{ id, key, name } | null`,
-  `join(name)`, `leave()`, `sync()`; `sync` is called after charges change.
+  `join(name)`, `leave()`, `sync()`.
+- `components/leaderboard-sync.tsx` — mounted once in the layout (like `PushSync`);
+  calls `sync()` (debounced 1 s) when charges or the user's zone change while joined.
 - `components/leaderboard.tsx` — the Rewards card and the full list, sharing row UI.
 - `app/rewards/leaderboard/page.tsx` — full page, reusing TopBar/BottomNav/PageHeader.
 - Profile: delete account calls `leave()`; Privacy text gains: "If you join the
