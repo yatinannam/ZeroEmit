@@ -12,6 +12,7 @@ import { averageChargeIntensity, dayHeading, formatTimeOfDay, typicalChargeTime 
 import { Icon } from "./icon-set";
 import { BottomNav, TopBar } from "./app-shell";
 import { LocationModal } from "./location-modal";
+import { InstallPrompt } from "./install-prompt";
 
 // The page is prerendered at build time, so the greeting can't be computed
 // during render — it would bake in the build machine's hour and mismatch on
@@ -72,6 +73,8 @@ export function Dashboard() {
         {intensityDiff !== null && <p className="personal-note">{intensityDiff === 0 ? "About the same as your usual charging window" : `${Math.abs(intensityDiff)} gCO₂/kWh ${intensityDiff < 0 ? "cleaner" : "higher"} than your usual charging window`}</p>}
         <Link className="forecast-button" href="/forecast">See full forecast <Icon name="arrow" size={18}/></Link>
       </section>
+
+      <InstallPrompt/>
 
       <section className="data-status" role={error ? "alert" : "status"}><span>{error || (current ? `Live data from ${data?.source}${current.isEstimated ? " · estimated" : ""}${data?.updatedAt ? ` · updated ${readingTime(data.updatedAt)}` : ""}` : "Waiting for live grid data…")}</span><button onClick={refresh} disabled={loading}>{loading ? "Refreshing…" : "Refresh"}</button></section>
 
