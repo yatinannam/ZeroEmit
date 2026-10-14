@@ -8,6 +8,8 @@ export const POINTS_PER_CHARGE = 10;
 // so a fixed cutoff well below that approximates what "green" would mean.
 export const GREEN_CHARGE_FALLBACK_THRESHOLD = 450; // gCO2/kWh
 export const GREEN_CHARGE_BONUS = 5;
+// Largest charge the log form accepts; the leaderboard clamps to it too.
+export const MAX_CHARGE_KWH = 150;
 
 export function isGreenCharge(charge: Charge): boolean {
   return charge.intensityClass

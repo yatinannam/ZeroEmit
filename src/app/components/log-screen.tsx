@@ -2,7 +2,7 @@
 
 import { FormEvent, useState } from "react";
 import { intensityAt } from "../lib/grid";
-import { chargeOutcome, pointsForCharge } from "../lib/rewards";
+import { chargeOutcome, MAX_CHARGE_KWH as MAX_KWH, pointsForCharge } from "../lib/rewards";
 import { sendNotification } from "./notifications";
 import { showToast } from "./toast";
 import { averageEnergyKwh, dayHeading, formatTimeOfDay, typicalChargeTime } from "../lib/personalization";
@@ -18,7 +18,6 @@ import { PageHeader } from "./page-header";
 // Comfortably above the largest EV battery sold in India (~100 kWh) — a
 // typo like 1800 would otherwise inflate every total and become the next
 // form's "typical" default.
-const MAX_KWH = 150;
 
 const pad = (value: number) => String(value).padStart(2, "0");
 const localDate = (date: Date) => `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;

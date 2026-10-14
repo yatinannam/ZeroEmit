@@ -1,0 +1,97 @@
+import { describe, expect, test } from "bun:test";
+import type { Charge } from "../components/use-charges";
+import { istMonthKey, scoreMonth, toLeaderboardCharges, validateDisplayName, type LeaderboardCharge } from "./leaderboard";
+
+const entry = (date: string, kwh = 20, intensity: number | null = 600, green = false): LeaderboardCharge => ({ date, kwh, intensity, green });
+const MONTH = "2026-10";
+const TODAY = "2026-10-14";
+
+describe("scoreMonth", () => {
+  test("10 points a charge, +5 when green", () => {
+    expect(scoreMonth([entry("2026-10-01"), entry("2026-10-02", 20, 400, true)], MONTH, TODAY).points).toBe(25);
+  });
+
+  test("green only counts when an intensity was recorded", () => {
+    expect(scoreMonth([entry("2026-10-01", 20, null, true)], MONTH, TODAY).points).toBe(10);
+  });
+
+  test("CO2 avoided is (650 - intensity) x kWh, never negative, skipped without intensity, in kg to 0.1", () => {
+    // (650 - 400) x 20 = 5000 g; 700 is above the baseline -> 0; null -> 0
+    const result = scoreMonth([entry("2026-10-01", 20, 400), entry("2026-10-02", 20, 700), entry("2026-10-03", 20, null)], MONTH, TODAY);
+    expect(result.co2Kg).toBe(5);
+  });
+
+  test("only the best two charges of a day count", () => {
+    const day = [entry("2026-10-05"), entry("2026-10-05", 20, 400, true), entry("2026-10-05"), entry("2026-10-05", 20, 300, true)];
+    expect(scoreMonth(day, MONTH, TODAY).points).toBe(30);
+  });
+
+  test("other months and future days are ignored", () => {
+    const result = scoreMonth([entry("2026-09-30"), entry("2026-10-15"), entry("2026-11-01"), entry("2026-10-14")], MONTH, TODAY);
+    expect(result.points).toBe(10);
+  });
+
+  test("kWh is capped at 150 and intensity clamped to 0..2000", () => {
+    // kWh 500 -> 150, intensity -100 -> 0: (650 - 0) x 150 = 97500 g
+    expect(scoreMonth([entry("2026-10-01", 500, -100)], MONTH, TODAY).co2Kg).toBe(97.5);
+    // intensity 5000 -> 2000, above the baseline -> no CO2, still a charge
+    expect(scoreMonth([entry("2026-10-01", 20, 5000)], MONTH, TODAY)).toEqual({ points: 10, co2Kg: 0 });
+  });
+
+  test("a full month at the cap is 31 x 2 x 15 = 930 points", () => {
+    const month = Array.from({ length: 31 }, (_, i) => `2026-10-${String(i + 1).padStart(2, "0")}`)
+      .flatMap((date) => [entry(date, 20, 300, true), entry(date, 20, 300, true), entry(date, 20, 300, true)]);
+    expect(scoreMonth(month, MONTH, "2026-10-31").points).toBe(930);
+  });
+});
+
+describe("istMonthKey", () => {
+  test("uses IST, not UTC or the device timezone", () => {
+    expect(istMonthKey("2026-10-31T18:00:00.000Z")).toBe("2026-10"); // 23:30 IST, 31 Oct
+    expect(istMonthKey("2026-10-31T19:00:00.000Z")).toBe("2026-11"); // 00:30 IST, 1 Nov
+  });
+});
+
+describe("toLeaderboardCharges", () => {
+  const charge = (loggedAt: string, extra: Partial<Charge> = {}): Charge => ({ id: loggedAt, energyKwh: 18, chargedAt: "10:00", city: "Pune, Maharashtra", carbonIntensity: 420, intensityClass: null, loggedAt, ...extra });
+
+  test("keeps only this IST month's charges, dated in IST", () => {
+    const out = toLeaderboardCharges([charge("2026-10-31T19:00:00.000Z"), charge("2026-10-31T18:00:00.000Z"), charge("2026-09-30T10:00:00.000Z")], "2026-10");
+    expect(out).toEqual([{ date: "2026-10-31", kwh: 18, intensity: 420, green: true }]);
+  });
+
+  test("green follows the app's rule: the provider's class wins over the fallback threshold", () => {
+    const out = toLeaderboardCharges([charge("2026-10-10T05:00:00.000Z", { intensityClass: "yellow" })], "2026-10");
+    expect(out[0].green).toBe(false);
+  });
+
+  test("sends at most 100 charges", () => {
+    const many = Array.from({ length: 120 }, (_, i) => charge(new Date(Date.parse("2026-10-01T00:00:00.000Z") + i * 3_600_000).toISOString()));
+    expect(toLeaderboardCharges(many, "2026-10")).toHaveLength(100);
+  });
+});
+
+describe("validateDisplayName", () => {
+  test("trims and collapses spaces", () => {
+    expect(validateDisplayName("  Asha   Rao ")).toBe("Asha Rao");
+  });
+
+  test("accepts letters in any script", () => {
+    expect(validateDisplayName("राहुल")).toBe("राहुल");
+  });
+
+  test("rejects too short, too long, symbols and non-strings", () => {
+    expect(validateDisplayName("A")).toBeNull();
+    expect(validateDisplayName("x".repeat(21))).toBeNull();
+    expect(validateDisplayName("<script>")).toBeNull();
+    expect(validateDisplayName("Rahul_1")).toBeNull();
+    expect(validateDisplayName(42)).toBeNull();
+  });
+
+  test("blocks offensive words without blocking ordinary names", () => {
+    expect(validateDisplayName("fuck you")).toBeNull();
+    expect(validateDisplayName("xFuCkx")).toBeNull();
+    expect(validateDisplayName("Dickens")).toBe("Dickens");
+    expect(validateDisplayName("Lundgren")).toBe("Lundgren");
+  });
+});
