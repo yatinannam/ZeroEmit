@@ -92,3 +92,14 @@ button:active, a:active { opacity:.65; }
 .intro-mini { width:100%; display:grid; gap:10px; }.intro-mini-head { display:flex; justify-content:space-between; align-items:baseline; gap:8px; }.intro-mini-head span { color:var(--muted); font-size:11px; font-weight:600; letter-spacing:.08em; text-transform:uppercase; }.intro-mini-head b { color:var(--primary); font-size:26px; line-height:1; }.intro-mini-head small { color:var(--muted); font-size:12px; font-weight:600; }.intro-mini .forecast-chart { margin-top:0; }.intro-mini .chip-caption { margin:0; font-size:12px; }
 .intro-badge { display:flex; align-items:center; gap:10px; padding:10px; border:1px solid var(--variant); border-radius:14px; }.intro-badge .round-icon { width:36px; height:36px; flex:none; }.intro-badge strong { display:block; font-size:13px; }.intro-badge small { color:var(--secondary); font-size:11px; font-weight:700; }
 @media (prefers-reduced-motion:reduce) { .intro-track, .intro-dots span { transition:none; } }
+.leaderboard-card { display:grid; gap:12px; }.leaderboard-card .forecast-button { margin-top:0; }
+.leaderboard-summary { margin:0; color:var(--muted); font-size:14px; }.leaderboard-summary b { color:var(--primary); font-size:18px; }
+.leaderboard-list { display:grid; gap:4px; margin:0; padding:0; list-style:none; }
+.leaderboard-row { display:grid; grid-template-columns:32px minmax(0,1fr) auto; align-items:center; gap:12px; min-height:56px; padding:8px 12px; border-radius:12px; }
+.leaderboard-me { background:var(--accent-soft); }
+.leaderboard-rank { display:grid; place-items:center; width:32px; height:32px; border-radius:50%; color:var(--muted); background:var(--variant); font-size:14px; font-weight:700; }
+.leaderboard-top1 { color:var(--on-primary); background:var(--primary); }.leaderboard-top2, .leaderboard-top3 { color:var(--primary); background:var(--card); box-shadow:inset 0 0 0 2px var(--primary); }
+.leaderboard-name { display:grid; min-width:0; }.leaderboard-name strong { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:15px; }.leaderboard-name small { color:var(--muted); font-size:12px; line-height:1.35; }
+.leaderboard-points { color:var(--primary); font-size:16px; white-space:nowrap; }.leaderboard-points small { color:var(--muted); font-size:12px; font-weight:600; }
+.leaderboard-gap { padding:0 12px; color:var(--muted); text-align:center; }
+.back-link { display:inline-flex; align-items:center; gap:6px; min-height:44px; color:var(--primary); font-weight:600; text-decoration:none; }

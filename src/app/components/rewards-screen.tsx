@@ -7,6 +7,7 @@ import { Icon, type IconName } from "./icon-set";
 import { BottomNav, TopBar } from "./app-shell";
 import { LocationModal } from "./location-modal";
 import { PageHeader } from "./page-header";
+import { LeaderboardCard } from "./leaderboard";
 
 // `hint` is what a locked badge shows instead of "Completed" — how to earn it.
 const ACHIEVEMENTS: { key: string; title: string; icon: IconName; unlocked: (charges: Charge[], streak: number) => boolean; hint: (streak: number) => string }[] = [
@@ -27,6 +28,7 @@ export function RewardsScreen() {
     <TopBar onChooseLocation={openLocation}/>
     <main className="dashboard-content">
       <PageHeader eyebrow="Rewards" title="Your eco journey." intro="Level up by charging when the grid is cleaner."/>
+      <LeaderboardCard/>
 
       <section className="card stat-card">
         <div className="recommendation-head"><h2>Eco points</h2>{streak > 0 && <span className="recommended"><Icon name="fire" size={15}/> {streak} day{streak === 1 ? "" : "s"} in a row</span>}</div>
