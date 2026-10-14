@@ -1,6 +1,7 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 import webpush from "web-push";
 import { STATES } from "../places";
+import { achievements } from "../rewards";
 import { redis, redisConfigured } from "./redis";
 
 const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
@@ -10,8 +11,12 @@ const subject = process.env.VAPID_SUBJECT;
 export const pushConfigured = Boolean(publicKey && privateKey && subject && redisConfigured);
 if (pushConfigured) webpush.setVapidDetails(subject!, publicKey!, privateKey!);
 
-export type ServerPrefs = { bestTime: boolean; dailyDigest: boolean; streakReminders: boolean };
-export type SentMarkers = Partial<Record<"day" | "night" | "digest" | "streak", string>>;
+export type ServerPrefs = { bestTime: boolean; dailyDigest: boolean; streakReminders: boolean; leaderboard: boolean; progress: boolean };
+// Each marker holds the IST day (or month, for "top" and "monthEnd") it was
+// last sent; `badges` holds that per badge key.
+export type SentMarkers = Partial<Record<"day" | "night" | "digest" | "streak" | "overtake" | "top" | "monthEnd" | "weekly", string>> & { badges?: Record<string, string> };
+export type BadgeHint = { key: string; hint: string };
+export type WeekSummary = { charges: number; co2Kg: number; greenPercent: number };
 export type StoredSubscription = {
   subscription: { endpoint: string; keys: { p256dh: string; auth: string } };
   state: string;
@@ -19,10 +24,19 @@ export type StoredSubscription = {
   prefs: ServerPrefs;
   streak: number;
   lastChargeDay: string | null;
+  // The device's public leaderboard id (never its key), its closest badge
+  // when it's near, and this week's totals — for the engagement notifications.
+  leaderboardId: string | null;
+  badge: BadgeHint | null;
+  week: WeekSummary | null;
+  // The leaderboard rank seen on the last run, to notice being overtaken.
+  lb?: { month: string; rank: number };
   sent: SentMarkers;
   updatedAt: number;
 };
-export type PushPayload = { title: string; body: string; url: string; tag: string };
+// `actions` become notification buttons where supported (not on iPhone);
+// public/sw.js maps the "log" action to /log?quick=1.
+export type PushPayload = { title: string; body: string; url: string; tag: string; actions?: { action: string; title: string }[] };
 
 const SUBS_KEY = "push:subs";
 
@@ -39,8 +53,30 @@ function isPushServiceUrl(raw: string) {
 
 const isBase64Url = (value: unknown, max: number): value is string => typeof value === "string" && value.length > 0 && value.length <= max && /^[A-Za-z0-9_-]+=*$/.test(value);
 const isBool = (value: unknown): value is boolean => typeof value === "boolean";
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+const BADGE_KEYS = new Set(achievements([], 0).map((badge) => badge.key));
+const isBetween = (value: unknown, min: number, max: number): value is number => typeof value === "number" && Number.isFinite(value) && value >= min && value <= max;
 
-export function parseSubscriptionBody(body: unknown): Omit<StoredSubscription, "sent" | "updatedAt"> | null {
+// undefined (an app from before the field) and null both mean "none";
+// false means malformed.
+function parseBadge(raw: unknown): BadgeHint | null | false {
+  if (raw === undefined || raw === null) return null;
+  const badge = raw as Partial<BadgeHint>;
+  if (typeof badge.key !== "string" || !BADGE_KEYS.has(badge.key) || typeof badge.hint !== "string" || badge.hint.length < 1 || badge.hint.length > 140) return false;
+  return { key: badge.key, hint: badge.hint };
+}
+
+function parseWeek(raw: unknown): WeekSummary | null | false {
+  if (raw === undefined || raw === null) return null;
+  const week = raw as Partial<WeekSummary>;
+  if (!Number.isInteger(week.charges) || !isBetween(week.charges, 0, 1000) || !isBetween(week.co2Kg, 0, 100_000) || !Number.isInteger(week.greenPercent) || !isBetween(week.greenPercent, 0, 100)) return false;
+  return { charges: week.charges, co2Kg: week.co2Kg, greenPercent: week.greenPercent };
+}
+
+// A switch an older app doesn't send yet defaults to on; null means malformed.
+const optionalBool = (value: unknown): boolean | null => (value === undefined ? true : isBool(value) ? value : null);
+
+export function parseSubscriptionBody(body: unknown): Omit<StoredSubscription, "sent" | "updatedAt" | "lb"> | null {
   if (!body || typeof body !== "object") return null;
   const b = body as Record<string, unknown>;
   const sub = b.subscription as { endpoint?: unknown; keys?: { p256dh?: unknown; auth?: unknown } } | undefined;
@@ -52,13 +88,24 @@ export function parseSubscriptionBody(body: unknown): Omit<StoredSubscription, "
   if (!prefs || !isBool(prefs.bestTime) || !isBool(prefs.dailyDigest) || !isBool(prefs.streakReminders)) return null;
   if (!Number.isInteger(b.streak) || (b.streak as number) < 0 || (b.streak as number) > 10_000) return null;
   if (b.lastChargeDay !== null && !(typeof b.lastChargeDay === "string" && /^\d{4}-\d{2}-\d{2}$/.test(b.lastChargeDay))) return null;
+  const leaderboard = optionalBool(prefs.leaderboard);
+  const progress = optionalBool(prefs.progress);
+  if (leaderboard === null || progress === null) return null;
+  const leaderboardId = b.leaderboardId ?? null;
+  if (leaderboardId !== null && !(typeof leaderboardId === "string" && UUID_PATTERN.test(leaderboardId))) return null;
+  const badge = parseBadge(b.badge);
+  const week = parseWeek(b.week);
+  if (badge === false || week === false) return null;
   return {
     subscription: { endpoint: sub.endpoint, keys: { p256dh: sub.keys!.p256dh as string, auth: sub.keys!.auth as string } },
     state: b.state,
     name: b.name,
-    prefs: { bestTime: prefs.bestTime, dailyDigest: prefs.dailyDigest, streakReminders: prefs.streakReminders },
+    prefs: { bestTime: prefs.bestTime, dailyDigest: prefs.dailyDigest, streakReminders: prefs.streakReminders, leaderboard, progress },
     streak: b.streak as number,
     lastChargeDay: b.lastChargeDay as string | null,
+    leaderboardId: leaderboardId as string | null,
+    badge,
+    week,
   };
 }
 
@@ -69,8 +116,10 @@ const idFor = (endpoint: string) => createHash("sha256").update(endpoint).digest
 export async function saveSubscription(value: Omit<StoredSubscription, "sent" | "updatedAt">) {
   const id = idFor(value.subscription.endpoint);
   const existing = await redis<string | null>("HGET", SUBS_KEY, id);
-  const sent = existing ? (JSON.parse(existing) as StoredSubscription).sent ?? {} : {};
-  await redis("HSET", SUBS_KEY, id, JSON.stringify({ ...value, sent, updatedAt: Date.now() } satisfies StoredSubscription));
+  const previous = existing ? JSON.parse(existing) as StoredSubscription : null;
+  // The last-seen rank only means something for the same leaderboard entry.
+  const lb = previous?.leaderboardId && previous.leaderboardId === value.leaderboardId ? previous.lb : undefined;
+  await redis("HSET", SUBS_KEY, id, JSON.stringify({ ...value, sent: previous?.sent ?? {}, ...(lb ? { lb } : {}), updatedAt: Date.now() } satisfies StoredSubscription));
 }
 
 export async function removeSubscription(endpoint: string) {
@@ -96,8 +145,8 @@ export async function listSubscriptions(): Promise<StoredSubscription[]> {
   return subs;
 }
 
-export async function updateSentMarkers(sub: StoredSubscription, sent: SentMarkers) {
-  await redis("HSET", SUBS_KEY, idFor(sub.subscription.endpoint), JSON.stringify({ ...sub, sent }));
+export async function updateSubscriptionState(sub: StoredSubscription, state: { sent: SentMarkers; lb?: StoredSubscription["lb"] }) {
+  await redis("HSET", SUBS_KEY, idFor(sub.subscription.endpoint), JSON.stringify({ ...sub, sent: state.sent, lb: state.lb }));
 }
 
 // Returns false (and forgets the subscription) when the push service says it

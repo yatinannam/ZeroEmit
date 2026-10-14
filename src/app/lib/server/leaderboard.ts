@@ -119,6 +119,27 @@ export async function removeMember(id: string, key: string): Promise<"ok" | "for
   return "ok";
 }
 
+export type Standing = { rank: number; total: number; points: number; co2Kg: number | null; above: string | null };
+
+// Where a member stands on `month`'s All India board, for the push
+// scheduler. Points come from the board itself (the member record only holds
+// the latest month), so CO₂ is known only while the record is that month's.
+export async function memberStanding(id: string, month: string): Promise<Standing | null> {
+  const key = boardKey(month, "all");
+  const index = await redis<number | null>("ZREVRANK", key, id);
+  if (index === null) return null;
+  const [total, score, aboveIds] = await redisTransaction([
+    ["ZCARD", key],
+    ["ZSCORE", key, id],
+    ["ZREVRANGE", key, Math.max(0, index - 1), Math.max(0, index - 1)],
+  ]) as [number, string | null, string[]];
+  const aboveId = index > 0 ? aboveIds[0] : null;
+  const [ownRaw, aboveRaw] = await redis<(string | null)[]>("MGET", memberKey(id), memberKey(aboveId ?? id));
+  const own = ownRaw ? JSON.parse(ownRaw) as MemberRecord : null;
+  const above = aboveId && aboveRaw ? (JSON.parse(aboveRaw) as MemberRecord).name : null;
+  return { rank: index + 1, total, points: Math.floor(Number(score ?? 0)), co2Kg: own && own.month === month ? own.co2Kg : null, above };
+}
+
 const toRow = (rank: number, record: MemberRecord, isMe: boolean): LeaderboardRow => ({ rank, name: record.name, zone: record.zone, points: record.points, co2Kg: record.co2Kg, isMe });
 
 export async function readLeaderboard(scope: LeaderboardScope, me: string | null, now = Date.now()): Promise<LeaderboardResponse> {

@@ -115,6 +115,59 @@ export function achievements(charges: Charge[], streak: number): Achievement[] {
   return rows.map((row) => ({ ...row, current: Math.min(row.current, row.target), unlocked: row.current >= row.target }));
 }
 
+// How each badge's remaining amount reads in a sentence ("2 more green
+// charges"); `count` badges are close within 2 steps, the rest at 80%.
+const BADGE_STEPS: Record<string, { kind: "count" | "amount"; one?: string; many?: string; unit?: string }> = {
+  "first-green": { kind: "count", one: "green charge", many: "green charges" },
+  "green-10": { kind: "count", one: "green charge", many: "green charges" },
+  "streak-7": { kind: "count", one: "day in a row", many: "days in a row" },
+  "streak-30": { kind: "count", one: "day in a row", many: "days in a row" },
+  "peak-dodger": { kind: "count", one: "charge outside the 6-10 pm peak", many: "charges outside the 6-10 pm peak" },
+  "co2-10": { kind: "amount", unit: "kg more CO₂ avoided" },
+  "co2-50": { kind: "amount", unit: "kg more CO₂ avoided" },
+  "kwh-100": { kind: "amount", unit: "kWh more" },
+};
+
+// The locked badge nearest to done, when it's close enough to nudge about,
+// with a ready-to-send sentence. Ties go to the earlier badge.
+export function closestBadge(badges: Achievement[]): { key: string; hint: string } | null {
+  let best: { badge: Achievement; fraction: number } | null = null;
+  for (const badge of badges) {
+    const steps = BADGE_STEPS[badge.key];
+    if (badge.unlocked || !steps) continue;
+    const remaining = badge.target - badge.current;
+    const fraction = badge.current / badge.target;
+    const close = steps.kind === "count" ? Math.ceil(remaining) <= 2 : fraction >= 0.8;
+    if (close && (!best || fraction > best.fraction)) best = { badge, fraction };
+  }
+  if (!best) return null;
+  const { badge } = best;
+  const steps = BADGE_STEPS[badge.key];
+  const remaining = badge.target - badge.current;
+  if (steps.kind === "count") {
+    const count = Math.ceil(remaining);
+    return { key: badge.key, hint: `${count} more ${count === 1 ? steps.one : steps.many} to unlock ${badge.title}.` };
+  }
+  const amount = (Math.ceil(remaining * 10) / 10).toFixed(1).replace(/\.0$/, "");
+  return { key: badge.key, hint: `${amount} ${steps.unit} to unlock ${badge.title}.` };
+}
+
+const IST_OFFSET_MS = 5.5 * 60 * 60_000;
+const DAY_MS = 24 * 60 * 60_000;
+
+// This IST week so far (Monday 00:00 IST onwards), for the weekly recap.
+export function weekSummary(charges: Charge[], now = Date.now()) {
+  const istNow = new Date(now + IST_OFFSET_MS);
+  const daysSinceMonday = (istNow.getUTCDay() + 6) % 7;
+  const weekStart = Date.UTC(istNow.getUTCFullYear(), istNow.getUTCMonth(), istNow.getUTCDate()) - daysSinceMonday * DAY_MS - IST_OFFSET_MS;
+  const week = charges.filter((charge) => { const at = Date.parse(charge.loggedAt); return at >= weekStart && at <= now; });
+  return {
+    charges: week.length,
+    co2Kg: Math.round(estimatedCarbonSavedGrams(week) / 100) / 10,
+    greenPercent: week.length ? Math.round((week.filter(isGreenCharge).length / week.length) * 100) : 0,
+  };
+}
+
 // 7 and 30 days are badges, announced as achievements instead.
 const STREAK_MILESTONES = [3, 14, 60, 100];
 

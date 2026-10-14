@@ -20,6 +20,7 @@ async function fakeRedis(...command: (string | number)[]): Promise<unknown> {
     case "ZADD": { const set = zsets.get(key) ?? new Map<string, number>(); set.set(args[1], Number(args[0])); zsets.set(key, set); return 1; }
     case "ZREM": return zsets.get(key)?.delete(args[0]) ? 1 : 0;
     case "ZCARD": return zsets.get(key)?.size ?? 0;
+    case "ZSCORE": { const score = zsets.get(key)?.get(args[0]); return score === undefined ? null : String(score); }
     case "ZREVRANGE": return zrevOrder(key).slice(Number(args[0]), Number(args[1]) + 1);
     case "ZREVRANK": { const index = zrevOrder(key).indexOf(args[0]); return index === -1 ? null : index; }
     default: throw new Error(`fake redis: unsupported ${name}`);
@@ -35,7 +36,7 @@ async function fakeTransaction(commands: (string | number)[][]): Promise<unknown
   return results;
 }
 mock.module("./redis", () => ({ redis: countedRedis, redisTransaction: fakeTransaction, redisConfigured: true }));
-const { parseMemberBody, readLeaderboard, removeMember, submitMember } = await import("./leaderboard");
+const { memberStanding, parseMemberBody, readLeaderboard, removeMember, submitMember } = await import("./leaderboard");
 
 const NOW = Date.parse("2026-10-14T06:30:00.000Z"); // noon IST, 14 Oct
 const uuid = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
@@ -173,5 +174,28 @@ describe("removeMember", () => {
 
   test("removing someone who isn't there is fine", async () => {
     expect(await removeMember(uuid(5), uuid(6))).toBe("ok");
+  });
+});
+
+describe("memberStanding", () => {
+  test("rank, total, points, CO2 and who is directly above", async () => {
+    await submitMember(member(1, 5), NOW); // 50 points
+    await submitMember(member(2, 3, { green: true }), NOW); // 45 points, (650-300) x 20 x 3 = 21 kg
+    await submitMember(member(3, 2), NOW); // 20 points
+    expect(await memberStanding(uuid(2), "2026-10")).toEqual({ rank: 2, total: 3, points: 45, co2Kg: 21, above: "Player 1" });
+    expect(await memberStanding(uuid(1), "2026-10")).toMatchObject({ rank: 1, above: null });
+  });
+
+  test("null when not on that month's board", async () => {
+    await submitMember(member(1, 1), NOW);
+    expect(await memberStanding(uuid(9), "2026-10")).toBeNull();
+    expect(await memberStanding(uuid(1), "2026-09")).toBeNull();
+  });
+
+  test("last month's standing keeps rank and points, but not CO2 once the record moved on", async () => {
+    const september = Date.parse("2026-09-20T06:30:00.000Z");
+    await submitMember({ ...member(1, 0), charges: [{ date: "2026-09-20", kwh: 20, intensity: 600, green: false }] }, september);
+    await submitMember(member(1, 2), NOW);
+    expect(await memberStanding(uuid(1), "2026-09")).toEqual({ rank: 1, total: 1, points: 10, co2Kg: null, above: null });
   });
 });
