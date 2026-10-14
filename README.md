@@ -2,6 +2,12 @@
 
 ZeroEmit is a mobile-first Next.js PWA that recommends lower-carbon EV charging windows using live Indian grid data.
 
+Live at [zero-emit.vercel.app](https://zero-emit.vercel.app).
+
+![ZeroEmit poster: main UI, time-slot recommendations, rewards, leaderboard, your impact and the shareable result](docs/poster/ZeroEmit-poster-landscape.png)
+
+Poster downloads: landscape ([PNG](docs/poster/ZeroEmit-poster-landscape.png), [PDF](docs/poster/ZeroEmit-poster-landscape.pdf)) · portrait ([PNG](docs/poster/ZeroEmit-poster-portrait.png), [PDF](docs/poster/ZeroEmit-poster-portrait.pdf)). The editable HTML source and app screenshots are in [`docs/poster/source`](docs/poster/source); screens use sample data.
+
 ## Run locally
 
 ```bash
