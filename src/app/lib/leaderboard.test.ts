@@ -150,3 +150,18 @@ describe("toLeaderboardCharges with timing", () => {
     expect(toLeaderboardCharges([charge], "2026-10")).toEqual([{ date: "2026-10-10", kwh: 18, intensity: 520, green: true, hour: 12, timing: "best" }]);
   });
 });
+
+describe("CO2 plausibility", () => {
+  const pattern = Array.from({ length: 24 }, (_, hour) => (hour >= 11 && hour <= 14 ? 450 : 600) as number | null);
+
+  test("a claimed intensity is kept within 80%-120% of the region's typical day", () => {
+    // Claims 0 gCO2/kWh; the cleanest typical hour is 450, so 360 is the floor: (650-360) x 20 = 5.8 kg.
+    expect(scoreMonth([{ date: "2026-10-01", kwh: 20, intensity: 0, green: false, hour: 12, timing: "best" }], MONTH, TODAY, pattern).co2Kg).toBe(5.8);
+    // A believable claim is used as it is: (650-480) x 20 = 3.4 kg.
+    expect(scoreMonth([{ date: "2026-10-01", kwh: 20, intensity: 480, green: false, hour: 12, timing: "best" }], MONTH, TODAY, pattern).co2Kg).toBe(3.4);
+  });
+
+  test("without the server's pattern, the old 0-2000 clamp applies", () => {
+    expect(scoreMonth([{ date: "2026-10-01", kwh: 20, intensity: 0, green: false }], MONTH, TODAY, null).co2Kg).toBe(13);
+  });
+});

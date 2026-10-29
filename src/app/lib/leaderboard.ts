@@ -55,10 +55,15 @@ function bonusFor(entry: LeaderboardCharge, intensity: number | null, pattern: (
 // charges are self-reported, so this bounds what logging fake ones can earn.
 export function scoreMonth(entries: LeaderboardCharge[], month: string, today: string, pattern: (number | null)[] | null = null): { points: number; co2Kg: number } {
   const byDay = new Map<string, { points: number; grams: number }[]>();
+  // With the region's typical day, a claimed intensity is kept within 80%-120%
+  // of its cleanest and dirtiest hours, so a doctored "0 gCO₂/kWh" can't
+  // inflate the CO₂ shown on the public board.
+  const known = pattern?.filter((value): value is number => value !== null) ?? [];
+  const [low, high] = known.length ? [Math.min(...known) * 0.8, Math.max(...known) * 1.2] : [0, MAX_INTENSITY];
   for (const entry of entries) {
     if (!entry.date.startsWith(`${month}-`) || entry.date > today || !isRealDay(entry.date)) continue;
     const kwh = clamp(entry.kwh, 0, MAX_CHARGE_KWH);
-    const intensity = entry.intensity === null ? null : clamp(entry.intensity, 0, MAX_INTENSITY);
+    const intensity = entry.intensity === null ? null : clamp(clamp(entry.intensity, 0, MAX_INTENSITY), low, high);
     const points = POINTS_PER_CHARGE + bonusFor(entry, intensity, pattern);
     const grams = intensity === null ? 0 : Math.max(0, UNTIMED_CHARGE_BASELINE - intensity) * kwh;
     const day = byDay.get(entry.date) ?? [];

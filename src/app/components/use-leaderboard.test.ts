@@ -132,3 +132,16 @@ describe("joining again after a lost response", () => {
     expect(joined().id).toBe(first.id);
   });
 });
+
+describe("skipping unchanged syncs", () => {
+  test("the same charges aren't sent twice; a change is", async () => {
+    const charge = { id: "a", energyKwh: 20, chargedAt: "12:00", city: "Pune, Maharashtra", carbonIntensity: 450, intensityClass: null, loggedAt: new Date().toISOString() };
+    requests.length = 0;
+    statuses = [200, 200, 200];
+    expect(await syncLeaderboard("western", [charge])).toBe(true);
+    expect(await syncLeaderboard("western", [charge])).toBe(true);
+    expect(requests.filter((request) => request.method === "POST")).toHaveLength(1);
+    await syncLeaderboard("western", [charge, { ...charge, id: "b", energyKwh: 10 }]);
+    expect(requests.filter((request) => request.method === "POST")).toHaveLength(2);
+  });
+});

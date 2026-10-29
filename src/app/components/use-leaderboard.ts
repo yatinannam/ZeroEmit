@@ -83,14 +83,26 @@ export function useLeaderboardVersion() {
 
 // Resolves to false when the update didn't go through (offline, rate limit,
 // server error), so the caller can try again later.
+// What was last sent successfully, so opening the app doesn't re-send an
+// unchanged score (each update costs a dozen Redis commands on a free tier).
+// Re-sent anyway after a few hours, to pick up a new month or a lost entry.
+const SYNCED_KEY = "zeroemit-leaderboard-synced";
+const RESYNC_AFTER_MS = 6 * 60 * 60_000;
+
 export async function syncLeaderboard(zone: Zone, charges: Charge[]) {
   const membership = store.getSnapshot();
   if (!membership) return true;
+  const fingerprint = JSON.stringify([membership.id, membership.name, zone, toLeaderboardCharges(charges, istMonthKey(Date.now()))]);
+  try {
+    const last = JSON.parse(window.localStorage.getItem(SYNCED_KEY) ?? "null") as { fingerprint?: string; at?: number } | null;
+    if (last?.fingerprint === fingerprint && Date.now() - (last.at ?? 0) < RESYNC_AFTER_MS) return true;
+  } catch { /* unreadable: just send */ }
   try {
     const response = await submit(membership, zone, charges);
     // 410: this entry already left (e.g. from another tab), so forget it here too.
     if (response.status === 410) { store.write(null); return true; }
     if (!response.ok) return false;
+    try { window.localStorage.setItem(SYNCED_KEY, JSON.stringify({ fingerprint, at: Date.now() })); } catch { /* storage unavailable */ }
     version += 1;
     versionListeners.forEach((listener) => listener());
     return true;
