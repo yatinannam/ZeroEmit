@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { chargerOrigin, directionsUrl, distanceKm, overpassQuery, parseOverpass, roundCoordinate } from "./stations";
+import { chargerOrigin, compactChargers, directionsUrl, distanceKm, INDIA_CHARGERS_QUERY, nearbyStations, parseOverpass, roundCoordinate } from "./stations";
 
 const PUNE = { lat: 18.5204, lon: 73.8567 };
 
@@ -10,12 +10,38 @@ describe("distanceKm", () => {
   });
 });
 
-describe("overpassQuery", () => {
-  test("charging stations as points and as buildings, within the radius", () => {
-    const query = overpassQuery(PUNE, 15000);
-    expect(query).toContain(`node["amenity"="charging_station"](around:15000,18.5204,73.8567);`);
-    expect(query).toContain(`way["amenity"="charging_station"](around:15000,18.5204,73.8567);`);
-    expect(query).toContain("out center");
+describe("INDIA_CHARGERS_QUERY", () => {
+  test("every charging station in India, as points or buildings, with a centre point", () => {
+    expect(INDIA_CHARGERS_QUERY).toContain("area[\"ISO3166-1\"=\"IN\"][admin_level=2]");
+    expect(INDIA_CHARGERS_QUERY).toContain("nwr[\"amenity\"=\"charging_station\"](area.in);");
+    expect(INDIA_CHARGERS_QUERY).toMatch(/out center tags;$/);
+  });
+});
+
+describe("compactChargers", () => {
+  test("keeps the position and the tags the app shows, sorted by id for a stable file", () => {
+    const out = compactChargers({ elements: [
+      { type: "way", id: 9, center: { lat: 18.5, lon: 73.8 }, tags: { amenity: "charging_station", operator: "Statiq", "addr:street": "MG Road", "socket:type2": "1" } },
+      { type: "node", id: 3, lat: 12.8, lon: 80.0, tags: { name: "Shell", opening_hours: "24/7", fixme: "x" } },
+      { type: "node", id: 4, tags: {} }, // no position
+    ] });
+    expect(out).toEqual([
+      { type: "node", id: 3, lat: 12.8, lon: 80.0, tags: { name: "Shell", opening_hours: "24/7" } },
+      { type: "way", id: 9, lat: 18.5, lon: 73.8, tags: { operator: "Statiq", "socket:type2": "1" } },
+    ]);
+    expect(compactChargers(null)).toEqual([]);
+  });
+});
+
+describe("nearbyStations", () => {
+  test("only chargers within the radius, nearest first", () => {
+    const snapshot = [
+      { type: "node", id: 1, lat: 18.53, lon: 73.85, tags: {} }, // ~1.3 km
+      { type: "node", id: 2, lat: 18.9, lon: 73.85, tags: {} }, // ~42 km
+      { type: "node", id: 3, lat: 18.52, lon: 73.86, tags: {} }, // ~0.4 km
+    ];
+    expect(nearbyStations(snapshot, PUNE).map((station) => station.id)).toEqual(["node/3", "node/1"]);
+    expect(nearbyStations(snapshot, PUNE, 50).map((station) => station.id)).toEqual(["node/3", "node/1", "node/2"]);
   });
 });
 
@@ -70,7 +96,7 @@ describe("roundCoordinate", () => {
 
 describe("chargerOrigin", () => {
   test("a shared position is rounded and searched around", () => {
-    expect(chargerOrigin({ lat: "12.823123", lon: "80.04417" })).toEqual({ origin: { lat: 12.82, lon: 80.04 }, key: "stations:geo:12.82:80.04", source: "location" });
+    expect(chargerOrigin({ lat: "12.823123", lon: "80.04417" })).toEqual({ origin: { lat: 12.82, lon: 80.04 }, source: "location" });
   });
 
   test("a position outside India, or not a number, is refused rather than ignored", () => {
@@ -81,7 +107,6 @@ describe("chargerOrigin", () => {
   test("without a position, the listed city's centre", () => {
     const origin = chargerOrigin({ city: "Pune", state: "maharashtra" });
     expect(origin?.source).toBe("city");
-    expect(origin?.key).toBe("stations:maharashtra:Pune");
     expect(origin?.origin.lat).toBeCloseTo(18.52, 1);
     expect(chargerOrigin({ city: "Atlantis", state: "maharashtra" })).toBeNull();
   });
@@ -89,10 +114,7 @@ describe("chargerOrigin", () => {
 
 describe("search area", () => {
   test("30 km by default, since India's mapped chargers are sparse outside city centres", () => {
-    expect(overpassQuery({ lat: 12.82, lon: 80.04 })).toContain("(around:30000,12.82,80.04)");
-  });
-
-  test("no cap on what Overpass returns: its cap isn't by distance and could drop the nearest", () => {
-    expect(overpassQuery({ lat: 12.82, lon: 80.04 })).toMatch(/out center;$/);
+    const far = [{ type: "node", id: 1, lat: 12.82 + 0.26, lon: 80.04, tags: {} }]; // ~29 km north
+    expect(nearbyStations(far, { lat: 12.82, lon: 80.04 })).toHaveLength(1);
   });
 });

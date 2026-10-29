@@ -15,7 +15,7 @@ import { useLocationPicker } from "./use-location-picker";
 // Leaflet touches `window`, so the map only ever renders in the browser.
 const ChargerMap = dynamic(() => import("./charger-map").then((module) => module.ChargerMap), { ssr: false, loading: () => <div className="charger-map charger-map-loading">Loading map…</div> });
 
-type StationsState = { status: "loading" } | { status: "ready"; stations: Station[]; origin: LatLon; nearYou: boolean } | { status: "error" };
+type StationsState = { status: "loading" } | { status: "ready"; stations: Station[]; origin: LatLon; nearYou: boolean; updatedAt: string | null } | { status: "error" };
 
 // Chargers near the user's (rounded) position when shared, otherwise near the
 // chosen city's centre. The result is tagged with its query, so a response for
@@ -33,8 +33,8 @@ function useStations(place: Place, location: ChargerLocation, ready: boolean): {
     fetch(`/api/stations?${request.split("#")[0]}`)
       .then(async (response): Promise<StationsState> => {
         if (!response.ok) return { status: "error" };
-        const body = await response.json() as { stations: Station[]; origin: LatLon; source: "location" | "city" };
-        return { status: "ready", stations: body.stations, origin: body.origin, nearYou: body.source === "location" };
+        const body = await response.json() as { stations: Station[]; origin: LatLon; source: "location" | "city"; updatedAt?: string };
+        return { status: "ready", stations: body.stations, origin: body.origin, nearYou: body.source === "location", updatedAt: body.updatedAt ?? null };
       })
       .catch((): StationsState => ({ status: "error" }))
       .then((state) => { if (!cancelled) setResult({ request, state }); });
@@ -55,7 +55,7 @@ function StationRow({ station }: { station: Station }) {
 }
 
 function StationsBody({ state, retry, where, limit }: { state: StationsState; retry: () => void; where: string; limit: number }) {
-  if (state.status === "loading") return <p className="personal-note">Finding chargers… the first search for an area can take a few seconds.</p>;
+  if (state.status === "loading") return <p className="personal-note">Finding chargers…</p>;
   if (state.status === "error") return <p className="personal-note">Couldn&apos;t load charger data. <button type="button" className="text-button" onClick={retry}>Try again</button></p>;
   if (!state.stations.length) return <p className="personal-note">No public chargers are mapped within {RADIUS_KM} km of {where} yet.</p>;
   return <ul className="station-list">{state.stations.slice(0, limit).map((station) => <StationRow key={station.id} station={station}/>)}</ul>;
@@ -69,7 +69,11 @@ function OriginControl({ place, ready, location, chooseMyLocation, chooseCityCen
   return <p className="station-origin">{note}<button type="button" className="text-button" onClick={chooseMyLocation}><Icon name="pin" size={15}/> Use my location</button></p>;
 }
 
-const ATTRIBUTION = <p className="personal-note station-credit">Charger data and map © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap contributors</a>. It can be incomplete, so check with the operator before you go.</p>;
+// The charger list is a weekly snapshot, so it says how recent it is.
+function Attribution({ updatedAt }: { updatedAt: string | null }) {
+  const asOf = updatedAt ? ` as of ${new Date(updatedAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}` : "";
+  return <p className="personal-note station-credit">Charger data{asOf} and map © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap contributors</a>. It can be incomplete, so check with the operator before you go.</p>;
+}
 
 // Home: the 3 nearest chargers.
 export function StationsCard({ place, ready }: { place: Place; ready: boolean }) {
@@ -99,7 +103,7 @@ export function StationsScreen() {
       {/* The map's space is held while loading, so the list below doesn't jump. */}
       {state.status === "ready" ? <ChargerMap origin={state.origin} stations={state.stations} nearYou={state.nearYou}/> : state.status === "loading" && <div className="charger-map charger-map-loading" aria-hidden="true"/>}
       <section className="card stat-card stations-card"><StationsBody state={state} retry={retry} where={nearYou ? "you" : place.name} limit={20}/></section>
-      {ATTRIBUTION}
+      <Attribution updatedAt={state.status === "ready" ? state.updatedAt : null}/>
     </main>
     <BottomNav/>
     {locationOpen && <LocationModal current={place} onClose={closeLocation} onChoose={chooseLocation}/>}

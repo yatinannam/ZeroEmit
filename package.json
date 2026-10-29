@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "test": "bun test",
-    "icons": "node build-icons.cjs"
+    "icons": "node build-icons.cjs",
+    "chargers": "bun scripts/fetch-chargers.ts"
   },
   "dependencies": {
     "leaflet": "1.9.4",

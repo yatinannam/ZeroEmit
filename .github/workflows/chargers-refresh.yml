@@ -1,0 +1,31 @@
+# Refreshes the bundled snapshot of India's public EV chargers from
+# OpenStreetMap once a week and commits it if anything changed; the push
+# redeploys the app. Public Overpass servers are sometimes busy, so a failed
+# run just keeps the current snapshot until the next one (or run it by hand
+# from the Actions tab).
+name: Refresh charger snapshot
+
+on:
+  schedule:
+    - cron: "30 21 * * 0" # Mondays 03:00 IST
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - name: Download chargers
+        run: bun scripts/fetch-chargers.ts
+      - name: Commit if changed
+        run: |
+          if git diff --quiet; then echo "No change."; exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "chore: refresh charger snapshot"
+          git push

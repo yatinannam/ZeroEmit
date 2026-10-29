@@ -22,7 +22,7 @@ Poster downloads: landscape ([PNG](docs/poster/ZeroEmit-poster-landscape.png), [
 ## Data sources
 
 - **Grid carbon intensity:** [India Energy Atlas](https://api.energymap.in) zone-level data for the five regional grids. The server ignores the provider's still-filling current hour, which reads far too low.
-- **Charging stations and map:** [OpenStreetMap](https://www.openstreetmap.org/copyright) data via the public Overpass API (several servers are asked at once, since some aren't reachable from India), searched around the user's rounded position or the city centre and cached for 24 hours per area. Map tiles are OpenStreetMap's standard tiles. Coverage is good in big cities and patchy elsewhere.
+- **Charging stations and map:** [OpenStreetMap](https://www.openstreetmap.org/copyright) data. Asking the public Overpass API on each visit took up to 20 s from India (or got rate-limited), so a snapshot of every charger in India (about 600, 66 KB) ships in `src/app/lib/server/chargers-india.json` and `/api/stations` picks the nearest from it in milliseconds. Map tiles are OpenStreetMap's standard tiles. Coverage is good in big cities and patchy elsewhere.
 - **Impact comparisons:** about 150 g CO₂/km for a petrol car and 21 kg CO₂ absorbed per mature tree per year; the app shows these assumptions next to the numbers.
 
 ## Run locally
@@ -82,6 +82,10 @@ curl -X POST https://zero-emit.vercel.app/api/leaderboard/admin \
 ```
 
 Add `"maxPoints":0` to remove only that name's entries with at most that many points this month, e.g. a leftover duplicate from another device that never logged a charge. Removing an entry frees its name.
+
+## Refreshing the charger snapshot
+
+The **Refresh charger snapshot** GitHub workflow runs `bun run chargers` every Monday and commits the snapshot if it changed, which redeploys the app. The script asks several Overpass servers at once and keeps the current snapshot if none answers, or if the new one has 20% fewer chargers (a likely partial answer). When the servers are busy, save the answer to the query in `INDIA_CHARGERS_QUERY` (`src/app/lib/stations.ts`) another way, e.g. on overpass-turbo.eu, and run `bun run chargers path/to/answer.json`.
 
 ## Regenerating PWA icons
 

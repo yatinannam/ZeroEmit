@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useSyncExternalStore } from "react";
+import { useHydrated } from "./use-hydrated";
 import { isInIndia } from "../lib/places";
 import { roundCoordinate } from "../lib/stations";
 
@@ -43,12 +44,18 @@ function locate() {
   );
 }
 
+const LOCATING: ChargerLocation = { status: "locating" };
+
 export function useChargerLocation() {
   const location = useSyncExternalStore(subscribe, () => state, () => OFF);
+  const hydrated = useHydrated();
   // Someone who chose "Use my location" before gets it again on the next visit.
   useEffect(() => { if (state.status === "off" && readPref()) locate(); }, []);
+  // Until that starts, they already count as locating, so the city centre
+  // isn't searched first and then replaced.
+  const resuming = hydrated && location.status === "off" && readPref();
   return {
-    location,
+    location: resuming ? LOCATING : location,
     chooseMyLocation: () => { writePref(true); locate(); },
     chooseCityCentre: () => { writePref(false); set({ status: "off" }); },
   };

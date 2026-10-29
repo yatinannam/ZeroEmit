@@ -33,7 +33,12 @@ export function ChargerMap({ origin, stations, nearYou }: { origin: LatLon; stat
     import("leaflet").then((L) => {
       if (cancelled || !container.current) return;
       const primary = getComputedStyle(document.documentElement).getPropertyValue("--primary").trim() || "#0d631b";
-      map = L.map(container.current, { scrollWheelZoom: false }).setView([origin.lat, origin.lon], 13);
+      // Start framed on you and the nearest few chargers: opening at one zoom
+      // and then fitting would download two sets of tiles.
+      const nearest = stations.slice(0, 6).map((station) => [station.lat, station.lon] as [number, number]);
+      map = L.map(container.current, { scrollWheelZoom: false });
+      if (nearest.length) map.fitBounds(L.latLngBounds([[origin.lat, origin.lon], ...nearest]), { padding: [28, 28], maxZoom: 15, animate: false });
+      else map.setView([origin.lat, origin.lon], 13);
       map.attributionControl.setPrefix(false); // keep the required OSM credit, drop Leaflet's own
       L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' }).addTo(map);
       L.circleMarker([origin.lat, origin.lon], { radius: 8, color: "#ffffff", weight: 3, fillColor: "#1a73e8", fillOpacity: 1 })
@@ -41,9 +46,6 @@ export function ChargerMap({ origin, stations, nearYou }: { origin: LatLon; stat
       for (const station of stations) {
         L.circleMarker([station.lat, station.lon], { radius: 9, color: "#ffffff", weight: 2, fillColor: primary, fillOpacity: 0.95 }).addTo(map).bindPopup(popupFor(station));
       }
-      // Frame you and the nearest few chargers.
-      const nearest = stations.slice(0, 6).map((station) => [station.lat, station.lon] as [number, number]);
-      if (nearest.length) map.fitBounds(L.latLngBounds([[origin.lat, origin.lon], ...nearest]), { padding: [28, 28], maxZoom: 15 });
     });
     return () => { cancelled = true; map?.remove(); };
   }, [origin.lat, origin.lon, stations, nearYou]);
