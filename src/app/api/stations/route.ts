@@ -1,30 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { knownPlaceCoordinates } from "../../lib/places";
 import { overpassQuery, parseOverpass, type Station } from "../../lib/stations";
+import { firstOverpassAnswer, OVERPASS_SERVERS } from "../../lib/server/overpass";
 import { redis, redisConfigured } from "../../lib/server/redis";
 
 export const maxDuration = 30;
 
-// Public Overpass servers; the second is tried if the first fails or is busy.
-const OVERPASS = ["https://overpass-api.de/api/interpreter", "https://overpass.kumi.systems/api/interpreter"];
 const CACHE_S = 24 * 60 * 60; // chargers don't move; spare the free service
 const memory = new Map<string, { at: number; stations: Station[] }>();
-
-async function fromOverpass(query: string) {
-  for (const endpoint of OVERPASS) {
-    try {
-      const response = await fetch(endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded", "User-Agent": "ZeroEmit (https://zero-emit.vercel.app)" },
-        body: `data=${encodeURIComponent(query)}`,
-        signal: AbortSignal.timeout(20_000),
-        cache: "no-store",
-      });
-      if (response.ok) return await response.json() as unknown;
-    } catch { /* try the next server */ }
-  }
-  return null;
-}
 
 // Chargers near one of the app's listed cities (its centre — never the
 // user's GPS position), nearest first.
@@ -43,7 +26,7 @@ export async function GET(request: NextRequest) {
     if (stored) { const stations = JSON.parse(stored) as Station[]; memory.set(key, { at: Date.now(), stations }); return NextResponse.json({ stations, origin }, { headers }); }
   }
 
-  const response = await fromOverpass(overpassQuery(origin));
+  const response = await firstOverpassAnswer(OVERPASS_SERVERS, overpassQuery(origin));
   if (response === null) return NextResponse.json({ error: "Charger data is unavailable right now" }, { status: 502 });
   const stations = parseOverpass(response, origin);
   memory.set(key, { at: Date.now(), stations });
