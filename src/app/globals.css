@@ -122,3 +122,9 @@ button:active, a:active { opacity:.65; }
 .station-text { display:grid; min-width:0; }.station-text strong { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:15px; }.station-text small { color:var(--muted); font-size:12px; line-height:1.35; }
 .station-directions { display:grid; place-items:center; width:44px; height:44px; border-radius:50%; color:var(--primary); background:var(--variant); }
 .station-credit a { color:var(--primary); }
+.station-origin { display:flex; flex-wrap:wrap; align-items:center; gap:4px 8px; margin:0; color:var(--muted); font-size:13px; }.station-origin .text-button { display:inline-flex; align-items:center; gap:4px; min-height:36px; padding:0; }
+/* Leaflet's panes use z-indexes up to 1000; keep them under the app's nav and modals. */
+.charger-map { position:relative; z-index:0; isolation:isolate; height:300px; border-radius:20px; overflow:hidden; border:1px solid var(--outline-variant, var(--variant)); background:var(--variant); }
+.charger-map-loading { display:grid; place-items:center; color:var(--muted); font-size:13px; }
+.charger-popup { display:grid; gap:4px; min-width:160px; font-family:inherit; }.charger-popup strong { font-size:14px; }.charger-popup span { color:#40493d; font-size:12px; }.charger-popup a { color:#0d631b; font-weight:700; }
+@media (min-width:1000px) { .charger-map { height:420px; } }

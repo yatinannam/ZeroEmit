@@ -1,10 +1,14 @@
+import { isInIndia, knownPlaceCoordinates } from "./places";
+
 // Public EV chargers near a city, from OpenStreetMap (via the free Overpass
 // API — no key). Coverage in India is good in big cities and patchy
 // elsewhere, so the app says where the data comes from.
 export type LatLon = { lat: number; lon: number };
 export type Station = { id: string; name: string; operator: string | null; lat: number; lon: number; distanceKm: number; connectors: string[]; open24h: boolean };
 
-export const STATIONS_RADIUS_M = 15_000;
+// 30 km: mapped chargers in India are sparse outside city centres (e.g. only
+// 4 within 30 km of SRM KTR, the nearest 17.7 km away), so 15 km often found none.
+export const STATIONS_RADIUS_M = 30_000;
 const MAX_STATIONS = 20;
 
 // OpenStreetMap socket tags, as drivers know the connectors.
@@ -27,7 +31,9 @@ export function distanceKm(a: LatLon, b: LatLon) {
 // latter a middle point).
 export function overpassQuery(origin: LatLon, radiusM = STATIONS_RADIUS_M) {
   const around = `(around:${radiusM},${origin.lat},${origin.lon})`;
-  return `[out:json][timeout:20];(node["amenity"="charging_station"]${around};way["amenity"="charging_station"]${around};);out center 60;`;
+  // No result cap: Overpass caps in arbitrary order, not by distance, so a cap
+  // could drop the nearest chargers. parseOverpass keeps the nearest 20.
+  return `[out:json][timeout:25];(node["amenity"="charging_station"]${around};way["amenity"="charging_station"]${around};);out center;`;
 }
 
 type OverpassElement = { type?: unknown; id?: unknown; lat?: unknown; lon?: unknown; center?: { lat?: unknown; lon?: unknown }; tags?: Record<string, unknown> };
@@ -55,6 +61,27 @@ export function parseOverpass(response: unknown, origin: LatLon): Station[] {
     });
   }
   return stations.sort((a, b) => a.distanceKm - b.distanceKm).slice(0, MAX_STATIONS);
+}
+
+// 2 decimal places (~1 km): close enough to find nearby chargers, coarse
+// enough that an exact position never leaves the phone. Also the cache key.
+export const roundCoordinate = (value: number) => Math.round(value * 100) / 100;
+
+export type ChargerOrigin = { origin: LatLon; key: string; source: "location" | "city" };
+
+// Where to search from: the user's (rounded) position when they share it,
+// otherwise the centre of their listed city. A position that isn't a number
+// or isn't in India is refused rather than quietly ignored.
+export function chargerOrigin(params: { lat?: string | null; lon?: string | null; city?: string | null; state?: string | null }): ChargerOrigin | null {
+  if (params.lat != null || params.lon != null) {
+    const lat = Number(params.lat), lon = Number(params.lon);
+    if (!Number.isFinite(lat) || !Number.isFinite(lon) || !isInIndia(lat, lon)) return null;
+    const origin = { lat: roundCoordinate(lat), lon: roundCoordinate(lon) };
+    return { origin, key: `stations:geo:${origin.lat}:${origin.lon}`, source: "location" };
+  }
+  const place = { name: params.city ?? "", state: params.state ?? "" };
+  const origin = knownPlaceCoordinates(place);
+  return origin ? { origin, key: `stations:${place.state}:${place.name}`, source: "city" } : null;
 }
 
 export function directionsUrl({ lat, lon }: LatLon) {

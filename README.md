@@ -16,13 +16,13 @@ Poster downloads: landscape ([PNG](docs/poster/ZeroEmit-poster-landscape.png), [
 - **Eco points and rewards.** 10 points per charge, **+10** in one of the day's 3 cleanest 2-hour windows for your region, **+5** at a cleaner-than-average hour. Four levels, 8 badges with live progress, and streaks. (India's grid rarely reaches an absolute "green" level, so points reward timing relative to your region.)
 - **Monthly leaderboard (opt-in).** All India or by grid region, resetting on the 1st. Only a display name, region and this month's points and CO₂ avoided are shared. The server recomputes every score from the charges themselves, judging each charge's timing from its own grid data, so a bonus can't be faked.
 - **Your impact.** This month vs last month: energy, CO₂ avoided, green-charge rate, charges and cost, with everyday comparisons ("like not driving 113 km in a petrol car"), and a shareable impact card (this month, last month or all time).
-- **Nearest chargers.** Public EV chargers within 15 km of your city, nearest first, with connector types, 24/7 status and Google Maps directions.
+- **Nearest chargers, on a map.** Public EV chargers within 30 km, nearest first, with connector types, 24/7 status and Google Maps directions, plus an OpenStreetMap map (Leaflet). They're searched around **your own location** if you tap "Use my location" (rounded to ~1 km on the device before it's sent), otherwise around your city's centre. Grid data and points still use your city's regional grid.
 - **Notifications** (see below), **dark mode**, an **install prompt** (Android/Chrome install button; iPhone "Add to Home Screen" steps), and a three-screen welcome intro.
 
 ## Data sources
 
 - **Grid carbon intensity:** [India Energy Atlas](https://api.energymap.in) zone-level data for the five regional grids. The server ignores the provider's still-filling current hour, which reads far too low.
-- **Charging stations:** [OpenStreetMap](https://www.openstreetmap.org/copyright) via the public Overpass API, searched around the selected city's centre (never the user's GPS position) and cached for 24 hours per city. Coverage is good in big cities and patchy elsewhere.
+- **Charging stations and map:** [OpenStreetMap](https://www.openstreetmap.org/copyright) data via the public Overpass API (several servers are asked at once, since some aren't reachable from India), searched around the user's rounded position or the city centre and cached for 24 hours per area. Map tiles are OpenStreetMap's standard tiles. Coverage is good in big cities and patchy elsewhere.
 - **Impact comparisons:** about 150 g CO₂/km for a petrol car and 21 kg CO₂ absorbed per mature tree per year; the app shows these assumptions next to the numbers.
 
 ## Run locally

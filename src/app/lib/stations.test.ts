@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { directionsUrl, distanceKm, overpassQuery, parseOverpass } from "./stations";
+import { chargerOrigin, directionsUrl, distanceKm, overpassQuery, parseOverpass, roundCoordinate } from "./stations";
 
 const PUNE = { lat: 18.5204, lon: 73.8567 };
 
@@ -58,5 +58,41 @@ describe("parseOverpass", () => {
 describe("directionsUrl", () => {
   test("Google Maps directions to the station", () => {
     expect(directionsUrl({ lat: 18.53, lon: 73.85 })).toBe("https://www.google.com/maps/dir/?api=1&destination=18.53,73.85");
+  });
+});
+
+describe("roundCoordinate", () => {
+  test("2 decimals, about 1 km, so an exact position never leaves the phone", () => {
+    expect(roundCoordinate(12.823123)).toBe(12.82);
+    expect(roundCoordinate(80.04417)).toBe(80.04);
+  });
+});
+
+describe("chargerOrigin", () => {
+  test("a shared position is rounded and searched around", () => {
+    expect(chargerOrigin({ lat: "12.823123", lon: "80.04417" })).toEqual({ origin: { lat: 12.82, lon: 80.04 }, key: "stations:geo:12.82:80.04", source: "location" });
+  });
+
+  test("a position outside India, or not a number, is refused rather than ignored", () => {
+    expect(chargerOrigin({ lat: "51.5", lon: "-0.12", city: "Pune", state: "maharashtra" })).toBeNull();
+    expect(chargerOrigin({ lat: "abc", lon: "80.0" })).toBeNull();
+  });
+
+  test("without a position, the listed city's centre", () => {
+    const origin = chargerOrigin({ city: "Pune", state: "maharashtra" });
+    expect(origin?.source).toBe("city");
+    expect(origin?.key).toBe("stations:maharashtra:Pune");
+    expect(origin?.origin.lat).toBeCloseTo(18.52, 1);
+    expect(chargerOrigin({ city: "Atlantis", state: "maharashtra" })).toBeNull();
+  });
+});
+
+describe("search area", () => {
+  test("30 km by default, since India's mapped chargers are sparse outside city centres", () => {
+    expect(overpassQuery({ lat: 12.82, lon: 80.04 })).toContain("(around:30000,12.82,80.04)");
+  });
+
+  test("no cap on what Overpass returns: its cap isn't by distance and could drop the nearest", () => {
+    expect(overpassQuery({ lat: 12.82, lon: 80.04 })).toMatch(/out center;$/);
   });
 });
