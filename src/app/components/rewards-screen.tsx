@@ -38,14 +38,14 @@ export function RewardsScreen() {
     <TopBar onChooseLocation={openLocation}/>
     <main className="dashboard-content">
       <PageHeader eyebrow="Rewards" title="Your eco journey." intro="Level up by charging when the grid is cleaner."/>
-      <LeaderboardCard/>
-
       <section className="card stat-card">
         <div className="recommendation-head"><h2>Eco points</h2>{streak > 0 && <span className="recommended"><Icon name="fire" size={15}/> {streak} day{streak === 1 ? "" : "s"} in a row</span>}</div>
         <strong className="stat-figure">{points || 0} <small>pts</small></strong>
         <div className="tier-row"><b>{tier.name}</b>{nextTier && <span>{points} / {nextTier.threshold} to {nextTier.name}</span>}</div>
         <div className="progress-track"><div className="progress-fill" style={{ width: `${Math.round(progressToNext * 100)}%` }}/></div>
       </section>
+
+      <LeaderboardCard/>
 
       <section className="activity">
         <div className="section-head"><h2>Achievements</h2><span className="chip">{unlockedCount} of {badges.length} unlocked</span></div>

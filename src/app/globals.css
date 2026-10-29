@@ -128,3 +128,20 @@ button:active, a:active { opacity:.65; }
 .charger-map-loading { display:grid; place-items:center; color:var(--muted); font-size:13px; }
 .charger-popup { display:grid; gap:4px; min-width:160px; font-family:inherit; }.charger-popup strong { font-size:14px; }.charger-popup span { color:#40493d; font-size:12px; }.charger-popup a { color:#0d631b; font-weight:700; }
 @media (min-width:1000px) { .charger-map { height:420px; } }
+/* Visual audit fixes */
+.form-row { grid-template-columns:minmax(0,1fr) minmax(0,1fr); }.charge-form { grid-template-columns:minmax(0,1fr); }.charge-form input { min-width:0; }
+.time-range strong { flex-direction:row; align-items:baseline; gap:4px; }.time-range b { margin-top:0; }.recommendation::after { display:none; }
+@media (max-width:400px) { .time-range strong { font-size:46px; } }
+:root[data-theme="dark"] .segmented button.active { color:var(--primary); background:var(--accent-soft); }
+@media (prefers-color-scheme:dark) { :root:not([data-theme="light"]) .segmented button.active { color:var(--primary); background:var(--accent-soft); } }
+.segmented button, .station-origin .text-button { min-height:44px; }
+.page-header h1 { font-size:28px; }.secondary-intro { margin-top:8px; font-size:15px; }.eyebrow { text-transform:uppercase; }
+.modal h2 { font-weight:600; }
+.data-status { padding:4px 0; border:0; background:transparent; }
+.toggle-list-off { opacity:.5; }
+.empty-state { display:grid; justify-items:center; gap:10px; padding:28px 20px; text-align:center; }.empty-state p { margin:0; color:var(--muted); }
+.leaderboard-name small { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.leaderboard-top1 { color:#3d2c00; background:#f4c542; }.leaderboard-top2 { color:#2b2f33; background:#cfd6dc; box-shadow:none; }.leaderboard-top3 { color:#3b1f0b; background:#d9925a; box-shadow:none; }
+.charger-map .leaflet-control-zoom a { width:44px; height:44px; line-height:44px; }
+:root[data-theme="dark"] .charger-map .leaflet-tile-pane { filter:invert(1) hue-rotate(180deg) brightness(.85) contrast(.9); }
+@media (prefers-color-scheme:dark) { :root:not([data-theme="light"]) .charger-map .leaflet-tile-pane { filter:invert(1) hue-rotate(180deg) brightness(.85) contrast(.9); } }

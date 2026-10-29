@@ -34,6 +34,7 @@ export function ChargerMap({ origin, stations, nearYou }: { origin: LatLon; stat
       if (cancelled || !container.current) return;
       const primary = getComputedStyle(document.documentElement).getPropertyValue("--primary").trim() || "#0d631b";
       map = L.map(container.current, { scrollWheelZoom: false }).setView([origin.lat, origin.lon], 13);
+      map.attributionControl.setPrefix(false); // keep the required OSM credit, drop Leaflet's own
       L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' }).addTo(map);
       L.circleMarker([origin.lat, origin.lon], { radius: 8, color: "#ffffff", weight: 3, fillColor: "#1a73e8", fillOpacity: 1 })
         .addTo(map).bindPopup(nearYou ? "You (within about 1 km)" : "City centre");

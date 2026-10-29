@@ -40,10 +40,11 @@ export function NotificationSettings({ onClose }: { onClose: () => void }) {
     <p>{STATUS[permission]}</p>
     {permission === "default" && <button className="primary-button" onClick={turnOn}><Icon name="bell" size={18}/> Turn on notifications</button>}
     {error && <p className="form-error" role="alert">{error}</p>}
-    <div className="toggle-list">
+    {/* Switches only do anything once notifications are allowed. */}
+    <div className={permission === "granted" ? "toggle-list" : "toggle-list toggle-list-off"}>
       {NOTIFICATION_KINDS.filter((kind) => serverPushAvailable || !kind.serverOnly).map((kind) => <label key={kind.key} className="toggle-row">
         <span><strong>{kind.label}</strong><small>{kind.detail}</small></span>
-        <input type="checkbox" role="switch" className="switch" checked={prefs[kind.key]} onChange={(event) => setPref(kind.key, event.target.checked)}/>
+        <input type="checkbox" role="switch" className="switch" checked={permission === "granted" && prefs[kind.key]} disabled={permission !== "granted"} onChange={(event) => setPref(kind.key, event.target.checked)}/>
       </label>)}
     </div>
     {permission === "granted" && <button className="forecast-button action-button" onClick={sendTest}>Send a test notification</button>}

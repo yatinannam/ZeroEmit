@@ -8,7 +8,7 @@ const NAV_ITEMS: [string, IconName, string][] = [["/", "home", "Home"], ["/forec
 
 export function BottomNav() {
   const pathname = usePathname();
-  return <nav className="bottom-nav" aria-label="Primary navigation">{NAV_ITEMS.map(([href, icon, label]) => <Link key={href} className={pathname === href || (href !== "/" && pathname.startsWith(`${href}/`)) ? "active" : ""} href={href}><Icon name={icon}/><span>{label}</span></Link>)}</nav>;
+  return <nav className="bottom-nav" aria-label="Primary navigation">{NAV_ITEMS.map(([href, icon, label]) => <Link key={href} className={pathname === href || (href !== "/" && pathname.startsWith(`${href}/`)) || (href === "/" && pathname === "/stations") ? "active" : ""} href={href}><Icon name={icon}/><span>{label}</span></Link>)}</nav>;
 }
 
 export function TopBar({ onChooseLocation }: { onChooseLocation: () => void }) {

@@ -114,7 +114,7 @@ export function LogScreen({ quick = false }: { quick?: boolean }) {
             <div><strong>{charge.energyKwh} kWh</strong><span>{formatTimeOfDay(charge.chargedAt)}{charge.city !== city ? ` · ${charge.city}` : ""}</span></div>
             <b>+{pointsForCharge(charge)} pts</b>
           </button>)}
-        </div>) : <p className="personal-note">No charges logged yet. Log your first charge to see your impact.</p>}
+        </div>) : <section className="card empty-state"><span className="round-icon"><Icon name="bolt" size={22}/></span><strong>No charges yet</strong><p>Log each charge to earn Eco points and see the CO₂ you avoid.</p><button className="primary-button" onClick={() => openForm()}>Log your first charge</button></section>}
       </section>
     </main>
     <BottomNav/>

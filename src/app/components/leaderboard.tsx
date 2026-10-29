@@ -56,7 +56,7 @@ function LeaderboardItem({ row }: { row: LeaderboardRow }) {
     <span className={`leaderboard-rank${row.rank <= 3 ? ` leaderboard-top${row.rank}` : ""}`}>{row.rank}</span>
     <span className="leaderboard-name">
       <strong>{row.name}{row.isMe && " (you)"}</strong>
-      <small>{ZONE_LABELS[row.zone]} · {row.co2Kg.toFixed(1)} kg CO₂ avoided</small>
+      <small>{ZONE_LABELS[row.zone].replace(/ grid$/, "")} · {row.co2Kg.toFixed(1)} kg CO₂ avoided</small>
     </span>
     <b className="leaderboard-points">{row.points}<small> pts</small></b>
   </li>;

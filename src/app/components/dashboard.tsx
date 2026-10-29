@@ -79,18 +79,20 @@ export function Dashboard() {
 
       <InstallPrompt/>
 
-      <section className="data-status" role={error ? "alert" : "status"}><span>{error || (current ? `Live data from ${data?.source}${current.isEstimated ? " · estimated" : ""}${data?.updatedAt ? ` · updated ${readingTime(data.updatedAt)}` : ""}` : "Waiting for live grid data…")}</span><button onClick={refresh} disabled={loading}>{loading ? "Refreshing…" : "Refresh"}</button></section>
+      <section className="data-status" role={error ? "alert" : "status"}><span>{error || (data?.available ? `Grid data from ${data.source}${data.updatedAt ? ` · updated ${readingTime(data.updatedAt)}` : ""}` : "Waiting for grid data…")}</span><button onClick={refresh} disabled={loading}>{loading ? "Refreshing…" : "Refresh"}</button></section>
 
       <section className="metrics-grid">
-        <Link href="/log" className="card saved-card"><div><h2>Energy logged</h2><strong>{energyLogged ? energyLogged.toFixed(1) : "—"} <small>{energyLogged ? "kWh" : "No charges yet"}</small></strong></div><span className="metric-icon"><Icon name="tree"/></span></Link>
-        <Link href="/rewards" className="card metric"><h2>Eco points</h2><strong>{points || "—"}</strong></Link>
-        <Link href="/rewards" className="card metric"><h2>CO₂ avoided</h2><strong>{charges.length ? <>{savedKg.toFixed(1)} <small>kg</small></> : "—"}</strong></Link>
+        <Link href="/log" className="card saved-card"><div><h2>Energy logged</h2><strong>{energyLogged.toFixed(1)} <small>kWh</small></strong></div><span className="metric-icon"><Icon name="bolt"/></span></Link>
+        <Link href="/rewards" className="card metric"><h2>Eco points</h2><strong>{points}</strong></Link>
+        <Link href="/rewards" className="card metric"><h2>CO₂ avoided</h2><strong>{savedKg.toFixed(1)} <small>kg</small></strong></Link>
       </section>
 
       <section className="timeline-row">
-        <Link href="/rewards" className="streak-card"><h2>Current streak</h2><div><strong>{streak || "—"}</strong><span>{streak ? `day${streak === 1 ? "" : "s"} in a row` : "Start today"}</span></div><Icon name="fire" size={104}/></Link>
+        <Link href="/rewards" className="streak-card"><h2>Current streak</h2><div><strong>{streak}</strong><span>{streak ? `day${streak === 1 ? "" : "s"} in a row` : "Start today"}</span></div><Icon name="fire" size={104}/></Link>
         <Link href="/forecast?day=tomorrow" className="card next-window"><h2>Tomorrow&apos;s best</h2><div><span className="round-icon"><Icon name="clock" size={18}/></span><p>{tomorrowBest ? <><strong>{formatWindow(tomorrowBest)}</strong><span>{Math.round(tomorrowBest.average)} gCO₂/kWh avg{data?.forecastIsTypical ? " · typical" : ""}</span></> : typicalTime ? <><strong>Around {formatTimeOfDay(typicalTime)}</strong><span>Your usual charging time</span></> : <><strong>Not available yet</strong><span>Check back when the forecast loads</span></>}</p></div></Link>
       </section>
+
+      <Link className="primary-button" href="/log?quick=1"><Icon name="bolt" size={18}/> Log a charge</Link>
 
       <StationsCard place={place}/>
 
