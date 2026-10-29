@@ -90,3 +90,13 @@ describe("subscription storage", () => {
     expect((await listSubscriptions())[0].sent).toEqual({ digest: "2026-10-13" });
   });
 });
+
+describe("push keys", () => {
+  test("must be a real P-256 public key (65 bytes, starting 0x04) and a 16-byte auth secret", () => {
+    const keys = (p256dh: string, auth: string) => parseSubscriptionBody({ ...base, subscription: { ...base.subscription, keys: { p256dh, auth } } });
+    expect(keys(base.subscription.keys.p256dh, base.subscription.keys.auth)).not.toBeNull();
+    expect(keys("AAAA", base.subscription.keys.auth)).toBeNull(); // too short
+    expect(keys("A" + base.subscription.keys.p256dh.slice(1), base.subscription.keys.auth)).toBeNull(); // not an uncompressed point
+    expect(keys(base.subscription.keys.p256dh, "abcd")).toBeNull();
+  });
+});

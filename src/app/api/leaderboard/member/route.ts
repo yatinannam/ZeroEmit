@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { validateDisplayName } from "../../../lib/leaderboard";
-import { readLimitedJson } from "../../../lib/server/http";
+import { fromOwnSite, readLimitedJson } from "../../../lib/server/http";
 import { getZoneSnapshot } from "../../../lib/server/grid-source";
 import { isUuid, leaderboardConfigured, parseMemberBody, removeMember, submitMember } from "../../../lib/server/leaderboard";
 
@@ -12,6 +12,7 @@ const SUBMIT_ERRORS = { 403: "Not your entry", 409: "That name is already on thi
 // Join, or update this month's score. The server recomputes the score from
 // the charges; the key proves this device owns the entry.
 export async function POST(request: NextRequest) {
+  if (!fromOwnSite(request)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   if (!leaderboardConfigured) return NextResponse.json(NOT_CONFIGURED, { status: 503 });
   const body = await readLimitedJson(request, MAX_BODY_BYTES);
   const input = parseMemberBody(body);
@@ -35,6 +36,7 @@ export async function POST(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
+  if (!fromOwnSite(request)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   if (!leaderboardConfigured) return NextResponse.json(NOT_CONFIGURED, { status: 503 });
   const body = await readLimitedJson(request, MAX_BODY_BYTES) as { id?: unknown; key?: unknown } | null;
   if (!isUuid(body?.id) || !isUuid(body?.key)) return NextResponse.json({ error: "Invalid request" }, { status: 400 });

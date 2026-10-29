@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { fromOwnSite } from "../../../lib/server/http";
 import { parseSubscriptionBody, pushConfigured, removeSubscription, saveSubscription } from "../../../lib/server/push";
 
 const NOT_CONFIGURED = { error: "Scheduled notifications aren't set up on this server yet." };
@@ -14,6 +15,7 @@ async function readJson(request: NextRequest): Promise<unknown> {
 // scheduler needs: state + city name, which scheduled notifications are on,
 // and the streak count / last charge day for the streak reminder.
 export async function POST(request: NextRequest) {
+  if (!fromOwnSite(request)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   if (!pushConfigured) return NextResponse.json(NOT_CONFIGURED, { status: 503 });
   const value = parseSubscriptionBody(await readJson(request));
   if (!value) return NextResponse.json({ error: "Invalid subscription" }, { status: 400 });
@@ -26,6 +28,7 @@ export async function POST(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
+  if (!fromOwnSite(request)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   if (!pushConfigured) return NextResponse.json(NOT_CONFIGURED, { status: 503 });
   const body = await readJson(request) as { endpoint?: unknown } | null;
   if (typeof body?.endpoint !== "string" || body.endpoint.length > 1024) return NextResponse.json({ error: "Invalid subscription" }, { status: 400 });

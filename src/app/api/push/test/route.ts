@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
+import { fromOwnSite } from "../../../lib/server/http";
 import { claimTestSlot, getSubscription, pushConfigured, sendPush } from "../../../lib/server/push";
 
 // Sends one push from the server to an already-registered device — the same
 // path scheduled reminders take — so "Send a test notification" proves the
 // whole chain works, not just the phone's local notifications.
 export async function POST(request: NextRequest) {
+  if (!fromOwnSite(request)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   if (!pushConfigured) return NextResponse.json({ error: "Scheduled notifications aren't set up on this server yet." }, { status: 503 });
   const text = await request.text();
   let endpoint: unknown;

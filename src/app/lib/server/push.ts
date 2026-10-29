@@ -61,6 +61,13 @@ function isPushServiceUrl(raw: string) {
 
 const isBase64Url = (value: unknown, max: number): value is string => typeof value === "string" && value.length > 0 && value.length <= max && /^[A-Za-z0-9_-]+=*$/.test(value);
 const isBool = (value: unknown): value is boolean => typeof value === "boolean";
+// A real subscription carries an uncompressed P-256 public key (65 bytes,
+// first byte 0x04) and a 16-byte auth secret. Anything else makes web-push
+// throw before sending, every run, so it's refused up front.
+function validPushKeys(p256dh: string, auth: string) {
+  const key = Buffer.from(p256dh, "base64url");
+  return key.length === 65 && key[0] === 0x04 && Buffer.from(auth, "base64url").length === 16;
+}
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const BADGE_KEYS = new Set(achievements([], 0).map((badge) => badge.key));
 const isBetween = (value: unknown, min: number, max: number): value is number => typeof value === "number" && Number.isFinite(value) && value >= min && value <= max;
@@ -91,7 +98,7 @@ export function parseSubscriptionBody(body: unknown): Omit<StoredSubscription, "
   const sub = b.subscription as { endpoint?: unknown; keys?: { p256dh?: unknown; auth?: unknown } } | undefined;
   const prefs = b.prefs as Record<string, unknown> | undefined;
   if (!sub || typeof sub.endpoint !== "string" || sub.endpoint.length > 1024 || !isPushServiceUrl(sub.endpoint)) return null;
-  if (!isBase64Url(sub.keys?.p256dh, 200) || !isBase64Url(sub.keys?.auth, 64)) return null;
+  if (!isBase64Url(sub.keys?.p256dh, 200) || !isBase64Url(sub.keys?.auth, 64) || !validPushKeys(sub.keys.p256dh, sub.keys.auth)) return null;
   if (typeof b.state !== "string" || !Object.hasOwn(STATES, b.state)) return null;
   if (typeof b.name !== "string" || b.name.length === 0 || b.name.length > 60) return null;
   if (!prefs || !isBool(prefs.bestTime) || !isBool(prefs.dailyDigest) || !isBool(prefs.streakReminders)) return null;
