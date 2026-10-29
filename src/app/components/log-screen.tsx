@@ -4,6 +4,8 @@ import { FormEvent, useEffect, useEffectEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { intensityAt, istHourOfDay } from "../lib/grid";
 import { chargeTiming, hourlyPattern, type ChargeTiming } from "../lib/timing";
+import { chargeCost, formatRupees } from "../lib/cost";
+import { useProfile } from "./use-profile";
 import { chargeOutcome, MAX_CHARGE_KWH as MAX_KWH, pointsForCharge } from "../lib/rewards";
 import { sendNotification } from "./notifications";
 import { showToast } from "./toast";
@@ -25,6 +27,7 @@ const localTime = (date: Date) => `${pad(date.getHours())}:${pad(date.getMinutes
 // form straight away, set to right now.
 export function LogScreen({ quick = false }: { quick?: boolean }) {
   const router = useRouter();
+  const { profile } = useProfile();
   const { place, location: city, locationOpen, openLocation, closeLocation, chooseLocation } = useLocationPicker();
   const [form, setForm] = useState<{ date: string; time: string; today: string } | null>(null);
   const [formError, setFormError] = useState("");
@@ -134,6 +137,7 @@ export function LogScreen({ quick = false }: { quick?: boolean }) {
         <div><dt>Location</dt><dd>{selected.city}</dd></div>
         <div><dt>Grid intensity</dt><dd>{selected.carbonIntensity !== null ? `${Math.round(selected.carbonIntensity)} gCO₂/kWh${selected.intensitySource === "typical" ? " (typical for that hour)" : ""}` : "Not recorded"}</dd></div>
         <div><dt>Points</dt><dd>+{pointsForCharge(selected)}</dd></div>
+        <div><dt>Est. cost</dt><dd>{formatRupees(chargeCost(selected.energyKwh, profile.pricePerKwh))}</dd></div>
       </dl>
       <button className="forecast-button action-button destructive-button" onClick={deleteSelected}><Icon name="trash" size={18}/> Delete charge</button>
     </Modal>}

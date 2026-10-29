@@ -110,6 +110,13 @@ export function zoneOf(place: Place): Zone {
   return STATES[place.state]?.zone ?? "southern";
 }
 
+// A listed city's coordinates (e.g. to search for chargers around it), or null
+// for anything not on the list.
+export function knownPlaceCoordinates(place: Place): { lat: number; lon: number } | null {
+  const match = PLACES.find((row) => row.name === place.name && row.state === place.state);
+  return match ? { lat: match.lat, lon: match.lon } : null;
+}
+
 export function isPlace(value: unknown): value is Place {
   return Boolean(value && typeof value === "object" && typeof (value as Place).name === "string" && typeof (value as Place).state === "string" && (value as Place).state in STATES);
 }

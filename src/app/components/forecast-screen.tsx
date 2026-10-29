@@ -10,6 +10,7 @@ import { BottomNav, TopBar } from "./app-shell";
 import { LocationModal } from "./location-modal";
 import { PageHeader } from "./page-header";
 import { ForecastChart } from "./forecast-chart";
+import { AddToCalendarButton } from "./add-to-calendar";
 
 type Day = "today" | "tomorrow";
 const DAYS: { key: Day; label: string }[] = [{ key: "today", label: "Today" }, { key: "tomorrow", label: "Tomorrow" }];
@@ -54,6 +55,7 @@ export function ForecastScreen({ initialDay }: { initialDay: Day }) {
           : plan.points.length >= 2 ? <>
             <ForecastChart points={plan.points} highlight={best}/>
             {best && <p className="chip-caption"><span className="chip">Best window</span> {formatWindow(best)}</p>}
+            {best && !best.start.isNow && <AddToCalendarButton window={best} place={place}/>}
           </>
           : <p className="personal-note">Today is nearly over — switch to Tomorrow to see the next clean windows.</p>}
       </section>

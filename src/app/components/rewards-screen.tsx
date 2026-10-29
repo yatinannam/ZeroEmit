@@ -2,6 +2,7 @@
 
 import { achievements, currentRewardTier, currentStreakDays, estimatedCarbonSavedGrams, POINTS_PER_CHARGE, REWARD_TIERS, totalPoints } from "../lib/rewards";
 import { TIMING_BONUS } from "../lib/timing";
+import { EQUIVALENTS_NOTE, equivalentsSentence } from "../lib/equivalents";
 import { useCharges } from "./use-charges";
 import { useLocationPicker } from "./use-location-picker";
 import { Icon, type IconName } from "./icon-set";
@@ -84,6 +85,8 @@ export function RewardsScreen() {
         <h2>Estimated CO₂ avoided</h2>
         <strong className="stat-figure">{(savedGrams / 1000).toFixed(1)} <small>kg</small></strong>
         <p className="personal-note">Vs. charging without timing it around the grid</p>
+        {equivalentsSentence(savedGrams / 1000) && <p className="equivalents">{equivalentsSentence(savedGrams / 1000)}</p>}
+        {equivalentsSentence(savedGrams / 1000) && <p className="personal-note equivalents-note">{EQUIVALENTS_NOTE}</p>}
       </section>
     </main>
     <BottomNav/>

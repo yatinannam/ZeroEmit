@@ -13,6 +13,8 @@ import { Icon } from "./icon-set";
 import { BottomNav, TopBar } from "./app-shell";
 import { LocationModal } from "./location-modal";
 import { InstallPrompt } from "./install-prompt";
+import { AddToCalendarButton } from "./add-to-calendar";
+import { StationsCard } from "./stations";
 
 // The page is prerendered at build time, so the greeting can't be computed
 // during render — it would bake in the build machine's hour and mismatch on
@@ -69,6 +71,7 @@ export function Dashboard() {
         <div className="recommendation-head"><h2>Best time to charge today</h2>{todayBest && <span className="recommended"><Icon name="bolt" size={15}/> {heroPill}</span>}</div>
         <div className="time-range">{loading && !data ? <strong className="loading-value">Loading…</strong> : todayBest ? <><HeroTime datetime={todayBest.start.datetime} isNow={todayBest.start.isNow}/><span>–</span><HeroTime datetime={todayBest.end.datetime}/></> : <strong className="unavailable-value">Unavailable</strong>}</div>
         {todayBest && <p className="personal-note">{todayBest.start.isNow ? "The grid is cleaner right now than at any other time left today." : `${Math.round(todayBest.average)} gCO₂/kWh on average — the cleanest stretch left today.`}</p>}
+        {todayBest && !todayBest.start.isNow && <AddToCalendarButton window={todayBest} place={place}/>}
         <div className="intensity"><span className="co2">CO₂</span> Right now <strong>{current ? `${Math.round(current.carbonIntensity)} gCO₂/kWh` : "Unavailable"}</strong></div>
         {intensityDiff !== null && <p className="personal-note">{intensityDiff === 0 ? "About the same as your usual charging window" : `${Math.abs(intensityDiff)} gCO₂/kWh ${intensityDiff < 0 ? "cleaner" : "higher"} than your usual charging window`}</p>}
         <Link className="forecast-button" href="/forecast">See full forecast <Icon name="arrow" size={18}/></Link>
@@ -88,6 +91,8 @@ export function Dashboard() {
         <Link href="/rewards" className="streak-card"><h2>Current streak</h2><div><strong>{streak || "—"}</strong><span>{streak ? `day${streak === 1 ? "" : "s"} in a row` : "Start today"}</span></div><Icon name="fire" size={104}/></Link>
         <Link href="/forecast?day=tomorrow" className="card next-window"><h2>Tomorrow&apos;s best</h2><div><span className="round-icon"><Icon name="clock" size={18}/></span><p>{tomorrowBest ? <><strong>{formatWindow(tomorrowBest)}</strong><span>{Math.round(tomorrowBest.average)} gCO₂/kWh avg{data?.forecastIsTypical ? " · typical" : ""}</span></> : typicalTime ? <><strong>Around {formatTimeOfDay(typicalTime)}</strong><span>Your usual charging time</span></> : <><strong>Not available yet</strong><span>Check back when the forecast loads</span></>}</p></div></Link>
       </section>
+
+      <StationsCard place={place}/>
 
       <section className="activity"><h2>Recent activity</h2><Link href="/log" className="card activity-item"><span className="round-icon"><Icon name="bolt" size={19}/></span><div>{charges[0] ? <><strong>{charges[0].energyKwh} kWh logged</strong><span>{dayHeading(charges[0].loggedAt)}, {formatTimeOfDay(charges[0].chargedAt)}{charges[0].city !== location ? ` · ${charges[0].city}` : ""}</span></> : <><strong>No charges logged yet</strong><span>Log your first charge to see your impact.</span></>}</div><b>{charges[0] ? "View history" : "Log charge"}</b></Link></section>
     </main><BottomNav/>

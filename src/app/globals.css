@@ -114,3 +114,11 @@ button:active, a:active { opacity:.65; }
 .install-icon { display:grid; place-items:center; width:40px; height:40px; border-radius:50%; color:var(--primary); background:var(--accent-soft); }
 .install-body { display:grid; gap:6px; min-width:0; }.install-body h2 { margin:0; color:var(--ink); font-size:16px; line-height:22px; font-weight:700; letter-spacing:0; text-transform:none; }.install-body p { margin:0; color:var(--muted); font-size:14px; line-height:20px; }
 .install-actions { display:flex; flex-wrap:wrap; align-items:center; gap:4px 12px; margin-top:6px; }.install-actions .primary-button { width:auto; flex:1 1 120px; min-height:44px; }.install-actions .text-button { padding:0 8px; }
+.calendar-button { display:inline-flex; align-items:center; gap:6px; align-self:flex-start; padding:0; margin-top:4px; }
+.equivalents { margin:8px 0 0; color:var(--ink); font-size:14px; font-weight:600; line-height:1.4; }.equivalents-note { font-size:12px; }
+.stations-card { display:grid; gap:12px; }.stations-card .forecast-button { margin-top:0; }
+.station-list { display:grid; gap:4px; margin:0; padding:0; list-style:none; }
+.station-row { display:grid; grid-template-columns:40px minmax(0,1fr) 44px; align-items:center; gap:12px; min-height:56px; padding:6px 0; }.station-row .round-icon { width:40px; height:40px; }
+.station-text { display:grid; min-width:0; }.station-text strong { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:15px; }.station-text small { color:var(--muted); font-size:12px; line-height:1.35; }
+.station-directions { display:grid; place-items:center; width:44px; height:44px; border-radius:50%; color:var(--primary); background:var(--variant); }
+.station-credit a { color:var(--primary); }

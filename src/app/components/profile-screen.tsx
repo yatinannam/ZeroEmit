@@ -15,6 +15,8 @@ import { BottomNav, TopBar } from "./app-shell";
 import { LocationModal } from "./location-modal";
 import { Modal } from "./modal";
 import { ShareImpactModal, type SharePeriod } from "./share-card";
+import { equivalentsSentence } from "../lib/equivalents";
+import { chargeCost, DEFAULT_PRICE_PER_KWH, formatRupees, parsePricePerKwh } from "../lib/cost";
 import { useThemeChoice, type ThemeChoice } from "./theme";
 import { resetIntroSeen } from "./location-gate";
 import { leaveLeaderboard, useLeaderboardMembership } from "./use-leaderboard";
@@ -23,15 +25,16 @@ import { LEAVE_PENDING_MESSAGE, LEFT_MESSAGE } from "./leaderboard";
 const THEME_OPTIONS: { key: ThemeChoice; label: string }[] = [{ key: "system", label: "System" }, { key: "light", label: "Light" }, { key: "dark", label: "Dark" }];
 
 type Summary = ReturnType<typeof impactSummary>;
-const IMPACT_ROWS: { label: string; value: (summary: Summary) => string }[] = [
+const IMPACT_ROWS: { label: string; value: (summary: Summary, pricePerKwh: number) => string }[] = [
   { label: "Energy charged", value: (s) => (s.count ? `${s.kwh.toFixed(1)} kWh` : "—") },
   { label: "CO₂ avoided", value: (s) => (s.count ? `${s.co2Kg.toFixed(1)} kg` : "—") },
   { label: "Green-charge rate", value: (s) => (s.greenRate === null ? "—" : `${Math.round(s.greenRate * 100)}%`) },
   { label: "Charges", value: (s) => String(s.count) },
+  { label: "Charging cost", value: (s, price) => (s.count ? formatRupees(chargeCost(s.kwh, price)) : "—") },
 ];
 
 const ABOUT_TEXT = "ZeroEmit helps you charge your EV when the grid is running on cleaner power. Best-time recommendations come from live regional grid data where available, or your own charging history otherwise.";
-const PRIVACY_TEXT = "Your vehicle and charge history stay on this device. ZeroEmit's server gets your state, to fetch grid data for its region. If you use your current location, your coordinates are only used on this device to find the nearest city. If you turn on scheduled notifications, the server also keeps your city name, which notifications you want, your streak count and last charge date, this week's charge count, CO₂ avoided and green share, the badge you're closest to, and (if you've joined the leaderboard) your leaderboard entry's ID, which links these notifications to your public entry. It uses them only to send your reminders; turning notifications off or deleting your account removes them. If you join the leaderboard, your display name, grid region and this month's Eco points and CO₂ avoided are visible to other ZeroEmit users; leaving removes them.";
+const PRIVACY_TEXT = "Your vehicle and charge history stay on this device. ZeroEmit's server gets your state, to fetch grid data for its region, and your city, to find public chargers near the city centre through OpenStreetMap. If you use your current location, your coordinates are only used on this device to find the nearest city. If you turn on scheduled notifications, the server also keeps your city name, which notifications you want, your streak count and last charge date, this week's charge count, CO₂ avoided and green share, the badge you're closest to, and (if you've joined the leaderboard) your leaderboard entry's ID, which links these notifications to your public entry. It uses them only to send your reminders; turning notifications off or deleting your account removes them. If you join the leaderboard, your display name, grid region and this month's Eco points and CO₂ avoided are visible to other ZeroEmit users; leaving removes them.";
 
 // `shareLastMonth`: opened from the month-end leaderboard notification.
 export function ProfileScreen({ shareLastMonth = false }: { shareLastMonth?: boolean }) {
@@ -53,6 +56,7 @@ export function ProfileScreen({ shareLastMonth = false }: { shareLastMonth?: boo
   const points = totalPoints(charges);
   const streak = currentStreakDays(charges);
   const savedGrams = estimatedCarbonSavedGrams(charges);
+  const price = profile.pricePerKwh ?? DEFAULT_PRICE_PER_KWH;
   const thisMonth = impactSummary(chargesInMonth(charges));
   const lastMonth = impactSummary(chargesInMonth(charges, 1));
   // Setup date if recorded; otherwise (installs from before it was) the first charge.
@@ -72,7 +76,8 @@ export function ProfileScreen({ shareLastMonth = false }: { shareLastMonth?: boo
   function submitProfile(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
-    updateProfile({ ...profile, name: String(form.get("name") || "").trim(), vehicle: String(form.get("vehicle") || "").trim() });
+    // A blank or out-of-range price clears it (back to the typical tariff).
+    updateProfile({ ...profile, name: String(form.get("name") || "").trim(), vehicle: String(form.get("vehicle") || "").trim(), pricePerKwh: parsePricePerKwh(form.get("price")) ?? undefined });
     setEditOpen(false);
     showToast("Profile updated");
   }
@@ -120,8 +125,10 @@ export function ProfileScreen({ shareLastMonth = false }: { shareLastMonth?: boo
         <h2>Your impact</h2>
         <table className="impact-table">
           <thead><tr><td/><th scope="col">This month</th><th scope="col">Last month</th></tr></thead>
-          <tbody>{IMPACT_ROWS.map((row) => <tr key={row.label}><th scope="row">{row.label}</th><td>{row.value(thisMonth)}</td><td>{row.value(lastMonth)}</td></tr>)}</tbody>
+          <tbody>{IMPACT_ROWS.map((row) => <tr key={row.label}><th scope="row">{row.label}</th><td>{row.value(thisMonth, price)}</td><td>{row.value(lastMonth, price)}</td></tr>)}</tbody>
         </table>
+        <p className="personal-note">Cost at {formatRupees(price)} per kWh{profile.pricePerKwh ? "" : ", a typical home tariff. Set yours in Profile & vehicle"}.</p>
+        {equivalentsSentence(savedGrams / 1000) && <p className="equivalents">In total: {equivalentsSentence(savedGrams / 1000)!.replace(/^Like/, "like")}</p>}
         {charges.length ? <button className="forecast-button action-button" onClick={() => setShareOpen(true)}><Icon name="share" size={18}/> Share my impact</button> : <p className="personal-note">Log a charge to start tracking your impact.</p>}
       </section>
 
@@ -138,6 +145,7 @@ export function ProfileScreen({ shareLastMonth = false }: { shareLastMonth?: boo
     {editOpen && <Modal title="Profile & vehicle" onClose={() => setEditOpen(false)} onSubmit={submitProfile}>
       <label>Name<input name="name" type="text" defaultValue={profile.name} placeholder="Your name" maxLength={60} autoComplete="name"/></label>
       <label>Vehicle<input name="vehicle" type="text" defaultValue={profile.vehicle} placeholder="e.g. Tata Nexon EV" maxLength={60}/></label>
+      <label>Electricity price (₹ per kWh)<input name="price" type="number" inputMode="decimal" step="0.01" min="1" max="60" defaultValue={profile.pricePerKwh ?? ""} placeholder={String(DEFAULT_PRICE_PER_KWH)}/></label>
       <button className="primary-button" type="submit">Save profile</button>
     </Modal>}
 

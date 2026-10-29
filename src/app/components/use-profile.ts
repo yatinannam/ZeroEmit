@@ -1,9 +1,11 @@
 "use client";
 import { useCallback, useSyncExternalStore } from "react";
 import { createLocalStorageStore } from "./local-storage-store";
+import { parsePricePerKwh } from "../lib/cost";
 
 // `joinedAt` is when this device first finished setup (for "member since").
-export type Profile = { name: string; vehicle: string; joinedAt?: string };
+// `pricePerKwh`: the driver's electricity price, for cost estimates.
+export type Profile = { name: string; vehicle: string; joinedAt?: string; pricePerKwh?: number };
 const STORAGE_KEY = "zeroemit-profile";
 const DEFAULT_PROFILE: Profile = { name: "", vehicle: "" };
 
@@ -11,7 +13,8 @@ function normalizeProfile(raw: unknown): Profile {
   if (!raw || typeof raw !== "object") return DEFAULT_PROFILE;
   const value = raw as Record<string, unknown>;
   const joinedAt = typeof value.joinedAt === "string" && !Number.isNaN(Date.parse(value.joinedAt)) ? value.joinedAt : undefined;
-  return { name: typeof value.name === "string" ? value.name : "", vehicle: typeof value.vehicle === "string" ? value.vehicle : "", ...(joinedAt ? { joinedAt } : {}) };
+  const pricePerKwh = parsePricePerKwh(value.pricePerKwh);
+  return { name: typeof value.name === "string" ? value.name : "", vehicle: typeof value.vehicle === "string" ? value.vehicle : "", ...(joinedAt ? { joinedAt } : {}), ...(pricePerKwh ? { pricePerKwh } : {}) };
 }
 
 const store = createLocalStorageStore<Profile>(
