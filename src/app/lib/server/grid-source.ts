@@ -1,4 +1,4 @@
-import { HOUR_MS, istHourStart, IST_TIME_ZONE, type ForecastPoint, type GridData } from "../grid";
+import { HOUR_MS, istDayKey, istHourStart, IST_TIME_ZONE, type ForecastPoint, type GridData } from "../grid";
 import { STATES, type Zone } from "../places";
 import { redis, redisConfigured } from "./redis";
 
@@ -42,12 +42,47 @@ const forecastCache = new Map<string, { expiresAt: number; forecast: ForecastPoi
 // Every state in a regional grid (e.g. Tamil Nadu and Karnataka, both
 // Southern) shares this zone-level data, so it's cached by zone: in memory,
 // and in Redis when configured so serverless instances and the push
-// scheduler share it too. The data only updates hourly; 10 minutes keeps
-// "current intensity" fresh without wasting calls.
+// scheduler share it too.
+//
+// The trial key allows 100 calls a day for the whole app, and the data only
+// updates hourly, so each region refreshes at most hourly, only one request
+// refreshes a region at a time, and a counter in Redis stops all calls at
+// ATLAS_DAILY_BUDGET per IST day. When a refresh isn't possible, the last
+// good snapshot is served: its typical pattern stays valid for hours, and its
+// reading counts as "right now" while it's under LATEST_MAX_AGE_MS old.
 const ZONE_DATA_HISTORY_HOURS = 336; // 14 days, for the typical-pattern average
-const ZONE_FRESH_MS = 10 * 60_000;
+const ZONE_REFRESH_MS = 60 * 60_000;
+const LATEST_MAX_AGE_MS = 90 * 60_000;
 const ZONE_REDIS_TTL_S = 24 * 60 * 60; // the pattern stays useful long after "latest" is stale
+const UPSTREAM_TIMEOUT_MS = 10_000;
+export const ATLAS_DAILY_BUDGET = 90;
+// The forecast endpoint needs the Pro plan; the trial key is always refused,
+// so it's only called when explicitly enabled.
+const FORECAST_ENABLED = process.env.INDIA_ENERGY_ATLAS_FORECAST === "1";
 const zoneDataCache = new Map<string, ZoneSnapshot>();
+const zoneRefreshes = new Map<string, Promise<{ snapshot: ZoneSnapshot | null; status: number; calledUpstream: boolean }>>();
+
+// For tests: forget everything this instance has cached.
+export function resetGridSourceMemory() {
+  cache.clear();
+  forecastCache.clear();
+  zoneDataCache.clear();
+  zoneRefreshes.clear();
+}
+
+// Counts one provider call against today's (IST) budget; false once spent.
+// Without Redis (local development) there's nothing shared to count.
+async function spendAtlasCall(now = Date.now()) {
+  if (!redisConfigured) return true;
+  try {
+    const key = `atlas:calls:${istDayKey(now)}`;
+    const count = await redis<number>("INCR", key);
+    if (count === 1) await redis("EXPIRE", key, 2 * 24 * 60 * 60);
+    return count <= ATLAS_DAILY_BUDGET;
+  } catch {
+    return true;
+  }
+}
 
 // Best-effort extraction of the provider's own message (e.g. a 402 plan or a
 // 429 rate-limit error) so the UI can show the real reason instead of a generic
@@ -127,7 +162,7 @@ async function readZoneFromRedis(zone: string): Promise<ZoneSnapshot | null> {
 }
 
 async function fetchZoneFromUpstream(zone: string, key: string): Promise<{ snapshot: ZoneSnapshot | null; status: number }> {
-  const response = await fetch(`${ATLAS_URL}/carbon-intensity/by-zone?zone=${zone}&hours=${ZONE_DATA_HISTORY_HOURS}`, { headers: { "X-API-Key": key, accept: "application/json" } });
+  const response = await fetch(`${ATLAS_URL}/carbon-intensity/by-zone?zone=${zone}&hours=${ZONE_DATA_HISTORY_HOURS}`, { headers: { "X-API-Key": key, accept: "application/json" }, signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS) });
   if (!response.ok) return { snapshot: null, status: response.status };
   const payload = await response.json();
   const items = completeItems(Array.isArray(payload?.data?.items) ? payload.data.items : []);
@@ -148,22 +183,35 @@ async function fetchZoneFromUpstream(zone: string, key: string): Promise<{ snaps
 // pattern is still good for hours — which the push scheduler relies on to
 // stay inside the provider's limits (the trial key allows 3 calls/minute and
 // 100/day for the whole app).
-export async function getZoneSnapshot(zone: Zone, { allowUpstream, maxAgeMs = ZONE_FRESH_MS }: { allowUpstream: boolean; maxAgeMs?: number }): Promise<{ snapshot: ZoneSnapshot | null; status: number; calledUpstream: boolean }> {
+export async function getZoneSnapshot(zone: Zone, { allowUpstream, maxAgeMs = ZONE_REFRESH_MS }: { allowUpstream: boolean; maxAgeMs?: number }): Promise<{ snapshot: ZoneSnapshot | null; status: number; calledUpstream: boolean }> {
   const memory = zoneDataCache.get(zone);
   if (memory && Date.now() - memory.fetchedAt < maxAgeMs) return { snapshot: memory, status: 200, calledUpstream: false };
   const stored = await readZoneFromRedis(zone);
   if (stored && Date.now() - stored.fetchedAt < maxAgeMs) { zoneDataCache.set(zone, stored); return { snapshot: stored, status: 200, calledUpstream: false }; }
+  const fallback = stored ?? memory ?? null;
   const key = process.env.INDIA_ENERGY_ATLAS_API_KEY;
-  if (allowUpstream && key) {
-    const fresh = await fetchZoneFromUpstream(zone, key);
+  if (!allowUpstream || !key) return { snapshot: fallback, status: 200, calledUpstream: false };
+
+  // Requests on this instance share one refresh; across instances, a short
+  // Redis lock lets only one of them call the provider.
+  const running = zoneRefreshes.get(zone);
+  if (running) return { ...(await running), calledUpstream: false };
+  const refresh = (async () => {
+    if (redisConfigured) {
+      const lock = await redis<string | null>("SET", `atlas:lock:${zone}`, "1", "NX", "EX", 30).catch(() => "OK");
+      if (lock === null) return { snapshot: fallback, status: 200, calledUpstream: false };
+    }
+    if (!(await spendAtlasCall())) return { snapshot: fallback, status: 429, calledUpstream: false };
+    const fresh = await fetchZoneFromUpstream(zone, key).catch(() => ({ snapshot: null, status: 502 }));
     if (fresh.snapshot?.latest) return { ...fresh, calledUpstream: true };
-    return { snapshot: stored ?? memory ?? null, status: fresh.status, calledUpstream: true };
-  }
-  return { snapshot: stored ?? memory ?? null, status: 200, calledUpstream: false };
+    return { snapshot: fallback, status: fresh.status, calledUpstream: true };
+  })();
+  zoneRefreshes.set(zone, refresh);
+  try { return await refresh; } finally { zoneRefreshes.delete(zone); }
 }
 
 // "Latest" older than this is no longer treated as the current reading.
-export function isFresh(snapshot: ZoneSnapshot, maxAgeMs = ZONE_FRESH_MS) {
+export function isFresh(snapshot: ZoneSnapshot, maxAgeMs = LATEST_MAX_AGE_MS) {
   return Date.now() - snapshot.fetchedAt < maxAgeMs;
 }
 
@@ -217,7 +265,7 @@ async function fetchAtlas(state: string, zone: Zone, key: string): Promise<Provi
 
   const [zoneData, liveForecast] = await Promise.all([
     getZoneSnapshot(zone, { allowUpstream: true }),
-    fetchStateForecast(state, headers),
+    FORECAST_ENABLED ? fetchStateForecast(state, headers) : Promise.resolve([] as ForecastPoint[]),
   ]);
 
   let forecast: ForecastPoint[] = liveForecast;
@@ -227,25 +275,23 @@ async function fetchAtlas(state: string, zone: Zone, key: string): Promise<Provi
     forecastIsTypical = true;
   }
 
-  // A stale snapshot's pattern is fine, but its "latest" isn't current.
-  let latest = zoneData.snapshot && Date.now() - zoneData.snapshot.fetchedAt < ZONE_FRESH_MS ? zoneData.snapshot.latest : null;
-  if (!latest) {
-    // A 429 means the shared quota is already exhausted — firing another
-    // call at a different endpoint on the same key would very likely also
-    // 429, wasting a second quota slot for nothing. Fail fast instead.
-    if (zoneData.status === 429) return { message: "Live grid data is temporarily unavailable.", status: 429 };
-    const nationalResponse = await fetch(`${ATLAS_URL}/carbon-intensity/latest`, { headers });
-    if (!nationalResponse.ok) {
-      const detail = await providerErrorDetail(nationalResponse);
-      const message = detail || "Live grid data is temporarily unavailable.";
-      return { message, status: nationalResponse.status === 429 ? 429 : 502 };
-    }
+  // A stale snapshot's pattern is fine, but an old reading isn't "right now".
+  let latest = zoneData.snapshot && isFresh(zoneData.snapshot) ? zoneData.snapshot.latest : null;
+  // With nothing at all to show, try the all-India reading — unless the quota
+  // is spent (a 429, or today's budget), when another call can only fail.
+  if (!latest && !forecast.length) {
+    if (zoneData.status === 429 || !(await spendAtlasCall())) return { message: "Live grid data is temporarily unavailable.", status: 429 };
+    const nationalResponse = await fetch(`${ATLAS_URL}/carbon-intensity/latest`, { headers, signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS) }).catch(() => null);
+    if (!nationalResponse?.ok) return { message: "Live grid data is temporarily unavailable.", status: nationalResponse?.status === 429 ? 429 : 502 };
     const nationalPayload = await nationalResponse.json();
     latest = parseLatestItem(completeItems(Array.isArray(nationalPayload?.data?.items) ? nationalPayload.data.items : [])[0]);
   }
-  if (!latest) return { message: "Live grid data is temporarily unavailable.", status: 502 };
+  if (!latest && !forecast.length) return { message: "Live grid data is temporarily unavailable.", status: 502 };
 
-  return { data: { available: true, state, current: { carbonIntensity: latest.carbon_intensity_gco2_kwh, datetime: latest.timestamp, isEstimated: true, intensityClass: latest.intensity_class }, forecast, forecastIsTypical, updatedAt: latest.timestamp, source: ATLAS }, message: "", status: 0 };
+  // Without a current reading the app still has the typical day to plan with.
+  const current = latest ? { carbonIntensity: latest.carbon_intensity_gco2_kwh, datetime: latest.timestamp, isEstimated: true, intensityClass: latest.intensity_class } : undefined;
+  const updatedAt = latest?.timestamp ?? (zoneData.snapshot ? new Date(zoneData.snapshot.fetchedAt).toISOString() : undefined);
+  return { data: { available: true, state, ...(current ? { current } : {}), forecast, forecastIsTypical, updatedAt, source: ATLAS }, message: "", status: 0 };
 }
 
 async function fetchElectricityMaps(state: string, coordinates: { lat: number; lon: number }, key: string): Promise<ProviderResult> {
