@@ -91,7 +91,7 @@ describe("submitMember + readLeaderboard", () => {
     for (let n = 1; n <= 51; n += 1) await submitMember(member(n, n % 14 + 1), NOW); // 10-140 points each
     await submitMember(member(99, 0), NOW); // 0 points: last of 52
     const board = await readLeaderboard("all", uuid(99), NOW);
-    expect(board.total).toBe(52);
+    expect(board.total).toBe(51); // members with points; the 0-point requester still gets their row
     expect(board.rows).toHaveLength(50);
     expect(board.rows.some((row) => row.isMe)).toBe(false);
     expect(board.me).toEqual({ rank: 52, name: "Player 99", zone: "western", points: 0, co2Kg: 0, isMe: true });
@@ -184,6 +184,7 @@ describe("boardStandings", () => {
 describe("removeMembersByName (admin)", () => {
   test("removes this month's entries with that name in that region, case-insensitively, and blocks a late sync", async () => {
     await submitMember(member(1, 2, { name: "Yatin Annam", zone: "southern" }), NOW);
+    fakeRedis.hashes.clear(); // the second "Yatin Annam" predates unique names
     await submitMember(member(2, 3, { name: "Yatin Annam", zone: "western" }), NOW);
     await submitMember(member(3, 1, { name: "Hrishi", zone: "southern" }), NOW);
     expect(await removeMembersByName("yatin annam", "southern", NOW)).toBe(1);
@@ -194,5 +195,57 @@ describe("removeMembersByName (admin)", () => {
 
   test("nothing to remove is fine", async () => {
     expect(await removeMembersByName("Nobody", "southern", NOW)).toBe(0);
+  });
+});
+
+describe("unique names per month", () => {
+  test("a new member can't take a name already on this month's board, ignoring case and spacing", async () => {
+    expect((await submitMember(member(1, 3, { name: "Yatin Annam" }), NOW)).ok).toBe(true);
+    expect(await submitMember(member(2, 1, { name: "yatin  annam" }), NOW)).toEqual({ ok: false, status: 409 });
+    expect((await readLeaderboard("all", null, NOW)).rows.map((row) => row.name)).toEqual(["Yatin Annam"]);
+  });
+
+  test("a member keeps their own name on later syncs, and renaming frees the old one", async () => {
+    await submitMember(member(1, 3, { name: "Yatin Annam" }), NOW);
+    expect((await submitMember(member(1, 4, { name: "Yatin Annam" }), NOW + 1000)).ok).toBe(true);
+    expect((await submitMember(member(1, 4, { name: "Yatin A" }), NOW + 2000)).ok).toBe(true);
+    expect((await submitMember(member(2, 1, { name: "Yatin Annam" }), NOW + 3000)).ok).toBe(true);
+    expect(await submitMember(member(3, 1, { name: "Yatin A" }), NOW + 4000)).toEqual({ ok: false, status: 409 });
+  });
+
+  test("leaving frees the name", async () => {
+    await submitMember(member(1, 3, { name: "Asha" }), NOW);
+    await removeMember(uuid(1), uuid(1001));
+    expect((await submitMember(member(2, 1, { name: "Asha" }), NOW + 1000)).ok).toBe(true);
+  });
+
+  test("a member from before names were unique still syncs, and claims the name if it's free", async () => {
+    await submitMember(member(1, 3, { name: "Asha" }), NOW);
+    fakeRedis.hashes.clear(); // as if they joined before name claims existed
+    expect((await submitMember(member(1, 4, { name: "Asha" }), NOW + 1000)).ok).toBe(true);
+    expect(await submitMember(member(2, 1, { name: "Asha" }), NOW + 2000)).toEqual({ ok: false, status: 409 });
+  });
+});
+
+describe("members with no points this month", () => {
+  test("aren't listed, except to themselves, and don't count in the total", async () => {
+    await submitMember(member(1, 2), NOW); // 20 points
+    await submitMember(member(2, 0), NOW); // joined, no charges
+    const others = await readLeaderboard("all", null, NOW);
+    expect(others.rows.map((row) => row.name)).toEqual(["Player 1"]);
+    expect(others.total).toBe(1);
+    const mine = await readLeaderboard("all", uuid(2), NOW);
+    expect(mine.rows.map((row) => row.name)).toEqual(["Player 1"]);
+    expect(mine.me).toMatchObject({ name: "Player 2", points: 0, isMe: true });
+  });
+});
+
+describe("removeMembersByName with a points limit (admin)", () => {
+  test("removes only the matching entries at or under the limit", async () => {
+    await submitMember(member(1, 6, { name: "Yatin Annam", zone: "southern" }), NOW);
+    fakeRedis.hashes.clear(); // the duplicate below predates unique names
+    await submitMember(member(2, 0, { name: "Yatin Annam", zone: "southern" }), NOW);
+    expect(await removeMembersByName("Yatin Annam", "southern", NOW, 0)).toBe(1);
+    expect((await readLeaderboard("all", null, NOW)).rows).toEqual([expect.objectContaining({ name: "Yatin Annam", points: 60 })]);
   });
 });

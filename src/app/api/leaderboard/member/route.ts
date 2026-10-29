@@ -7,7 +7,7 @@ import { isUuid, leaderboardConfigured, parseMemberBody, removeMember, submitMem
 const NOT_CONFIGURED = { error: "The leaderboard isn't set up on this server." };
 const MAX_BODY_BYTES = 16_384; // 100 charges is ~8 KB
 
-const SUBMIT_ERRORS = { 403: "Not your entry", 410: "This entry has left the leaderboard", 429: "Too many updates" };
+const SUBMIT_ERRORS = { 403: "Not your entry", 409: "That name is already on this month's leaderboard", 410: "This entry has left the leaderboard", 429: "Too many updates" };
 
 // Join, or update this month's score. The server recomputes the score from
 // the charges; the key proves this device owns the entry.
@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
     // so the server judges each charge's timing itself.
     const pattern = await getZoneSnapshot(input.zone, { allowUpstream: false }).then(({ snapshot }) => snapshot?.pattern ?? null).catch(() => null);
     const result = await submitMember(input, Date.now(), ip, pattern);
-    if (!result.ok) return NextResponse.json({ error: SUBMIT_ERRORS[result.status] }, { status: result.status });
+    if (!result.ok) return NextResponse.json({ error: SUBMIT_ERRORS[result.status], ...(result.status === 409 ? { code: "name-taken" } : {}) }, { status: result.status });
     return NextResponse.json({ rank: result.rank, points: result.points, co2Kg: result.co2Kg });
   } catch {
     return NextResponse.json({ error: "Couldn't update the leaderboard" }, { status: 502 });

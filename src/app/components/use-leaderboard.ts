@@ -39,7 +39,9 @@ export async function joinLeaderboard(name: string, zone: Zone, charges: Charge[
     const response = await submit(membership, zone, charges);
     if (!response.ok) {
       const { code } = await response.json().catch(() => ({})) as { code?: string };
-      const error = code === "name" ? "That name can't be used. Try another one." : response.status === 429 ? "Too many updates. Try again in a while." : "Couldn't join the leaderboard. Try again.";
+      const error = code === "name" ? "That name can't be used. Try another one."
+        : code === "name-taken" ? `That name is already on this month's leaderboard. Try adding an initial, like "${name.split(" ")[0]} ${name.split(" ")[1]?.[0] ?? "R"}".`
+        : response.status === 429 ? "Too many updates. Try again in a while." : "Couldn't join the leaderboard. Try again.";
       return { ok: false, error };
     }
     const body = await response.json() as { rank: number };

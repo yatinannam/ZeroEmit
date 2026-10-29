@@ -9,10 +9,12 @@ import { isAuthorizedCron } from "../../../lib/server/push";
 export async function POST(request: NextRequest) {
   if (!isAuthorizedCron(request.headers.get("authorization"))) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (!leaderboardConfigured) return NextResponse.json({ error: "The leaderboard isn't set up on this server." }, { status: 503 });
-  const body = await readLimitedJson(request, 1024) as { name?: unknown; zone?: unknown } | null;
+  // Optional `maxPoints` removes only entries at or under that score.
+  const body = await readLimitedJson(request, 1024) as { name?: unknown; zone?: unknown; maxPoints?: unknown } | null;
   if (typeof body?.name !== "string" || body.name.trim().length < 1 || body.name.length > 40 || !isZone(body.zone)) return NextResponse.json({ error: "Invalid request" }, { status: 400 });
   try {
-    return NextResponse.json({ removed: await removeMembersByName(body.name, body.zone) });
+    const maxPoints = typeof body.maxPoints === "number" && body.maxPoints >= 0 ? body.maxPoints : null;
+    return NextResponse.json({ removed: await removeMembersByName(body.name, body.zone, Date.now(), maxPoints) });
   } catch {
     return NextResponse.json({ error: "Couldn't update the leaderboard" }, { status: 502 });
   }

@@ -16,7 +16,7 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{
 // move when a re-sync leaves the score where it was.
 type MemberRecord = { name: string; zone: Zone; keyHash: string; month: string; points: number; co2Kg: number; scoredAt: number; updatedAt: number };
 export type MemberInput = { id: string; key: string; name: string; zone: Zone; charges: LeaderboardCharge[] };
-export type SubmitResult = { ok: true; rank: number; points: number; co2Kg: number } | { ok: false; status: 403 | 410 | 429 };
+export type SubmitResult = { ok: true; rank: number; points: number; co2Kg: number } | { ok: false; status: 403 | 409 | 410 | 429 };
 
 export const isUuid = (value: unknown): value is string => typeof value === "string" && UUID_PATTERN.test(value);
 export const isZone = (value: unknown): value is Zone => typeof value === "string" && (ZONES as string[]).includes(value);
@@ -69,6 +69,10 @@ async function getMember(id: string): Promise<MemberRecord | null> {
 // Set when a member leaves, so a sync that was already on its way can't
 // recreate the entry under a key the device has forgotten.
 const removedKey = (id: string) => `lb:removed:${id}`;
+// One member per display name each month, so the board never shows two
+// "Yatin Annam"s: field = the name ignoring case, spacing and joiners.
+const namesKey = (month: string) => `lb:${month}:names`;
+const nameClaim = (name: string) => name.replace(/[‌‍]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
 const REMOVED_MARKER_S = 24 * 60 * 60;
 
 // Counts one more event in this hour's bucket; true while still within `limit`.
@@ -94,8 +98,16 @@ export async function submitMember(input: MemberInput, now = Date.now(), ip: str
   if (!(await withinHourlyLimit(`lb:rate:${input.id}`, UPDATES_PER_HOUR, now))) return { ok: false, status: 429 };
 
   const month = istMonthKey(now);
-  const { points, co2Kg } = scoreMonth(input.charges, month, istDayKey(now), pattern);
   const sameMonth = existing !== null && existing.month === month;
+  const claim = nameClaim(input.name);
+  const oldClaim = sameMonth ? nameClaim(existing.name) : null;
+  // Joining, or renaming this month, needs a name nobody else holds. A member
+  // carrying on into a new month keeps syncing either way.
+  if (!existing || (sameMonth && oldClaim !== claim)) {
+    const holder = await redis<string | null>("HGET", namesKey(month), claim);
+    if (holder && holder !== input.id) return { ok: false, status: 409 };
+  }
+  const { points, co2Kg } = scoreMonth(input.charges, month, istDayKey(now), pattern);
   const scoredAt = sameMonth && existing.points === points ? existing.scoredAt : now;
   const record: MemberRecord = { name: input.name, zone: input.zone, keyHash, month, points, co2Kg, scoredAt, updatedAt: now };
   const score = sortScore(points, scoredAt);
@@ -108,6 +120,10 @@ export async function submitMember(input: MemberInput, now = Date.now(), ip: str
     ["ZADD", boardKey(month, input.zone), score, input.id],
     ["EXPIRE", boardKey(month, input.zone), RETENTION_S],
     ["SET", memberKey(input.id), JSON.stringify(record), "EX", RETENTION_S],
+    // Claim the name (no-op if already ours); a rename frees the old one.
+    ...(oldClaim !== null && oldClaim !== claim ? [["HDEL", namesKey(month), oldClaim]] : []),
+    ["HSETNX", namesKey(month), claim, input.id],
+    ["EXPIRE", namesKey(month), RETENTION_S],
     ["ZREVRANK", boardKey(month, "all"), input.id],
   ]);
   const rank = results.at(-1) as number | null;
@@ -118,11 +134,14 @@ export async function removeMember(id: string, key: string): Promise<"ok" | "for
   const existing = await getMember(id);
   if (!existing) return "ok";
   if (!sameHash(existing.keyHash, hashKey(key))) return "forbidden";
+  const holder = await redis<string | null>("HGET", namesKey(existing.month), nameClaim(existing.name));
   await redisTransaction([
     ["ZREM", boardKey(existing.month, "all"), id],
     ["ZREM", boardKey(existing.month, existing.zone), id],
     ["DEL", memberKey(id)],
     ["SET", removedKey(id), "1", "EX", REMOVED_MARKER_S],
+    // Leaving frees the name for someone else.
+    ...(holder === id ? [["HDEL", namesKey(existing.month), nameClaim(existing.name)]] : []),
   ]);
   return "ok";
 }
@@ -131,23 +150,29 @@ export async function removeMember(id: string, key: string): Promise<"ok" | "for
 // another browser) or an offensive name: every member of this month's board
 // with that display name (case-insensitive) in that region. Each gets the
 // same "removed" marker as a normal leave, so a late sync can't restore it.
-export async function removeMembersByName(name: string, zone: Zone, now = Date.now()): Promise<number> {
+// `maxPoints` narrows it to entries at or under that score, e.g. 0 to remove
+// a duplicate that never logged a charge without touching the real one.
+export async function removeMembersByName(name: string, zone: Zone, now = Date.now(), maxPoints: number | null = null): Promise<number> {
   const month = istMonthKey(now);
   const ids = await redis<string[]>("ZREVRANGE", boardKey(month, "all"), 0, -1);
   if (!ids.length) return 0;
   const raws = await redis<(string | null)[]>("MGET", ...ids.map(memberKey));
-  const target = name.trim().toLowerCase();
+  const target = nameClaim(name);
   const matches = ids.filter((_, index) => {
     const record = raws[index] ? JSON.parse(raws[index]!) as MemberRecord : null;
-    return record !== null && record.zone === zone && record.name.toLowerCase() === target;
+    return record !== null && record.zone === zone && nameClaim(record.name) === target && (maxPoints === null || record.points <= maxPoints);
   });
   if (!matches.length) return 0;
-  await redisTransaction(matches.flatMap((id) => [
-    ["ZREM", boardKey(month, "all"), id],
-    ["ZREM", boardKey(month, zone), id],
-    ["DEL", memberKey(id)],
-    ["SET", removedKey(id), "1", "EX", REMOVED_MARKER_S],
-  ]));
+  const holder = await redis<string | null>("HGET", namesKey(month), target);
+  await redisTransaction([
+    ...matches.flatMap((id) => [
+      ["ZREM", boardKey(month, "all"), id],
+      ["ZREM", boardKey(month, zone), id],
+      ["DEL", memberKey(id)],
+      ["SET", removedKey(id), "1", "EX", REMOVED_MARKER_S],
+    ]),
+    ...(holder && matches.includes(holder) ? [["HDEL", namesKey(month), target]] : []),
+  ]);
   return matches.length;
 }
 
@@ -186,12 +211,16 @@ const toRow = (rank: number, record: MemberRecord, isMe: boolean): LeaderboardRo
 export async function readLeaderboard(scope: LeaderboardScope, me: string | null, now = Date.now()): Promise<LeaderboardResponse> {
   const month = istMonthKey(now);
   const key = boardKey(month, scope);
-  const [ids, total] = await Promise.all([redis<string[]>("ZREVRANGE", key, 0, LEADERBOARD_SIZE - 1), redis<number>("ZCARD", key)]);
+  // Only members with points this month are listed and counted (scores are
+  // points plus a fraction under 1, so ">= 1" means at least one charge);
+  // someone who joined but hasn't charged sees their own status only.
+  const [ids, total] = await Promise.all([redis<string[]>("ZREVRANGE", key, 0, LEADERBOARD_SIZE - 1), redis<number>("ZCOUNT", key, 1, "+inf")]);
   const records = ids.length ? await redis<(string | null)[]>("MGET", ...ids.map(memberKey)) : [];
   const rows: LeaderboardRow[] = [];
   ids.forEach((id, index) => {
     const raw = records[index];
-    if (raw) rows.push(toRow(index + 1, JSON.parse(raw) as MemberRecord, id === me));
+    const record = raw ? JSON.parse(raw) as MemberRecord : null;
+    if (record && record.points > 0) rows.push(toRow(index + 1, record, id === me));
   });
   let mine = rows.find((row) => row.isMe) ?? null;
   if (!mine && me) {

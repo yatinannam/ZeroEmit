@@ -30,6 +30,7 @@ function run(command: (string | number)[]): unknown {
     case "ZADD": { const set = zsets.get(key) ?? new Map<string, number>(); set.set(args[1], Number(args[0])); zsets.set(key, set); return 1; }
     case "ZREM": return zsets.get(key)?.delete(args[0]) ? 1 : 0;
     case "ZCARD": return zsets.get(key)?.size ?? 0;
+    case "ZCOUNT": { const min = args[0] === "-inf" ? -Infinity : Number(args[0]); const max = args[1] === "+inf" ? Infinity : Number(args[1]); return [...(zsets.get(key) ?? new Map<string, number>()).values()].filter((score) => score >= min && score <= max).length; }
     case "ZSCORE": { const score = zsets.get(key)?.get(args[0]); return score === undefined ? null : String(score); }
     case "ZREVRANGE": {
       const stop = Number(args[1]);
@@ -38,6 +39,7 @@ function run(command: (string | number)[]): unknown {
     }
     case "ZREVRANK": { const index = zrevOrder(key).indexOf(args[0]); return index === -1 ? null : index; }
     case "HSET": { const hash = hashes.get(key) ?? new Map<string, string>(); hash.set(args[0], args[1]); hashes.set(key, hash); return 1; }
+    case "HSETNX": { const hash = hashes.get(key) ?? new Map<string, string>(); if (hash.has(args[0])) return 0; hash.set(args[0], args[1]); hashes.set(key, hash); return 1; }
     case "HGET": return hashes.get(key)?.get(args[0]) ?? null;
     case "HGETALL": return [...(hashes.get(key) ?? new Map<string, string>()).entries()].flat();
     case "HDEL": return hashes.get(key)?.delete(args[0]) ? 1 : 0;

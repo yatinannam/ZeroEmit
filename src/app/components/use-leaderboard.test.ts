@@ -90,6 +90,8 @@ describe("joinLeaderboard errors", () => {
     expect(await joinLeaderboard("Asha", "western", [])).toEqual({ ok: false, error: "That name can't be used. Try another one." });
     statuses = [{ status: 400, body: { error: "Invalid request" } }];
     expect(await joinLeaderboard("Asha", "western", [])).toEqual({ ok: false, error: "Couldn't join the leaderboard. Try again." });
+    statuses = [{ status: 409, body: { error: "Name taken", code: "name-taken" } }];
+    expect(await joinLeaderboard("Asha", "western", [])).toEqual({ ok: false, error: "That name is already on this month's leaderboard. Try adding an initial, like \"Asha R\"." });
   });
 });
 

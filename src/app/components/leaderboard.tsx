@@ -76,10 +76,12 @@ function BoardBody({ state, limit }: { state: BoardState; limit: number }) {
   if (state.status === "loading") return <p className="personal-note">Loading the leaderboard…</p>;
   if (state.status !== "ready") return <p className="personal-note">Couldn&apos;t load the leaderboard. Check your connection and try again.</p>;
   const { rows, me, total } = state.data;
-  if (!rows.length) return <p className="personal-note">Nobody is on the leaderboard yet this month. Join and invite friends who charge an EV.</p>;
+  // Only members with points this month are listed.
+  const notYet = me !== null && me.points === 0;
+  if (!rows.length) return <p className="personal-note">{notYet ? "You're in. Log a charge this month to appear on the board." : "Nobody is on the leaderboard yet this month. Join and invite friends who charge an EV."}</p>;
   return <>
-    {me && <p className="leaderboard-summary">You&apos;re <b>#{me.rank}</b> of {total} this month</p>}
-    <LeaderboardList rows={rows.slice(0, limit)} me={me}/>
+    {me && (notYet ? <p className="leaderboard-summary">You&apos;re in. Log a charge this month to appear on the board.</p> : <p className="leaderboard-summary">You&apos;re <b>#{me.rank}</b> of {total} this month</p>)}
+    <LeaderboardList rows={rows.slice(0, limit)} me={notYet ? null : me}/>
   </>;
 }
 
