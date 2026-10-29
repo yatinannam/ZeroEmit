@@ -183,10 +183,10 @@ export function ShareImpactModal({ charges, name, onClose, initialPeriod }: { ch
   }
 
   return <Modal title="Share your impact" onClose={onClose}>
-    <div className="segmented" role="tablist" aria-label="Period">
-      <button role="tab" aria-selected={period === "month"} className={period === "month" ? "active" : ""} onClick={() => setPeriod("month")}>This month</button>
-      {showLastMonth && <button role="tab" aria-selected={period === "lastMonth"} className={period === "lastMonth" ? "active" : ""} onClick={() => setPeriod("lastMonth")}>Last month</button>}
-      <button role="tab" aria-selected={period === "all"} className={period === "all" ? "active" : ""} onClick={() => setPeriod("all")}>All time</button>
+    <div className="segmented" role="group" aria-label="Period">
+      <button aria-pressed={period === "month"} className={period === "month" ? "active" : ""} onClick={() => setPeriod("month")}>This month</button>
+      {showLastMonth && <button aria-pressed={period === "lastMonth"} className={period === "lastMonth" ? "active" : ""} onClick={() => setPeriod("lastMonth")}>Last month</button>}
+      <button aria-pressed={period === "all"} className={period === "all" ? "active" : ""} onClick={() => setPeriod("all")}>All time</button>
     </div>
     <div className="share-preview">
       {/* eslint-disable-next-line @next/next/no-img-element -- a local blob: URL, nothing for next/image to optimise */}

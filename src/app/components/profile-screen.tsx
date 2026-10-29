@@ -39,7 +39,7 @@ const PRIVACY_TEXT = "Your vehicle and charge history stay on this device. ZeroE
 // `shareLastMonth`: opened from the month-end leaderboard notification.
 export function ProfileScreen({ shareLastMonth = false }: { shareLastMonth?: boolean }) {
   const router = useRouter();
-  const { place, location, setPlace, locationOpen, openLocation, closeLocation, chooseLocation } = useLocationPicker();
+  const { place, ready, location, setPlace, locationOpen, openLocation, closeLocation, chooseLocation } = useLocationPicker();
   const [editOpen, setEditOpen] = useState(false);
   const [infoModal, setInfoModal] = useState<"about" | "privacy" | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -111,7 +111,7 @@ export function ProfileScreen({ shareLastMonth = false }: { shareLastMonth?: boo
         <span className="avatar">{initials}</span>
         <h1>{profile.name || "Add your name"}</h1>
         <p className="profile-vehicle">{profile.vehicle || "Add your EV in Profile & vehicle"}</p>
-        <button className="location-label location-button" onClick={openLocation}><Icon name="pin" size={14}/> {location}</button>
+        <button className="location-label location-button" onClick={openLocation}><Icon name="pin" size={14}/> {ready ? location : ""}</button>
         {sinceLabel && <p className="profile-since">Charging with ZeroEmit since {sinceLabel}</p>}
       </section>
 

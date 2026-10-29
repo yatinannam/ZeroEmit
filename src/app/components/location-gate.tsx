@@ -34,6 +34,15 @@ export function LocationGate() {
   // Focus the step that's showing — and again when the intro hands over.
   useEffect(() => { if (open) panelRef.current?.focus(); }, [open, introSeen]);
 
+  // The page behind stays out of reach (Tab, taps, screen readers) until a
+  // place is chosen, like any modal screen.
+  useEffect(() => {
+    if (!open) return;
+    const behind = [...document.body.children].filter((element) => !element.classList.contains("setup-screen") && !element.classList.contains("toast-region"));
+    behind.forEach((element) => element.setAttribute("inert", ""));
+    return () => behind.forEach((element) => element.removeAttribute("inert"));
+  }, [open]);
+
   if (!open) return null;
 
   function choose(place: Place) {
@@ -43,7 +52,8 @@ export function LocationGate() {
   }
 
   if (!introSeen) return <div className="setup-screen" role="dialog" aria-modal="true" aria-label="Welcome to ZeroEmit">
-    <div ref={panelRef} className="setup-intro" tabIndex={-1}><OnboardingIntro onDone={() => introStore.write(true)}/></div>
+    {/* Escape skips the intro, like its Skip button. */}
+    <div ref={panelRef} className="setup-intro" tabIndex={-1} onKeyDown={(event) => { if (event.key === "Escape") introStore.write(true); }}><OnboardingIntro onDone={() => introStore.write(true)}/></div>
   </div>;
 
   return <div className="setup-screen" role="dialog" aria-modal="true" aria-labelledby="setup-title">

@@ -49,6 +49,11 @@ export function useCharges() {
     store.write([{ ...charge, id: crypto.randomUUID() }, ...store.getSnapshot()].sort(newestFirst));
   }, []);
   const removeCharge = useCallback((id: string) => store.write(store.getSnapshot().filter((charge) => charge.id !== id)), []);
+  // Puts a just-deleted charge back as it was (Undo).
+  const restoreCharge = useCallback((charge: Charge) => {
+    const rest = store.getSnapshot().filter((other) => other.id !== charge.id);
+    store.write([charge, ...rest].sort(newestFirst));
+  }, []);
   const clearCharges = useCallback(() => store.write(EMPTY), []);
-  return { charges, addCharge, removeCharge, clearCharges };
+  return { charges, addCharge, removeCharge, restoreCharge, clearCharges };
 }

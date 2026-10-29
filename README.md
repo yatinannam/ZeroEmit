@@ -12,9 +12,9 @@ Poster downloads: landscape ([PNG](docs/poster/ZeroEmit-poster-landscape.png), [
 
 - **Best time to charge.** Home shows today's cleanest 2-hour window for your region; Forecast shows the hour-by-hour curve and the top 3 windows for today and tomorrow. **Add to calendar** saves a window as a calendar event with a reminder 10 minutes before it starts (works on every phone, no notifications needed).
 - **Locations across India.** ~250 searchable cities in every mainland state/UT, each mapped to one of India's five regional grids, or "Use current location" (resolved to the nearest city on the device).
-- **Log charges.** Each charge records the grid intensity and how well it was timed. Charge details show an estimated cost from your electricity price (Profile & vehicle; ₹8/kWh, a typical home tariff, until you set yours).
+- **Log charges.** Each charge records the grid intensity and how well it was timed. Charges can be logged up to 30 days back, and a deleted charge can be restored with **Undo**. Charge details show an estimated cost from your electricity price (Profile & vehicle; ₹8/kWh, a typical home tariff, until you set yours).
 - **Eco points and rewards.** 10 points per charge, **+10** in one of the day's 3 cleanest 2-hour windows for your region, **+5** at a cleaner-than-average hour. Four levels, 8 badges with live progress, and streaks. (India's grid rarely reaches an absolute "green" level, so points reward timing relative to your region.)
-- **Monthly leaderboard (opt-in).** All India or by grid region, resetting on the 1st. Only a display name, region and this month's points and CO₂ avoided are shared. The server recomputes every score from the charges themselves, judging each charge's timing from its own grid data, so a bonus can't be faked.
+- **Monthly leaderboard (opt-in).** All India or by grid region, resetting on the 1st. Only a display name, region and this month's points and CO₂ avoided are shared. The server recomputes every score from the charges themselves, judging each charge's timing from its own grid data, so a bonus can't be faked, and caps the CO₂ a charge can claim to what its region's grid can plausibly reach. Each display name can be used by one entry a month (ignoring case and spacing), and members show up once they've logged a charge that month.
 - **Your impact.** This month vs last month: energy, CO₂ avoided, green-charge rate, charges and cost, with everyday comparisons ("like not driving 113 km in a petrol car"), and a shareable impact card (this month, last month or all time).
 - **Nearest chargers, on a map.** Public EV chargers within 30 km, nearest first, with connector types, 24/7 status and Google Maps directions, plus an OpenStreetMap map (Leaflet). They're searched around **your own location** if you tap "Use my location" (rounded to ~1 km on the device before it's sent), otherwise around your city's centre. Grid data and points still use your city's regional grid.
 - **Notifications** (see below), **dark mode**, an **install prompt** (Android/Chrome install button; iPhone "Add to Home Screen" steps), and a three-screen welcome intro.
@@ -69,7 +69,7 @@ Each kind is switchable in Profile → Notifications, and tapping one opens the 
 3. **Scheduler:** Vercel's Hobby plan only allows a once-a-day cron (`vercel.json`, a backup for the morning digest), so `.github/workflows/push-schedule.yml` calls `/api/push/run` every 15 minutes. Add a repository secret `CRON_SECRET` with the same value (and optionally a repository variable `SITE_URL`).
 4. **Redeploy** (the public key is baked in at build time), open the app, turn on notifications, and use **Send a test notification**: with push active it goes through the server, the same path as reminders.
 
-The scheduler refreshes grid data at most hourly per region and not at all overnight, to stay well inside the trial key's 100 calls/day, and reads the leaderboard once per run. GitHub pauses scheduled workflows in public repos after 60 days without commits; re-enable it from the Actions tab if that happens.
+The scheduler refreshes grid data at most hourly per region and not at all overnight, and reads the leaderboard once per run. To stay well inside the trial key's 100 calls/day, the app as a whole stops calling India Energy Atlas after 90 calls in an IST day (counted in Redis) and serves the last good data until the next day. GitHub pauses scheduled workflows in public repos after 60 days without commits; re-enable it from the Actions tab if that happens.
 
 ### Leaderboard moderation
 
@@ -80,6 +80,8 @@ curl -X POST https://zero-emit.vercel.app/api/leaderboard/admin \
   -H "Authorization: Bearer $CRON_SECRET" -H "Content-Type: application/json" \
   -d '{"name":"Display Name","zone":"southern"}'
 ```
+
+Add `"maxPoints":0` to remove only that name's entries with at most that many points this month, e.g. a leftover duplicate from another device that never logged a charge. Removing an entry frees its name.
 
 ## Regenerating PWA icons
 

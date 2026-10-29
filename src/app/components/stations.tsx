@@ -19,16 +19,18 @@ type StationsState = { status: "loading" } | { status: "ready"; stations: Statio
 
 // Chargers near the user's (rounded) position when shared, otherwise near the
 // chosen city's centre. The result is tagged with its query, so a response for
-// an earlier place never shows under a newer one.
-function useStations(place: Place, location: ChargerLocation): StationsState {
+// an earlier place never shows under a newer one. Nothing is fetched until
+// the saved place is known (`ready`); `retry` asks again after an error.
+function useStations(place: Place, location: ChargerLocation, ready: boolean): { state: StationsState; retry: () => void } {
   const params: Record<string, string> = location.status === "on" ? { lat: String(location.lat), lon: String(location.lon) } : { state: place.state, city: place.name };
-  const request = new URLSearchParams(params).toString();
-  const waiting = location.status === "locating";
+  const [attempt, setAttempt] = useState(0);
+  const request = `${new URLSearchParams(params)}#${attempt}`;
+  const waiting = !ready || location.status === "locating";
   const [result, setResult] = useState<{ request: string; state: StationsState } | null>(null);
   useEffect(() => {
     if (waiting) return;
     let cancelled = false;
-    fetch(`/api/stations?${request}`)
+    fetch(`/api/stations?${request.split("#")[0]}`)
       .then(async (response): Promise<StationsState> => {
         if (!response.ok) return { status: "error" };
         const body = await response.json() as { stations: Station[]; origin: LatLon; source: "location" | "city" };
@@ -38,7 +40,7 @@ function useStations(place: Place, location: ChargerLocation): StationsState {
       .then((state) => { if (!cancelled) setResult({ request, state }); });
     return () => { cancelled = true; };
   }, [request, waiting]);
-  return !waiting && result?.request === request ? result.state : { status: "loading" };
+  return { state: !waiting && result?.request === request ? result.state : { status: "loading" }, retry: () => setAttempt((n) => n + 1) };
 }
 
 const RADIUS_KM = STATIONS_RADIUS_M / 1000;
@@ -52,50 +54,51 @@ function StationRow({ station }: { station: Station }) {
   </li>;
 }
 
-function StationsBody({ state, where, limit }: { state: StationsState; where: string; limit: number }) {
+function StationsBody({ state, retry, where, limit }: { state: StationsState; retry: () => void; where: string; limit: number }) {
   if (state.status === "loading") return <p className="personal-note">Finding chargers… the first search for an area can take a few seconds.</p>;
-  if (state.status === "error") return <p className="personal-note">Charger data is unavailable right now. Try again in a while.</p>;
+  if (state.status === "error") return <p className="personal-note">Couldn&apos;t load charger data. <button type="button" className="text-button" onClick={retry}>Try again</button></p>;
   if (!state.stations.length) return <p className="personal-note">No public chargers are mapped within {RADIUS_KM} km of {where} yet.</p>;
   return <ul className="station-list">{state.stations.slice(0, limit).map((station) => <StationRow key={station.id} station={station}/>)}</ul>;
 }
 
 // "Use my location" / "Use city centre", and what's being searched around.
-function OriginControl({ place, location, chooseMyLocation, chooseCityCentre }: { place: Place } & ReturnType<typeof useChargerLocation>) {
+function OriginControl({ place, ready, location, chooseMyLocation, chooseCityCentre }: { place: Place; ready: boolean } & ReturnType<typeof useChargerLocation>) {
   if (location.status === "on") return <p className="station-origin">Near your location (within about 1 km). <button type="button" className="text-button" onClick={chooseCityCentre}>Use {place.name} centre</button></p>;
   if (location.status === "locating") return <p className="station-origin">Finding your location…</p>;
-  const note = location.status === "denied" ? "Location is blocked for this site, so this is around the city centre. " : location.status === "unavailable" ? "Couldn't get your location, so this is around the city centre. " : `Around ${place.name} centre. `;
+  const note = location.status === "denied" ? "Location is blocked for this site, so this is around the city centre. " : location.status === "outside" ? "You seem to be outside India, so this is around the city centre. " : location.status === "unavailable" ? "Couldn't get your location, so this is around the city centre. " : ready ? `Around ${place.name} centre. ` : "Around the city centre. ";
   return <p className="station-origin">{note}<button type="button" className="text-button" onClick={chooseMyLocation}><Icon name="pin" size={15}/> Use my location</button></p>;
 }
 
 const ATTRIBUTION = <p className="personal-note station-credit">Charger data and map © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap contributors</a>. It can be incomplete, so check with the operator before you go.</p>;
 
 // Home: the 3 nearest chargers.
-export function StationsCard({ place }: { place: Place }) {
+export function StationsCard({ place, ready }: { place: Place; ready: boolean }) {
   const charger = useChargerLocation();
-  const state = useStations(place, charger.location);
+  const { state, retry } = useStations(place, charger.location, ready);
   const nearYou = charger.location.status === "on";
   return <section className="card stat-card stations-card">
-    <div className="recommendation-head"><h2>{nearYou ? "Chargers near you" : `Chargers near ${place.name}`}</h2><span className="chip">Within {RADIUS_KM} km</span></div>
-    <OriginControl place={place} {...charger}/>
-    <StationsBody state={state} where={nearYou ? "you" : place.name} limit={3}/>
+    <div className="recommendation-head"><h2>{nearYou ? "Chargers near you" : ready ? `Chargers near ${place.name}` : "Chargers nearby"}</h2><span className="chip">Within {RADIUS_KM} km</span></div>
+    <OriginControl place={place} ready={ready} {...charger}/>
+    <StationsBody state={state} retry={retry} where={nearYou ? "you" : place.name} limit={3}/>
     <Link className="forecast-button" href="/stations">See them on a map <Icon name="arrow" size={18}/></Link>
   </section>;
 }
 
 // /stations: a map and up to 20 nearest chargers with directions.
 export function StationsScreen() {
-  const { place, locationOpen, openLocation, closeLocation, chooseLocation } = useLocationPicker();
+  const { place, ready, locationOpen, openLocation, closeLocation, chooseLocation } = useLocationPicker();
   const charger = useChargerLocation();
-  const state = useStations(place, charger.location);
+  const { state, retry } = useStations(place, charger.location, ready);
   const nearYou = charger.location.status === "on";
   return <div className="mobile-app">
     <TopBar onChooseLocation={openLocation}/>
     <main className="dashboard-content">
       <Link className="back-link" href="/"><Icon name="arrow-left" size={18}/> Home</Link>
-      <PageHeader eyebrow="Charging stations" title={nearYou ? "Chargers near you" : `Chargers near ${place.name}`} intro={`Public EV chargers within ${RADIUS_KM} km, nearest first${nearYou ? "" : `, measured from the centre of ${placeLabel(place)}`}.`}/>
-      <OriginControl place={place} {...charger}/>
-      {state.status === "ready" && <ChargerMap origin={state.origin} stations={state.stations} nearYou={state.nearYou}/>}
-      <section className="card stat-card stations-card"><StationsBody state={state} where={nearYou ? "you" : place.name} limit={20}/></section>
+      <PageHeader eyebrow="Charging stations" title={nearYou ? "Chargers near you" : ready ? `Chargers near ${place.name}` : "Chargers nearby"} intro={`Public EV chargers within ${RADIUS_KM} km, nearest first${nearYou || !ready ? "" : `, measured from the centre of ${placeLabel(place)}`}.`}/>
+      <OriginControl place={place} ready={ready} {...charger}/>
+      {/* The map's space is held while loading, so the list below doesn't jump. */}
+      {state.status === "ready" ? <ChargerMap origin={state.origin} stations={state.stations} nearYou={state.nearYou}/> : state.status === "loading" && <div className="charger-map charger-map-loading" aria-hidden="true"/>}
+      <section className="card stat-card stations-card"><StationsBody state={state} retry={retry} where={nearYou ? "you" : place.name} limit={20}/></section>
       {ATTRIBUTION}
     </main>
     <BottomNav/>

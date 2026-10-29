@@ -8,7 +8,9 @@ const FOCUSABLE = "button:not([disabled]), [href], input:not([disabled]), select
 // Passing `onSubmit` renders the box itself as the <form>, so the submit
 // button inside `children` submits it. Focus moves to the dialog (not the
 // first input, which would pop the keyboard open on phones), Tab stays inside
-// it, Escape closes it, and focus returns to whatever opened it.
+// it, Escape closes it, and focus returns to whatever opened it. A tap on the
+// backdrop closes it too, except for a form: a stray tap there would throw
+// away what was typed (the close button and Escape still work).
 export function Modal({ title, onClose, onSubmit, children }: { title: string; onClose: () => void; onSubmit?: (event: FormEvent<HTMLFormElement>) => void; children: ReactNode }) {
   const backdropRef = useRef<HTMLDivElement>(null);
   const titleId = useId();
@@ -37,7 +39,7 @@ export function Modal({ title, onClose, onSubmit, children }: { title: string; o
   const head = <div className="modal-head"><h2 id={titleId}>{title}</h2><button type="button" className="modal-close" aria-label="Close" onClick={onClose}><Icon name="close" size={18}/></button></div>;
   const boxProps = { role: "dialog", "aria-modal": true, "aria-labelledby": titleId, tabIndex: -1, onClick: (event: React.MouseEvent) => event.stopPropagation() } as const;
 
-  return <div ref={backdropRef} className="modal-backdrop" role="presentation" onClick={onClose}>
+  return <div ref={backdropRef} className="modal-backdrop" role="presentation" onClick={onSubmit ? undefined : onClose}>
     {onSubmit
       ? <form {...boxProps} className="modal charge-form" onSubmit={onSubmit}>{head}{children}</form>
       : <section {...boxProps} className="modal">{head}{children}</section>}

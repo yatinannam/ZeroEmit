@@ -5,16 +5,24 @@ const HEIGHT = 130;
 const TOP_PAD = 10;
 const BOTTOM_PAD = 24; // room for the axis labels below the plot
 const TICKS = 4;
+// The y-axis always spans at least this many gCO₂/kWh below the lowest
+// point, so a 25 g difference late in the day reads as the near-flat line
+// it is, not a floor-to-ceiling climb.
+const MIN_SPAN = 150;
+
+export function chartDomain(values: number[]): [number, number] {
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const span = Math.max(max - min, MIN_SPAN);
+  return [Math.max(0, min - span), max + span * 0.1];
+}
 
 export function ForecastChart({ points, highlight }: { points: ForecastPoint[]; highlight: ChargeWindow | null }) {
   if (points.length < 2) return null;
-  const values = points.map((point) => point.carbonIntensity);
-  const min = Math.min(...values);
-  const max = Math.max(...values);
-  const span = max - min || 1;
+  const [low, high] = chartDomain(points.map((point) => point.carbonIntensity));
   const plotHeight = HEIGHT - TOP_PAD - BOTTOM_PAD;
   const x = (index: number) => (index / (points.length - 1)) * WIDTH;
-  const y = (value: number) => TOP_PAD + (1 - (value - min) / span) * plotHeight;
+  const y = (value: number) => TOP_PAD + (1 - (value - low) / (high - low)) * plotHeight;
   const baseline = TOP_PAD + plotHeight;
 
   const linePath = points.map((point, index) => `${index === 0 ? "M" : "L"}${x(index).toFixed(1)},${y(point.carbonIntensity).toFixed(1)}`).join(" ");

@@ -4,7 +4,9 @@ import type { GridData } from "../lib/grid";
 
 // `state` is a state slug from lib/places.ts — all the API needs, so the
 // user's own city or coordinates never leave the device.
-export function useGridData(state: string) {
+// `null` while the place isn't known yet (before hydration): nothing is
+// fetched, so a prerendered default never costs a request.
+export function useGridData(state: string | null) {
   const [data, setData] = useState<GridData | null>(null);
   const [requestVersion, setRequestVersion] = useState(0);
   const requestKey = `${state}:${requestVersion}`;
@@ -16,6 +18,7 @@ export function useGridData(state: string) {
   // re-hit the rate-limited upstream provider on every page visit).
   const forceRefresh = useRef(false);
   useEffect(() => {
+    if (state === null) return;
     const controller = new AbortController();
     const force = forceRefresh.current;
     forceRefresh.current = false;

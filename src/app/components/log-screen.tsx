@@ -22,18 +22,25 @@ import { PageHeader } from "./page-header";
 const pad = (value: number) => String(value).padStart(2, "0");
 const localDate = (date: Date) => `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 const localTime = (date: Date) => `${pad(date.getHours())}:${pad(date.getMinutes())}`;
+// How far back a charge can be logged: enough to catch up on a missed month,
+// while a mistyped year (1999 for 2026) is caught instead of saved.
+const MAX_BACKDATE_DAYS = 30;
+const DAY_MS = 24 * 60 * 60 * 1000;
+// The list shows this many charges at first, then more on request.
+const PAGE_SIZE = 50;
 
 // `quick`: opened from a notification's "Log a charge" button, so open the
 // form straight away, set to right now.
 export function LogScreen({ quick = false }: { quick?: boolean }) {
   const router = useRouter();
   const { profile } = useProfile();
-  const { place, location: city, locationOpen, openLocation, closeLocation, chooseLocation } = useLocationPicker();
-  const [form, setForm] = useState<{ date: string; time: string; today: string } | null>(null);
+  const { place, ready, location: city, locationOpen, openLocation, closeLocation, chooseLocation } = useLocationPicker();
+  const [form, setForm] = useState<{ date: string; time: string; today: string; earliest: string } | null>(null);
+  const [shown, setShown] = useState(PAGE_SIZE);
   const [formError, setFormError] = useState("");
   const [selected, setSelected] = useState<Charge | null>(null);
-  const grid = useGridData(place.state);
-  const { charges, addCharge, removeCharge } = useCharges();
+  const grid = useGridData(ready ? place.state : null);
+  const { charges, addCharge, removeCharge, restoreCharge } = useCharges();
 
   // Scoped to the selected city — different cities sit on different grids,
   // so a blended cross-city average wouldn't be a meaningful "usual" here.
@@ -42,7 +49,7 @@ export function LogScreen({ quick = false }: { quick?: boolean }) {
   const typicalTime = typicalChargeTime(cityCharges);
 
   const groups: { heading: string; items: Charge[] }[] = [];
-  for (const charge of charges) {
+  for (const charge of charges.slice(0, shown)) {
     const heading = dayHeading(charge.loggedAt);
     const last = groups.at(-1);
     if (last?.heading === heading) last.items.push(charge); else groups.push({ heading, items: [charge] });
@@ -54,7 +61,7 @@ export function LogScreen({ quick = false }: { quick?: boolean }) {
     // (the common "log last night's charge" case), otherwise to right now.
     const time = !atNow && typicalTime && typicalTime <= localTime(now) ? typicalTime : localTime(now);
     setFormError("");
-    setForm({ date: localDate(now), time, today: localDate(now) });
+    setForm({ date: localDate(now), time, today: localDate(now), earliest: localDate(new Date(now.getTime() - MAX_BACKDATE_DAYS * DAY_MS)) });
   }
 
   // Open once, then drop ?quick=1 so a refresh or Back doesn't reopen it.
@@ -74,6 +81,7 @@ export function LogScreen({ quick = false }: { quick?: boolean }) {
     if (!Number.isFinite(energy) || energy <= 0 || energy > MAX_KWH) { setFormError(`Enter between 0.1 and ${MAX_KWH} kWh.`); return; }
     if (Number.isNaN(when)) { setFormError("Pick a valid date and time."); return; }
     if (when > Date.now()) { setFormError("That time hasn't happened yet — pick a time in the past."); return; }
+    if (when < Date.now() - (MAX_BACKDATE_DAYS + 1) * DAY_MS) { setFormError(`Charges can be logged up to ${MAX_BACKDATE_DAYS} days back.`); return; }
     const intensity = intensityAt(grid.data, when);
     // Timing against the region's typical day; unknown without grid data.
     const pattern = grid.data?.available ? hourlyPattern(grid.data.forecast) : null;
@@ -93,9 +101,10 @@ export function LogScreen({ quick = false }: { quick?: boolean }) {
 
   function deleteSelected() {
     if (!selected) return;
-    removeCharge(selected.id);
+    const deleted = selected;
+    removeCharge(deleted.id);
     setSelected(null);
-    showToast("Charge deleted");
+    showToast("Charge deleted", { label: "Undo", run: () => restoreCharge(deleted) });
   }
 
   return <div className="mobile-app">
@@ -103,7 +112,7 @@ export function LogScreen({ quick = false }: { quick?: boolean }) {
     <main className="dashboard-content">
       <PageHeader eyebrow="Charging history" title="Your charging impact." intro="Keep track of every charge and the emissions you avoided."/>
 
-      <button className="primary-button" onClick={() => openForm()}><Icon name="bolt" size={18}/> Log a charge</button>
+      {charges.length > 0 && <button className="primary-button" onClick={() => openForm()}><Icon name="bolt" size={18}/> Log a charge</button>}
 
       <section className="activity">
         <h2>All charges</h2>
@@ -114,7 +123,9 @@ export function LogScreen({ quick = false }: { quick?: boolean }) {
             <div><strong>{charge.energyKwh} kWh</strong><span>{formatTimeOfDay(charge.chargedAt)}{charge.city !== city ? ` · ${charge.city}` : ""}</span></div>
             <b>+{pointsForCharge(charge)} pts</b>
           </button>)}
-        </div>) : <section className="card empty-state"><span className="round-icon"><Icon name="bolt" size={22}/></span><strong>No charges yet</strong><p>Log each charge to earn Eco points and see the CO₂ you avoid.</p><button className="primary-button" onClick={() => openForm()}>Log your first charge</button></section>}
+        </div>) : null}
+        {charges.length > shown && <button className="forecast-button" onClick={() => setShown((n) => n + PAGE_SIZE)}>Show older charges</button>}
+        {!charges.length && <section className="card empty-state"><span className="round-icon"><Icon name="bolt" size={22}/></span><strong>No charges yet</strong><p>Log each charge to earn Eco points and see the CO₂ you avoid.</p><button className="primary-button" onClick={() => openForm()}>Log your first charge</button></section>}
       </section>
     </main>
     <BottomNav/>
@@ -123,7 +134,7 @@ export function LogScreen({ quick = false }: { quick?: boolean }) {
 
     {form && <Modal title="Log a charge" onClose={() => setForm(null)} onSubmit={submitCharge}>
       <div className="form-row">
-        <label>Date<input name="date" type="date" defaultValue={form.date} max={form.today} required/></label>
+        <label>Date<input name="date" type="date" defaultValue={form.date} min={form.earliest} max={form.today} required/></label>
         <label>Time<input name="time" type="time" defaultValue={form.time} required/></label>
       </div>
       <label>Energy added (kWh)<input name="energy" type="number" inputMode="decimal" min="0.1" max={MAX_KWH} step="0.1" defaultValue={typicalEnergy ? Math.min(typicalEnergy, MAX_KWH).toFixed(1) : "18"} required/></label>

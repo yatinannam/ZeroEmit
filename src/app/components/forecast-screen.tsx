@@ -16,11 +16,11 @@ type Day = "today" | "tomorrow";
 const DAYS: { key: Day; label: string }[] = [{ key: "today", label: "Today" }, { key: "tomorrow", label: "Tomorrow" }];
 
 export function ForecastScreen({ initialDay }: { initialDay: Day }) {
-  const { place, locationOpen, openLocation, closeLocation, chooseLocation } = useLocationPicker();
+  const { place, ready, locationOpen, openLocation, closeLocation, chooseLocation } = useLocationPicker();
   const [day, setDay] = useState<Day>(initialDay);
   const [notice, setNotice] = useState<{ text: string; ok: boolean } | null>(null);
   const notifsOn = useNotificationsEnabled();
-  const { data, loading, error } = useGridData(place.state);
+  const { data, loading, error } = useGridData(ready ? place.state : null);
   const plan = planByDay(data)[day];
   const best = plan.windows[0] ?? null;
   const current = data?.available ? data.current : undefined;
@@ -41,8 +41,8 @@ export function ForecastScreen({ initialDay }: { initialDay: Day }) {
     <main className="dashboard-content">
       <PageHeader eyebrow="Carbon forecast" title="Charge when the grid is cleaner." intro="The cleanest times to charge today and tomorrow."/>
 
-      <div className="segmented" role="tablist" aria-label="Forecast day">
-        {DAYS.map(({ key, label }) => <button key={key} role="tab" aria-selected={day === key} className={day === key ? "active" : ""} onClick={() => chooseDay(key)}>{label}</button>)}
+      <div className="segmented" role="group" aria-label="Forecast day">
+        {DAYS.map(({ key, label }) => <button key={key} aria-pressed={day === key} className={day === key ? "active" : ""} onClick={() => chooseDay(key)}>{label}</button>)}
       </div>
 
       <section className="card stat-card">
@@ -51,7 +51,8 @@ export function ForecastScreen({ initialDay }: { initialDay: Day }) {
           {data?.available && <span className="recommended">{data.forecastIsTypical ? "Typical pattern" : "Live forecast"}</span>}
         </div>
 
-        {!data?.available ? <p className="personal-note">{loading ? "Loading forecast…" : error || "Live forecast data is unavailable right now."}</p>
+        {loading && !data ? <div className="chart-skeleton" role="status" aria-label="Loading forecast"/>
+          : !data?.available ? <p className="personal-note">{error || "Live forecast data is unavailable right now."}</p>
           : plan.points.length >= 2 ? <>
             <ForecastChart points={plan.points} highlight={best}/>
             {best && <p className="chip-caption"><span className="chip">Best window</span> {formatWindow(best)}</p>}
@@ -68,7 +69,8 @@ export function ForecastScreen({ initialDay }: { initialDay: Day }) {
             <div><strong>{formatWindow(slot)}</strong><span>{Math.round(slot.average)} gCO₂/kWh average</span></div>
             <b className={index === 0 ? "tag-best" : "tag-good"}>{index === 0 ? "Best" : "Good"}</b>
           </div>
-        )) : <p className="personal-note">{loading && !data ? "Loading…" : "No forecast windows available yet."}</p>}
+        )) : loading && !data ? [0, 1, 2].map((index) => <div key={index} className="card activity-item skeleton-item" aria-hidden="true"/>)
+        : <p className="personal-note">No forecast windows available yet.</p>}
       </section>
 
       {notifsOn ? <p className="success-message" role="status"><Icon name="bell" size={16}/> Notifications are on for this device.</p> : <>

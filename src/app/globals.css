@@ -145,3 +145,16 @@ button:active, a:active { opacity:.65; }
 .charger-map .leaflet-control-zoom a { width:44px; height:44px; line-height:44px; }
 :root[data-theme="dark"] .charger-map .leaflet-tile-pane { filter:invert(1) hue-rotate(180deg) brightness(.85) contrast(.9); }
 @media (prefers-color-scheme:dark) { :root:not([data-theme="light"]) .charger-map .leaflet-tile-pane { filter:invert(1) hue-rotate(180deg) brightness(.85) contrast(.9); } }
+/* Flows audit fixes */
+@media (max-width:389px) { .charge-form .form-row { grid-template-columns:minmax(0,1fr); } }
+.greeting h1, .profile-avatar-block h1, .profile-vehicle { max-width:100%; overflow-wrap:break-word; }
+.toast-with-action { display:flex; align-items:center; justify-content:space-between; gap:12px; padding-right:6px; }
+.toast-with-action button { flex:none; min-height:44px; padding:0 12px; border:0; border-radius:10px; color:#9be89a; background:transparent; font:inherit; font-weight:700; cursor:pointer; }
+:root[data-theme="dark"] .toast-with-action button { color:var(--on-primary); }
+@media (prefers-color-scheme:dark) { :root:not([data-theme="light"]) .toast-with-action button { color:var(--on-primary); } }
+.personal-note .text-button { padding:0 4px; font-size:inherit; }
+/* Loading placeholders that hold the space of what's coming, so nothing jumps when it lands */
+.chart-skeleton { margin:16px 0 38px; aspect-ratio:328/130; border-radius:12px; background:var(--variant); opacity:.5; }
+.skeleton-item { min-height:72px; border-color:transparent; background:var(--variant); opacity:.5; box-shadow:none; }
+@media (prefers-reduced-motion:no-preference) { .chart-skeleton, .skeleton-item { animation:skeleton-pulse 1.4s ease-in-out infinite; } }
+@keyframes skeleton-pulse { 50% { opacity:.25; } }

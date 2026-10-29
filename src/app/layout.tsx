@@ -13,7 +13,9 @@ import { THEME_BOOT_SCRIPT } from "./lib/theme-boot";
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 
 export const metadata: Metadata = {
-  title: "ZeroEmit — Charge cleaner",
+  // Each page names itself ("Forecast · ZeroEmit"), so tabs, history and
+  // the app switcher tell them apart.
+  title: { default: "ZeroEmit — Charge cleaner", template: "%s · ZeroEmit" },
   description: "Plan your EV charging around a cleaner grid.",
   applicationName: "ZeroEmit",
   manifest: "/manifest.webmanifest",

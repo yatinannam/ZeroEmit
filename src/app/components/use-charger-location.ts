@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useSyncExternalStore } from "react";
+import { isInIndia } from "../lib/places";
 import { roundCoordinate } from "../lib/stations";
 
 // Where to look for chargers: the user's own position (only after they tap
@@ -12,6 +13,7 @@ export type ChargerLocation =
   | { status: "locating" }
   | { status: "on"; lat: number; lon: number }
   | { status: "denied" }
+  | { status: "outside" } // a position outside India, which the server can't search
   | { status: "unavailable" };
 
 const PREF_KEY = "zeroemit-chargers-near-me";
@@ -29,7 +31,10 @@ function locate() {
   if (!("geolocation" in navigator)) { set({ status: "unavailable" }); return; }
   set({ status: "locating" });
   navigator.geolocation.getCurrentPosition(
-    (position) => set({ status: "on", lat: roundCoordinate(position.coords.latitude), lon: roundCoordinate(position.coords.longitude) }),
+    (position) => {
+      const { latitude, longitude } = position.coords;
+      set(isInIndia(latitude, longitude) ? { status: "on", lat: roundCoordinate(latitude), lon: roundCoordinate(longitude) } : { status: "outside" });
+    },
     (error) => {
       // Blocked: stop asking until they tap the button again.
       if (error.code === error.PERMISSION_DENIED) { writePref(false); set({ status: "denied" }); } else set({ status: "unavailable" });

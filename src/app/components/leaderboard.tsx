@@ -72,9 +72,9 @@ function LeaderboardList({ rows, me }: { rows: LeaderboardRow[]; me: Leaderboard
   </ol>;
 }
 
-function BoardBody({ state, limit }: { state: BoardState; limit: number }) {
+function BoardBody({ state, limit, retry }: { state: BoardState; limit: number; retry: () => void }) {
   if (state.status === "loading") return <p className="personal-note">Loading the leaderboard…</p>;
-  if (state.status !== "ready") return <p className="personal-note">Couldn&apos;t load the leaderboard. Check your connection and try again.</p>;
+  if (state.status !== "ready") return <p className="personal-note">Couldn&apos;t load the leaderboard. <button type="button" className="text-button" onClick={retry}>Try again</button></p>;
   const { rows, me, total } = state.data;
   // Only members with points this month are listed.
   const notYet = me !== null && me.points === 0;
@@ -126,7 +126,7 @@ export function LeaderboardCard() {
   return <>
     <section className="card stat-card leaderboard-card">
       <div className="recommendation-head"><h2>Leaderboard</h2><span className="chip">This month</span></div>
-      <BoardBody state={state} limit={5}/>
+      <BoardBody state={state} limit={5} retry={() => setRefresh((n) => n + 1)}/>
       {!membership && <button className="primary-button" onClick={() => setJoinOpen(true)}>Join the leaderboard</button>}
       <Link className="forecast-button" href="/rewards/leaderboard">See full leaderboard <Icon name="arrow" size={18}/></Link>
     </section>
@@ -155,11 +155,11 @@ export function LeaderboardScreen() {
       <Link className="back-link" href="/rewards"><Icon name="arrow-left" size={18}/> Rewards</Link>
       <PageHeader eyebrow="Leaderboard" title="Cleaner charging, together." intro="Ranked by Eco points earned this month. Resets on the 1st."/>
       {state.status === "unavailable" ? <p className="personal-note">The leaderboard isn&apos;t available right now.</p> : <>
-        <div className="segmented" role="tablist" aria-label="Leaderboard area">
-          <button role="tab" aria-selected={!regional} className={regional ? "" : "active"} onClick={() => setRegional(false)}>All India</button>
-          <button role="tab" aria-selected={regional} className={regional ? "active" : ""} onClick={() => setRegional(true)}>{zone ? ZONE_LABELS[zone] : "My region"}</button>
+        <div className="segmented" role="group" aria-label="Leaderboard area">
+          <button aria-pressed={!regional} className={regional ? "" : "active"} onClick={() => setRegional(false)}>All India</button>
+          <button aria-pressed={regional} className={regional ? "active" : ""} onClick={() => setRegional(true)}>{zone ? ZONE_LABELS[zone] : "My region"}</button>
         </div>
-        <section className="card stat-card leaderboard-card"><BoardBody state={state} limit={50}/></section>
+        <section className="card stat-card leaderboard-card"><BoardBody state={state} limit={50} retry={() => setRefresh((n) => n + 1)}/></section>
         {membership
           ? <button className="forecast-button action-button" onClick={leave}>Leave the leaderboard</button>
           : <button className="primary-button" onClick={() => setJoinOpen(true)}>Join the leaderboard</button>}

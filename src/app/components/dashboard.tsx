@@ -39,8 +39,8 @@ function HeroTime({ datetime, isNow }: { datetime: string; isNow?: boolean }) {
 }
 
 export function Dashboard() {
-  const { place, location, locationOpen, openLocation, closeLocation, chooseLocation } = useLocationPicker();
-  const { data, loading, error, refresh } = useGridData(place.state);
+  const { place, ready, location, locationOpen, openLocation, closeLocation, chooseLocation } = useLocationPicker();
+  const { data, loading, error, refresh } = useGridData(ready ? place.state : null);
   const { charges } = useCharges();
   const { profile } = useProfile();
   const greeting = useSyncExternalStore(noopSubscribe, greetingForNow, () => null);
@@ -65,7 +65,7 @@ export function Dashboard() {
   return <div className="mobile-app">
     <TopBar onChooseLocation={openLocation}/>
     <main className="dashboard-content">
-      <section className="greeting"><button className="location-label location-button" onClick={openLocation}><Icon name="pin" size={16}/> {location}</button><h1>{greeting ? `${greeting}${firstName ? `, ${firstName}` : ""}` : " "}</h1></section>
+      <section className="greeting"><button className="location-label location-button" onClick={openLocation}><Icon name="pin" size={16}/> {ready ? location : ""}</button><h1>{greeting ? `${greeting}${firstName ? `, ${firstName}` : ""}` : " "}</h1></section>
 
       <section className="recommendation card">
         <div className="recommendation-head"><h2>Best time to charge today</h2>{todayBest && <span className="recommended"><Icon name="bolt" size={15}/> {heroPill}</span>}</div>
@@ -94,7 +94,7 @@ export function Dashboard() {
 
       <Link className="primary-button" href="/log?quick=1"><Icon name="bolt" size={18}/> Log a charge</Link>
 
-      <StationsCard place={place}/>
+      <StationsCard place={place} ready={ready}/>
 
       <section className="activity"><h2>Recent activity</h2><Link href="/log" className="card activity-item"><span className="round-icon"><Icon name="bolt" size={19}/></span><div>{charges[0] ? <><strong>{charges[0].energyKwh} kWh logged</strong><span>{dayHeading(charges[0].loggedAt)}, {formatTimeOfDay(charges[0].chargedAt)}{charges[0].city !== location ? ` · ${charges[0].city}` : ""}</span></> : <><strong>No charges logged yet</strong><span>Log your first charge to see your impact.</span></>}</div><b>{charges[0] ? "View history" : "Log charge"}</b></Link></section>
     </main><BottomNav/>
