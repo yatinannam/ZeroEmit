@@ -176,7 +176,8 @@ export async function updateSubscriptionState(sub: StoredSubscription, state: Sc
 // no longer exists — the user uninstalled, cleared data, or revoked permission.
 export async function sendPush(sub: StoredSubscription, payload: PushPayload): Promise<boolean> {
   try {
-    await webpush.sendNotification(sub.subscription, JSON.stringify(payload), { TTL: 60 * 60, urgency: "normal" });
+    // A hung push service must not hold up everyone else's reminders.
+    await webpush.sendNotification(sub.subscription, JSON.stringify(payload), { TTL: 60 * 60, urgency: "normal", timeout: 8000 });
     return true;
   } catch (error) {
     const status = (error as { statusCode?: number }).statusCode;

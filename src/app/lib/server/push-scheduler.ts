@@ -5,7 +5,10 @@ import { GREEN_CHARGE_FALLBACK_THRESHOLD } from "../rewards";
 import { getZoneSnapshot, isFresh, projectTypicalForecast } from "./grid-source";
 import { boardStandings, type Standing } from "./leaderboard";
 import { listSubscriptions, sendPush, updateSubscriptionState, type PushPayload, type SentMarkers, type StoredSubscription } from "./push";
+import { forEachLimited } from "./pool";
 import { redis } from "./redis";
+
+const SEND_CONCURRENCY = 20;
 
 // The provider's trial key allows 3 calls/minute and 100/day for the whole
 // app, shared with live users. Each run refreshes at most this many regional
@@ -242,7 +245,9 @@ export async function runPushSchedule(now = Date.now()) {
     let failed = 0;
     const today = istDayKey(now);
     const boards = await loadBoards(subs, now);
-    for (const sub of subs) {
+    // Subscribers in parallel (each one's own pushes stay in order), so a few
+    // hundred finish well inside the function's time limit.
+    await forEachLimited(subs, SEND_CONCURRENCY, async (sub) => {
       const standings = boards && sub.leaderboardId && sub.prefs.leaderboard ? { current: boards.current.get(sub.leaderboardId) ?? null, lastMonth: boards.lastMonth.get(sub.leaderboardId) ?? null } : undefined;
       const { planned, lb } = plan(sub, plansByZone.get(STATES[sub.state]?.zone), now, standings);
       const markers: SentMarkers = { ...sub.sent, badges: { ...sub.sent.badges } };
@@ -256,7 +261,8 @@ export async function runPushSchedule(now = Date.now()) {
       }
       if (!Object.keys(markers.badges ?? {}).length) delete markers.badges;
       if (JSON.stringify(markers) !== JSON.stringify(sub.sent) || JSON.stringify(lb) !== JSON.stringify(sub.lb)) await updateSubscriptionState(sub, { sent: markers, lb });
-    }
+    });
+    if (failed) console.error(`push schedule: ${failed} of ${subs.length} subscribers had a failed send`);
     return { subscriptions: subs.length, zones: zones.length, sent, failed };
   } finally {
     await redis("DEL", "push:run-lock").catch(() => undefined);

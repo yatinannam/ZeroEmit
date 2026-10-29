@@ -117,3 +117,18 @@ describe("syncLeaderboard", () => {
     expect(getLeaderboardVersion()).toBe(before + 1);
   });
 });
+
+describe("joining again after a lost response", () => {
+  test("reuses the same id and key, so a join the server did save isn't duplicated", async () => {
+    await leaveLeaderboard();
+    requests.length = 0;
+    statuses = ["offline"];
+    await joinLeaderboard("Asha", "western", []);
+    statuses = [200];
+    await joinLeaderboard("Asha", "western", []);
+    const [first, second] = requests.filter((request) => request.method === "POST").map((request) => JSON.parse(request.body));
+    expect(second.id).toBe(first.id);
+    expect(second.key).toBe(first.key);
+    expect(joined().id).toBe(first.id);
+  });
+});

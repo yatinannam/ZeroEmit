@@ -32,9 +32,24 @@ function submit(membership: Membership, zone: Zone, charges: Charge[]) {
   });
 }
 
+// The id and key for a join in progress, kept until a join succeeds: if the
+// server saved a join but the response was lost, trying again reuses them
+// instead of creating a second entry.
+const PENDING_JOIN_KEY = "zeroemit-leaderboard-pending-join";
+function pendingJoin(): { id: string; key: string } {
+  try {
+    const stored = JSON.parse(window.localStorage.getItem(PENDING_JOIN_KEY) ?? "null") as { id?: unknown; key?: unknown } | null;
+    if (stored && typeof stored.id === "string" && typeof stored.key === "string") return { id: stored.id, key: stored.key };
+  } catch { /* fall through to a new one */ }
+  const fresh = { id: crypto.randomUUID(), key: crypto.randomUUID() };
+  try { window.localStorage.setItem(PENDING_JOIN_KEY, JSON.stringify(fresh)); } catch { /* storage unavailable */ }
+  return fresh;
+}
+
 export async function joinLeaderboard(name: string, zone: Zone, charges: Charge[]): Promise<{ ok: true; rank: number } | { ok: false; error: string }> {
   const current = store.getSnapshot();
-  const membership: Membership = { id: current?.id ?? crypto.randomUUID(), key: current?.key ?? crypto.randomUUID(), name };
+  const { id, key } = current ?? pendingJoin();
+  const membership: Membership = { id, key, name };
   try {
     const response = await submit(membership, zone, charges);
     if (!response.ok) {
@@ -46,6 +61,7 @@ export async function joinLeaderboard(name: string, zone: Zone, charges: Charge[
     }
     const body = await response.json() as { rank: number };
     store.write(membership);
+    try { window.localStorage.removeItem(PENDING_JOIN_KEY); } catch { /* storage unavailable */ }
     return { ok: true, rank: body.rank };
   } catch {
     return { ok: false, error: "Couldn't reach the server. Check your connection." };

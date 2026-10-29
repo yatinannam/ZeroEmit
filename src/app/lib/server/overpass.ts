@@ -20,8 +20,11 @@ export async function firstOverpassAnswer(servers: string[], query: string, { fe
       cache: "no-store",
     });
     if (!response.ok) throw new Error(`${server}: ${response.status}`);
-    const body = await response.json() as { elements?: unknown };
+    const body = await response.json() as { elements?: unknown; remark?: unknown };
     if (!Array.isArray(body?.elements)) throw new Error(`${server}: not Overpass JSON`);
+    // A query cut short by the server's own timeout still comes back as 200,
+    // with partial (often empty) results and a "runtime error" remark.
+    if (typeof body.remark === "string" && /error/i.test(body.remark)) throw new Error(`${server}: ${body.remark}`);
     return body;
   };
   try {

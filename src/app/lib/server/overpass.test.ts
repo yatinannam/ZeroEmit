@@ -35,3 +35,10 @@ describe("firstOverpassAnswer", () => {
     expect(await firstOverpassAnswer(["a", "b"], "query", { fetchImpl, timeoutMs: 1000 })).toEqual({ elements: [] });
   });
 });
+
+describe("partial answers", () => {
+  test("an answer with a runtime-error remark (a timeout cut it short) doesn't count", async () => {
+    const { fetchImpl } = fakeFetch({ a: { ms: 10, body: { elements: [], remark: "runtime error: Query timed out in \"query\" at line 1 after 25 seconds." } }, b: { ms: 40, body: { elements: [{ id: 2 }] } } });
+    expect(await firstOverpassAnswer(["a", "b"], "query", { fetchImpl, timeoutMs: 1000 })).toEqual({ elements: [{ id: 2 }] });
+  });
+});
