@@ -12,9 +12,16 @@ export async function POST(request: NextRequest) {
   let endpoint: unknown;
   try { endpoint = text.length <= 2048 ? (JSON.parse(text) as { endpoint?: unknown }).endpoint : undefined; } catch { endpoint = undefined; }
   if (typeof endpoint !== "string") return NextResponse.json({ error: "Invalid request" }, { status: 400 });
-  const sub = await getSubscription(endpoint);
+  let sub: Awaited<ReturnType<typeof getSubscription>>;
+  let claimed = false;
+  try {
+    sub = await getSubscription(endpoint);
+    if (sub) claimed = await claimTestSlot(endpoint);
+  } catch {
+    return NextResponse.json({ error: "Couldn't reach the notification service. Try again in a minute." }, { status: 503 });
+  }
   if (!sub) return NextResponse.json({ error: "This device isn't registered for scheduled notifications" }, { status: 404 });
-  if (!(await claimTestSlot(endpoint))) return NextResponse.json({ error: "Wait a few seconds before sending another test" }, { status: 429 });
-  const ok = await sendPush(sub, { title: "ZeroEmit scheduled notifications work", body: `Sent from the server, the same way your reminders for ${sub.name} will arrive.`, url: "/profile", tag: "zeroemit-test" });
+  if (!claimed) return NextResponse.json({ error: "Wait a few seconds before sending another test" }, { status: 429 });
+  const ok = (await sendPush(sub, { title: "ZeroEmit scheduled notifications work", body: `Sent from the server, the same way your reminders for ${sub.name} will arrive.`, url: "/profile", tag: "zeroemit-test" })) === "sent";
   return ok ? NextResponse.json({ ok: true }) : NextResponse.json({ error: "The push service didn't accept the notification" }, { status: 502 });
 }

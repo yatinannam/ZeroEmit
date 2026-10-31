@@ -50,7 +50,7 @@ function StationRow({ station }: { station: Station }) {
   return <li className="station-row">
     <span className="round-icon"><Icon name="bolt" size={18}/></span>
     <span className="station-text"><strong>{station.name}</strong><small>{details}</small></span>
-    <a className="station-directions" href={directionsUrl(station)} target="_blank" rel="noopener noreferrer" aria-label={`Directions to ${station.name}`}><Icon name="arrow" size={18}/></a>
+    <a className="station-directions" href={directionsUrl(station)} target="_blank" rel="noopener noreferrer" aria-label={`Directions to ${station.name} (opens in a new tab)`}><Icon name="navigation" size={18}/></a>
   </li>;
 }
 
@@ -98,7 +98,7 @@ export function StationsScreen() {
     <TopBar onChooseLocation={openLocation}/>
     <main className="dashboard-content">
       <Link className="back-link" href="/"><Icon name="arrow-left" size={18}/> Home</Link>
-      <PageHeader eyebrow="Charging stations" title={nearYou ? "Chargers near you" : ready ? `Chargers near ${place.name}` : "Chargers nearby"} intro={`Public EV chargers within ${RADIUS_KM} km, nearest first${nearYou || !ready ? "" : `, measured from the centre of ${placeLabel(place)}`}.`}/>
+      <PageHeader eyebrow="EV chargers" title={nearYou ? "Chargers near you" : ready ? `Chargers near ${place.name}` : "Chargers nearby"} intro={`Public EV chargers within ${RADIUS_KM} km, nearest first${nearYou || !ready ? "" : `, measured from the centre of ${placeLabel(place)}`}.`}/>
       <OriginControl place={place} ready={ready} {...charger}/>
       {/* The map's space is held while loading, so the list below doesn't jump. */}
       {state.status === "ready" ? <ChargerMap origin={state.origin} stations={state.stations} nearYou={state.nearYou}/> : state.status === "loading" && <div className="charger-map charger-map-loading" aria-hidden="true"/>}

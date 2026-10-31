@@ -12,7 +12,8 @@ export type GridData = { available: boolean; state: string; current?: { carbonIn
 // whatever timezone the viewing device happens to be set to.
 export const IST_TIME_ZONE = "Asia/Kolkata";
 export const HOUR_MS = 60 * 60_000;
-const IST_OFFSET_MS = 5.5 * HOUR_MS; // IST has no DST, so a fixed offset is exact
+export const DAY_MS = 24 * HOUR_MS;
+export const IST_OFFSET_MS = 5.5 * HOUR_MS; // IST has no DST, so a fixed offset is exact
 
 export function istDayKey(datetime: string | number | Date) {
   return new Intl.DateTimeFormat("en-CA", { year: "numeric", month: "2-digit", day: "2-digit", timeZone: IST_TIME_ZONE }).format(new Date(datetime));

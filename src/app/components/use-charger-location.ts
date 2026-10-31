@@ -28,6 +28,9 @@ const OFF: ChargerLocation = { status: "off" };
 function readPref() { try { return window.localStorage.getItem(PREF_KEY) === "1"; } catch { return false; } }
 function writePref(on: boolean) { try { if (on) window.localStorage.setItem(PREF_KEY, "1"); else window.localStorage.removeItem(PREF_KEY); } catch { /* storage unavailable */ } }
 
+// "Delete my data": stop using (and asking for) the device's position.
+export function forgetChargerLocation() { writePref(false); set(OFF); }
+
 function locate() {
   if (!("geolocation" in navigator)) { set({ status: "unavailable" }); return; }
   set({ status: "locating" });

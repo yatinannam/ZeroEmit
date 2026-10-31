@@ -1,7 +1,9 @@
 "use client";
 
-import { useEffect, useEffectEvent, useId, useRef, type FormEvent, type ReactNode } from "react";
+import { useEffect, useEffectEvent, useId, useLayoutEffect, useRef, type FormEvent, type ReactNode } from "react";
+import gsap from "gsap";
 import { Icon } from "./icon-set";
+import { reducedMotion } from "./motion";
 
 const FOCUSABLE = "button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled])";
 
@@ -15,6 +17,19 @@ export function Modal({ title, onClose, onSubmit, children }: { title: string; o
   const backdropRef = useRef<HTMLDivElement>(null);
   const titleId = useId();
   const close = useEffectEvent(onClose);
+
+  // The sheet rises from the bottom over a fading backdrop. Opacity, not
+  // visibility: the dialog takes focus right after mounting, and a hidden
+  // element can't.
+  useLayoutEffect(() => {
+    const backdrop = backdropRef.current;
+    if (!backdrop || reducedMotion()) return;
+    const ctx = gsap.context(() => {
+      gsap.from(backdrop, { backgroundColor: "rgba(0,0,0,0)", duration: 0.25, ease: "power1.out", clearProps: "backgroundColor" });
+      gsap.from(".modal", { y: 48, opacity: 0, duration: 0.4, ease: "power3.out", clearProps: "transform,opacity" });
+    }, backdrop);
+    return () => ctx.revert();
+  }, []);
 
   useEffect(() => {
     const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;

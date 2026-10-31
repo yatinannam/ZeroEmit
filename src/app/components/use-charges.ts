@@ -1,5 +1,6 @@
 "use client";
 import { useCallback, useSyncExternalStore } from "react";
+import { useHydrated } from "./use-hydrated";
 import { createLocalStorageStore } from "./local-storage-store";
 import { LEGACY_LABELS, placeLabel } from "../lib/places";
 import type { ChargeTiming } from "../lib/timing";
@@ -25,13 +26,19 @@ export const LEGACY_LOGGED_AT = new Date(0).toISOString();
 function normalizeCharge(raw: Charge): Charge {
   const legacyPlace = LEGACY_LABELS[raw.city];
   const charge = legacyPlace ? { ...raw, city: placeLabel(legacyPlace) } : raw;
-  return typeof charge.loggedAt === "string" && !Number.isNaN(Date.parse(charge.loggedAt)) ? charge : { ...charge, loggedAt: LEGACY_LOGGED_AT };
+  const dated = typeof charge.loggedAt === "string" && !Number.isNaN(Date.parse(charge.loggedAt)) ? charge : { ...charge, loggedAt: LEGACY_LOGGED_AT };
+  // The time of day ("HH:MM") and intensity feed every screen's formatting;
+  // a damaged one is rebuilt or dropped rather than crash the app.
+  const timed = typeof dated.chargedAt === "string" && /^\d{1,2}:\d{2}$/.test(dated.chargedAt) ? dated : { ...dated, chargedAt: timeOfDay(new Date(dated.loggedAt)) };
+  return Number.isFinite(timed.carbonIntensity) || timed.carbonIntensity === null ? timed : { ...timed, carbonIntensity: null };
 }
+
+const timeOfDay = (date: Date) => `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
 
 // A hand-edited or corrupted entry with a non-numeric energy would turn every
 // kWh sum into string concatenation or NaN — drop it rather than poison totals.
 function isValidCharge(raw: unknown): raw is Charge {
-  return Boolean(raw && typeof raw === "object" && Number.isFinite((raw as Charge).energyKwh) && (raw as Charge).energyKwh > 0);
+  return Boolean(raw && typeof raw === "object" && Number.isFinite((raw as Charge).energyKwh) && (raw as Charge).energyKwh > 0 && typeof (raw as Charge).city === "string");
 }
 
 const newestFirst = (a: Charge, b: Charge) => b.loggedAt.localeCompare(a.loggedAt);
@@ -43,8 +50,11 @@ const store = createLocalStorageStore<Charge[]>(
   EMPTY,
 );
 
+// `ready` is false until the saved charges have been read: the prerendered
+// page has none, so "no charges yet" before then would be a guess.
 export function useCharges() {
   const charges = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getServerSnapshot);
+  const ready = useHydrated();
   const addCharge = useCallback((charge: Omit<Charge, "id">) => {
     store.write([{ ...charge, id: crypto.randomUUID() }, ...store.getSnapshot()].sort(newestFirst));
   }, []);
@@ -55,5 +65,5 @@ export function useCharges() {
     store.write([charge, ...rest].sort(newestFirst));
   }, []);
   const clearCharges = useCallback(() => store.write(EMPTY), []);
-  return { charges, addCharge, removeCharge, restoreCharge, clearCharges };
+  return { charges, ready, addCharge, removeCharge, restoreCharge, clearCharges };
 }

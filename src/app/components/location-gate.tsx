@@ -13,7 +13,7 @@ const noopSubscribe = () => () => {};
 
 const introStore = createLocalStorageStore<boolean>("zeroemit-intro-seen", (raw) => raw === "1", (seen) => (seen ? "1" : "0"), false);
 
-// Delete account starts over from the welcome intro.
+// "Delete my data" starts over from the welcome intro.
 export function resetIntroSeen() {
   introStore.write(false);
 }

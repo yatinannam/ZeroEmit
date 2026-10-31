@@ -7,7 +7,7 @@ import { useCharges } from "./use-charges";
 import { useStoredLocation } from "./use-location";
 import { useLeaderboardMembership } from "./use-leaderboard";
 import { useNotificationPermission, useNotificationPrefs } from "./notifications";
-import { isPushActive, removePushSubscription, syncPushSubscription } from "./push-client";
+import { removePushSubscription, syncPushSubscription } from "./push-client";
 
 // Keeps the server's copy of what scheduled notifications need — place,
 // which ones are on, streak and last charge day, the public leaderboard id,
@@ -47,7 +47,10 @@ export function PushSync() {
           badge: badgeKey && badgeHint ? { key: badgeKey, hint: badgeHint } : null,
           week: { weekStart, charges: weekCharges, co2Kg: weekCo2Kg, greenPercent: weekGreenPercent },
         });
-      } else if (!wanted && isPushActive()) void removePushSubscription();
+      // Not gated on isPushActive(): a sync that failed (offline) clears
+      // that flag while the server may still hold this device, and opting
+      // out must still reach it. With no subscription this is a no-op.
+      } else if (!wanted) void removePushSubscription();
     }, 1000);
     return () => clearTimeout(timer);
   }, [wanted, state, name, bestTime, dailyDigest, streakReminders, leaderboard, progress, chargesPref, rewards, streak, lastChargeDay, leaderboardId, badgeKey, badgeHint, weekStart, weekCharges, weekCo2Kg, weekGreenPercent]);

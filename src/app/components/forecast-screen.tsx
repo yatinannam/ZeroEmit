@@ -1,6 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import gsap from "gsap";
 import { formatWindow, planByDay } from "../lib/grid";
 import { useGridData } from "./use-grid-data";
 import { useLocationPicker } from "./use-location-picker";
@@ -11,13 +13,16 @@ import { LocationModal } from "./location-modal";
 import { PageHeader } from "./page-header";
 import { ForecastChart } from "./forecast-chart";
 import { AddToCalendarButton } from "./add-to-calendar";
+import { reducedMotion } from "./motion";
 
 type Day = "today" | "tomorrow";
 const DAYS: { key: Day; label: string }[] = [{ key: "today", label: "Today" }, { key: "tomorrow", label: "Tomorrow" }];
 
-export function ForecastScreen({ initialDay }: { initialDay: Day }) {
+export function ForecastScreen() {
   const { place, ready, locationOpen, openLocation, closeLocation, chooseLocation } = useLocationPicker();
-  const [day, setDay] = useState<Day>(initialDay);
+  // The day lives in the URL alone: a tab tap back to plain /forecast must
+  // show Today even though this screen's state survives that navigation.
+  const day: Day = useSearchParams().get("day") === "tomorrow" ? "tomorrow" : "today";
   const [notice, setNotice] = useState<{ text: string; ok: boolean } | null>(null);
   const notifsOn = useNotificationsEnabled();
   const { data, loading, error } = useGridData(ready ? place.state : null);
@@ -25,8 +30,19 @@ export function ForecastScreen({ initialDay }: { initialDay: Day }) {
   const best = plan.windows[0] ?? null;
   const current = data?.available ? data.current : undefined;
 
+  // Switching day deals the new windows in, one after another.
+  const windowsRef = useRef<HTMLElement>(null);
+  const switchedDay = useRef(false);
+  useLayoutEffect(() => {
+    if (!switchedDay.current || !windowsRef.current || reducedMotion()) return;
+    const ctx = gsap.context(() => {
+      gsap.from(".activity-item", { y: 10, opacity: 0, duration: 0.35, ease: "power2.out", stagger: 0.05, clearProps: "transform,opacity" });
+    }, windowsRef);
+    return () => ctx.revert();
+  }, [day]);
+
   function chooseDay(next: Day) {
-    setDay(next);
+    switchedDay.current = true;
     // Keep the choice in the URL so a reload (or the back button) lands on the same day.
     window.history.replaceState(null, "", next === "tomorrow" ? "/forecast?day=tomorrow" : "/forecast");
   }
@@ -58,10 +74,10 @@ export function ForecastScreen({ initialDay }: { initialDay: Day }) {
             {best && <p className="chip-caption"><span className="chip">Best window</span> {formatWindow(best)}</p>}
             {best && !best.start.isNow && <AddToCalendarButton window={best} place={place}/>}
           </>
-          : <p className="personal-note">Today is nearly over — switch to Tomorrow to see the next clean windows.</p>}
+          : <p className="personal-note">{day === "today" ? "Today is nearly over — switch to Tomorrow to see the next clean windows." : "Tomorrow's forecast isn't out yet. Check back later today."}</p>}
       </section>
 
-      <section className="activity">
+      <section className="activity" ref={windowsRef}>
         <h2>Top charging windows {day === "today" ? "today" : "tomorrow"}</h2>
         {plan.windows.length ? plan.windows.map((slot, index) => (
           <div key={slot.start.datetime} className={`card activity-item${index === 0 ? " activity-item-best" : ""}`}>

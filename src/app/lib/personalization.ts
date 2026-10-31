@@ -1,4 +1,5 @@
 import type { Charge } from "../components/use-charges";
+import { DAY_MS } from "./grid";
 
 export function averageEnergyKwh(charges: Charge[]): number | null {
   if (!charges.length) return null;
@@ -39,7 +40,7 @@ export function dayHeading(iso: string): string {
   const date = new Date(iso);
   if (date.getTime() === 0) return "Earlier";
   const dayStart = (value: Date) => new Date(value.getFullYear(), value.getMonth(), value.getDate()).getTime();
-  const diff = Math.round((dayStart(new Date()) - dayStart(date)) / 86_400_000);
+  const diff = Math.round((dayStart(new Date()) - dayStart(date)) / DAY_MS);
   if (diff === 0) return "Today";
   if (diff === 1) return "Yesterday";
   return new Intl.DateTimeFormat("en-IN", { weekday: "short", day: "numeric", month: "short" }).format(date);

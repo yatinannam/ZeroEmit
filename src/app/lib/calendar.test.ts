@@ -30,7 +30,7 @@ describe("chargingWindowIcs", () => {
   test("says what and where, with commas and semicolons escaped", () => {
     expect(lines).toContain("SUMMARY:Charge your EV (cleanest window)");
     expect(lines).toContain("LOCATION:Pune\\, Maharashtra");
-    expect(ics.replace(/\r\n /g, "")).toContain("DESCRIPTION:About 410 gCO₂/kWh on average\\, one of the cleanest stretches on the Western grid today.");
+    expect(ics.replace(/\r\n /g, "")).toContain("DESCRIPTION:About 410 gCO₂/kWh on average\\, one of the cleanest stretches of the day on the Western grid.");
   });
 
   test("reminds 10 minutes before the window starts", () => {

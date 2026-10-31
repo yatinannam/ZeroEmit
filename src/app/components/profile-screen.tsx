@@ -21,6 +21,8 @@ import { useThemeChoice, type ThemeChoice } from "./theme";
 import { resetIntroSeen } from "./location-gate";
 import { leaveLeaderboard, useLeaderboardMembership } from "./use-leaderboard";
 import { LEAVE_PENDING_MESSAGE, LEFT_MESSAGE } from "./leaderboard";
+import { CountUp } from "./motion";
+import { forgetChargerLocation } from "./use-charger-location";
 
 const THEME_OPTIONS: { key: ThemeChoice; label: string }[] = [{ key: "system", label: "System" }, { key: "light", label: "Light" }, { key: "dark", label: "Dark" }];
 
@@ -50,7 +52,7 @@ export function ProfileScreen({ shareLastMonth = false }: { shareLastMonth?: boo
   const [theme, setTheme] = useThemeChoice();
   const permission = useNotificationPermission();
   const leaderboardMember = useLeaderboardMembership();
-  const { charges, clearCharges } = useCharges();
+  const { charges, ready: chargesReady, clearCharges } = useCharges();
   const { profile, updateProfile, resetProfile } = useProfile();
 
   const points = totalPoints(charges);
@@ -90,6 +92,10 @@ export function ProfileScreen({ shareLastMonth = false }: { shareLastMonth?: boo
     void removePushSubscription();
     void leaveLeaderboard();
     resetIntroSeen();
+    forgetChargerLocation();
+    // Small per-device records with no store of their own: today's clean-grid
+    // alert and the last leaderboard score sent.
+    for (const key of ["zeroemit-clean-alert", "zeroemit-leaderboard-synced"]) { try { window.localStorage.removeItem(key); } catch { /* storage unavailable */ } }
     setPlace(null);
     setDeleteOpen(false);
     showToast("Your data has been deleted from this device");
@@ -109,16 +115,16 @@ export function ProfileScreen({ shareLastMonth = false }: { shareLastMonth?: boo
     <main className="dashboard-content">
       <section className="profile-avatar-block">
         <span className="avatar">{initials}</span>
-        <h1>{profile.name || "Add your name"}</h1>
-        <p className="profile-vehicle">{profile.vehicle || "Add your EV in Profile & vehicle"}</p>
-        <button className="location-label location-button" onClick={openLocation}><Icon name="pin" size={14}/> {ready ? location : ""}</button>
+        <h1>{profile.name || (chargesReady ? "Add your name" : "\u00a0")}</h1>
+        <p className="profile-vehicle">{profile.vehicle || (chargesReady ? "Add your EV in Profile & vehicle" : "\u00a0")}</p>
+        <button className="location-label location-button" aria-label={ready ? `Change location, ${location}` : "Change location"} onClick={openLocation}><Icon name="pin" size={14}/> {ready ? location : ""}</button>
         {sinceLabel && <p className="profile-since">Charging with ZeroEmit since {sinceLabel}</p>}
       </section>
 
       <section className="metrics-grid">
-        <div className="card saved-card"><div><h2>Total carbon avoided</h2><strong>{(savedGrams / 1000).toFixed(1)} <small>kg</small></strong></div><span className="metric-icon"><Icon name="tree"/></span></div>
-        <div className="card metric"><h2>Eco points</h2><strong>{points || "—"}</strong></div>
-        <div className="card metric"><h2>Streak</h2><strong>{streak ? <>{streak} <small>day{streak === 1 ? "" : "s"}</small></> : "—"}</strong></div>
+        <div className="card saved-card"><div><h2>Total carbon avoided</h2><strong><CountUp value={savedGrams / 1000} decimals={1}/> <small>kg</small></strong></div><span className="metric-icon"><Icon name="leaf"/></span></div>
+        <div className="card metric"><h2>Eco points</h2><strong><CountUp value={points}/></strong></div>
+        <div className="card metric"><h2>Streak</h2><strong><CountUp value={streak}/> <small>day{streak === 1 ? "" : "s"}</small></strong></div>
       </section>
 
       <section className="card stat-card impact-card">
@@ -136,7 +142,7 @@ export function ProfileScreen({ shareLastMonth = false }: { shareLastMonth?: boo
         {settingsRows.map((row) => <button key={row.label} className="settings-row" onClick={row.onClick}><span className="round-icon"><Icon name={row.icon} size={18}/></span><span>{row.label}</span>{row.trailing && <small className={row.trailing === "On" ? "settings-row-trailing settings-row-on" : "settings-row-trailing"}>{row.trailing}</small>}<Icon name="chevron-right" size={18}/></button>)}
       </section>
 
-      <button className="forecast-button action-button destructive-button" onClick={() => setDeleteOpen(true)}><Icon name="trash" size={18}/> Delete account</button>
+      <button className="forecast-button action-button destructive-button" onClick={() => setDeleteOpen(true)}><Icon name="trash" size={18}/> Delete my data</button>
     </main>
     <BottomNav/>
 
@@ -165,9 +171,9 @@ export function ProfileScreen({ shareLastMonth = false }: { shareLastMonth?: boo
       {infoModal === "privacy" && leaderboardMember && <button className="forecast-button action-button" onClick={() => { void leaveLeaderboard().then((done) => showToast(done ? LEFT_MESSAGE : LEAVE_PENDING_MESSAGE)); }}>Leave the leaderboard</button>}
     </Modal>}
 
-    {deleteOpen && <Modal title="Delete account?" onClose={() => setDeleteOpen(false)}>
+    {deleteOpen && <Modal title="Delete your data?" onClose={() => setDeleteOpen(false)}>
       <p>ZeroEmit doesn&apos;t have an account to sign in to. This clears your profile, location, charge history, notification choices and leaderboard entry, and starts you from setup. It can&apos;t be undone.</p>
-      <button className="forecast-button action-button destructive-button" onClick={deleteAccount}><Icon name="trash" size={18}/> Delete account</button>
+      <button className="forecast-button action-button destructive-button" onClick={deleteAccount}><Icon name="trash" size={18}/> Delete my data</button>
     </Modal>}
   </div>;
 }

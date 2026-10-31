@@ -8,6 +8,7 @@ import { CleanGridWatcher } from "./components/clean-grid-watcher";
 import { PushSync } from "./components/push-sync";
 import { LeaderboardSync } from "./components/leaderboard-sync";
 import { ThemeSync } from "./components/theme";
+import { MotionRoot } from "./components/motion";
 import { THEME_BOOT_SCRIPT } from "./lib/theme-boot";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
@@ -46,6 +47,6 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   // before React hydrates.
   return <html lang="en" className={inter.variable} suppressHydrationWarning>
     <head><script dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }}/></head>
-    <body><PwaRegister />{children}<LocationGate /><CleanGridWatcher /><PushSync /><LeaderboardSync /><ThemeSync /><ToastHost /></body>
+    <body><PwaRegister />{children}<LocationGate /><CleanGridWatcher /><PushSync /><LeaderboardSync /><ThemeSync /><MotionRoot /><ToastHost /></body>
   </html>;
 }

@@ -118,7 +118,7 @@ export function knownPlaceCoordinates(place: Place): { lat: number; lon: number 
 }
 
 export function isPlace(value: unknown): value is Place {
-  return Boolean(value && typeof value === "object" && typeof (value as Place).name === "string" && typeof (value as Place).state === "string" && (value as Place).state in STATES);
+  return Boolean(value && typeof value === "object" && typeof (value as Place).name === "string" && typeof (value as Place).state === "string" && Object.hasOwn(STATES, (value as Place).state));
 }
 
 // Name/alias prefix matches first, then matches anywhere in a name, then by

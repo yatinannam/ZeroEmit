@@ -103,9 +103,11 @@ export async function submitMember(input: MemberInput, now = Date.now(), ip: str
   const oldClaim = sameMonth ? nameClaim(existing.name) : null;
   // Joining, or renaming this month, needs a name nobody else holds. A member
   // carrying on into a new month keeps syncing either way.
+  // Claimed atomically up front: two people joining with the same name at
+  // the same moment can't both get it.
   if (!existing || (sameMonth && oldClaim !== claim)) {
-    const holder = await redis<string | null>("HGET", namesKey(month), claim);
-    if (holder && holder !== input.id) return { ok: false, status: 409 };
+    const won = await redis<number>("HSETNX", namesKey(month), claim, input.id);
+    if (!won && (await redis<string | null>("HGET", namesKey(month), claim)) !== input.id) return { ok: false, status: 409 };
   }
   const { points, co2Kg } = scoreMonth(input.charges, month, istDayKey(now), pattern);
   const scoredAt = sameMonth && existing.points === points ? existing.scoredAt : now;

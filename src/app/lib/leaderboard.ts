@@ -1,13 +1,16 @@
 import type { Charge } from "../components/use-charges";
 import { istDayKey, istHourOfDay } from "./grid";
 import { ZONE_LABELS, type Zone } from "./places";
-import { GREEN_CHARGE_BONUS, isGreenCharge, MAX_CHARGE_KWH, POINTS_PER_CHARGE, UNTIMED_CHARGE_BASELINE } from "./rewards";
+import { GREEN_CHARGE_BONUS, isGreenCharge, MAX_CHARGE_KWH, pointsForCharge, POINTS_PER_CHARGE, UNTIMED_CHARGE_BASELINE } from "./rewards";
 import { chargeTiming, TIMING_BONUS, type ChargeTiming } from "./timing";
 
 // Rules shared by the app (building what it sends) and the server (which
 // recomputes the score itself rather than trusting a number from the client).
 export const MAX_COUNTED_PER_DAY = 2;
 export const MAX_SUBMITTED_CHARGES = 100;
+// Sent per day: a little over what counts, so a whole month (31 × 3) fits
+// under MAX_SUBMITTED_CHARGES and a busy day can't crowd out earlier ones.
+const SUBMITTED_PER_DAY = 3;
 export const MAX_INTENSITY = 2000;
 export const LEADERBOARD_SIZE = 50;
 export const ZONES = Object.keys(ZONE_LABELS) as Zone[];
@@ -22,10 +25,18 @@ export type LeaderboardResponse = { month: string; total: number; rows: Leaderbo
 export const istMonthKey = (date: string | number | Date) => istDayKey(date).slice(0, 7);
 
 // This IST month's charges, newest first (the order useCharges keeps), as the
-// little the server needs to score them.
+// little the server needs to score them: each day's highest-scoring few.
 export function toLeaderboardCharges(charges: Charge[], month: string): LeaderboardCharge[] {
-  return charges
-    .filter((charge) => istMonthKey(charge.loggedAt) === month)
+  const inMonth = charges.filter((charge) => istMonthKey(charge.loggedAt) === month);
+  const perDay = new Map<string, number>();
+  const kept = new Set([...inMonth].sort((a, b) => pointsForCharge(b) - pointsForCharge(a)).filter((charge) => {
+    const day = istDayKey(charge.loggedAt);
+    const count = perDay.get(day) ?? 0;
+    perDay.set(day, count + 1);
+    return count < SUBMITTED_PER_DAY;
+  }));
+  return inMonth
+    .filter((charge) => kept.has(charge))
     .slice(0, MAX_SUBMITTED_CHARGES)
     .map((charge) => ({ date: istDayKey(charge.loggedAt), kwh: charge.energyKwh, intensity: charge.carbonIntensity, green: isGreenCharge(charge), hour: istHourOfDay(Date.parse(charge.loggedAt)), timing: charge.timing ?? null }));
 }

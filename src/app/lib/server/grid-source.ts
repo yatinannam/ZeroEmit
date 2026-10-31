@@ -241,14 +241,16 @@ export function projectTypicalForecast(pattern: (number | null)[]): ForecastPoin
 async function fetchStateForecast(state: string, headers: Record<string, string>): Promise<ForecastPoint[]> {
   const cached = forecastCache.get(state);
   if (cached && cached.expiresAt > Date.now()) return cached.forecast;
-  const response = await fetch(`${ATLAS_URL}/forecast/carbon-intensity?state=${state}&horizon_h=24`, { headers });
+  // Optional extra: a timeout or network error means no forecast, never a
+  // failed request for the zone data fetched alongside it.
+  const response = await fetch(`${ATLAS_URL}/forecast/carbon-intensity?state=${state}&horizon_h=24`, { headers, signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS) }).catch(() => null);
   let forecast: ForecastPoint[] = [];
-  if (response.ok) {
-    const payload = await response.json();
-    const rawForecast: unknown = payload.forecast;
+  if (response?.ok) {
+    const payload = await response.json().catch(() => null);
+    const rawForecast: unknown = payload?.forecast;
     forecast = Array.isArray(rawForecast) ? rawForecast.filter((point: unknown): point is { ts: string; intensity_gco2_per_kwh: number } => Boolean(point && typeof point === "object" && "ts" in point && "intensity_gco2_per_kwh" in point)).map((point: { ts: string; intensity_gco2_per_kwh: number }) => ({ datetime: point.ts, carbonIntensity: point.intensity_gco2_per_kwh })) : [];
   }
-  const refused = [401, 402, 403].includes(response.status);
+  const refused = response !== null && [401, 402, 403].includes(response.status);
   forecastCache.set(state, { expiresAt: Date.now() + (refused ? FORECAST_REFUSED_TTL_MS : FORECAST_CACHE_TTL_MS), forecast });
   return forecast;
 }
@@ -298,8 +300,8 @@ async function fetchElectricityMaps(state: string, coordinates: { lat: number; l
   const query = `lat=${coordinates.lat}&lon=${coordinates.lon}`;
   const headers = { "auth-token": key, accept: "application/json" };
   const [latestResponse, forecastResponse] = await Promise.all([
-    fetch(`${ELECTRICITY_MAPS_URL}/carbon-intensity/latest?${query}`, { headers }),
-    fetch(`${ELECTRICITY_MAPS_URL}/carbon-intensity/forecast?${query}`, { headers }),
+    fetch(`${ELECTRICITY_MAPS_URL}/carbon-intensity/latest?${query}`, { headers, signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS) }),
+    fetch(`${ELECTRICITY_MAPS_URL}/carbon-intensity/forecast?${query}`, { headers, signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS) }),
   ]);
   if (!latestResponse.ok || !forecastResponse.ok) {
     const failing = latestResponse.ok ? forecastResponse : latestResponse;
@@ -310,8 +312,13 @@ async function fetchElectricityMaps(state: string, coordinates: { lat: number; l
   const latest = await latestResponse.json();
   const forecastPayload = await forecastResponse.json();
   const rawForecast: unknown = forecastPayload.forecast;
-  const forecast = Array.isArray(rawForecast) ? (rawForecast as { carbonIntensity: number; datetime: string }[]).map((point) => ({ datetime: point.datetime, carbonIntensity: point.carbonIntensity })) : [];
-  return { data: { available: true, state, current: { carbonIntensity: latest.carbonIntensity, datetime: latest.datetime, isEstimated: Boolean(latest.isEstimated) }, forecast, updatedAt: forecastPayload.updatedAt || latest.updatedAt, source: ELECTRICITY_MAPS }, message: "", status: 0 };
+  // Upstream numbers go straight to the screen, so drop any that aren't
+  // real readings rather than show "NaN gCO₂/kWh".
+  const isReading = (point: unknown): point is { carbonIntensity: number; datetime: string } => Boolean(point && typeof point === "object" && Number.isFinite((point as { carbonIntensity?: unknown }).carbonIntensity) && typeof (point as { datetime?: unknown }).datetime === "string");
+  const forecast = Array.isArray(rawForecast) ? rawForecast.filter(isReading).map((point) => ({ datetime: point.datetime, carbonIntensity: point.carbonIntensity })) : [];
+  const current = isReading(latest) ? { carbonIntensity: latest.carbonIntensity, datetime: latest.datetime, isEstimated: Boolean((latest as { isEstimated?: unknown }).isEstimated) } : undefined;
+  if (!current && !forecast.length) return { message: "Live grid data is temporarily unavailable.", status: 502 };
+  return { data: { available: true, state, ...(current ? { current } : {}), forecast, updatedAt: forecastPayload.updatedAt || latest.updatedAt, source: ELECTRICITY_MAPS }, message: "", status: 0 };
 }
 
 // Grid data for a state: try each configured provider in order and use the

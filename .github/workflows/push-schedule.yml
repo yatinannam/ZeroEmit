@@ -10,7 +10,9 @@ name: Push notification schedule
 
 on:
   schedule:
-    - cron: "*/15 * * * *"
+    # 01:00–16:45 UTC (06:30–22:15 IST): the route skips 10 pm – 7 am IST
+    # as quiet hours, so overnight runs would only spend Actions minutes.
+    - cron: "*/15 1-16 * * *"
   workflow_dispatch:
 
 permissions: {}

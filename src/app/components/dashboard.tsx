@@ -15,6 +15,7 @@ import { LocationModal } from "./location-modal";
 import { InstallPrompt } from "./install-prompt";
 import { AddToCalendarButton } from "./add-to-calendar";
 import { StationsCard } from "./stations";
+import { CountUp } from "./motion";
 
 // The page is prerendered at build time, so the greeting can't be computed
 // during render — it would bake in the build machine's hour and mismatch on
@@ -41,7 +42,7 @@ function HeroTime({ datetime, isNow }: { datetime: string; isNow?: boolean }) {
 export function Dashboard() {
   const { place, ready, location, locationOpen, openLocation, closeLocation, chooseLocation } = useLocationPicker();
   const { data, loading, error, refresh } = useGridData(ready ? place.state : null);
-  const { charges } = useCharges();
+  const { charges, ready: chargesReady } = useCharges();
   const { profile } = useProfile();
   const greeting = useSyncExternalStore(noopSubscribe, greetingForNow, () => null);
   const firstName = profile.name.trim().split(/\s+/)[0];
@@ -60,12 +61,12 @@ export function Dashboard() {
   const avgChargeIntensity = averageChargeIntensity(cityCharges);
   const typicalTime = typicalChargeTime(cityCharges);
   const intensityDiff = current && avgChargeIntensity !== null ? Math.round(current.carbonIntensity - avgChargeIntensity) : null;
-  const heroPill = todayBest?.start.isNow ? "Charge now" : data?.forecastIsTypical ? "Typical pattern" : "Forecast";
+  const heroPill = todayBest?.start.isNow ? "Charge now" : data?.forecastIsTypical ? "Typical pattern" : "Recommended";
 
   return <div className="mobile-app">
     <TopBar onChooseLocation={openLocation}/>
     <main className="dashboard-content">
-      <section className="greeting"><button className="location-label location-button" onClick={openLocation}><Icon name="pin" size={16}/> {ready ? location : ""}</button><h1>{greeting ? `${greeting}${firstName ? `, ${firstName}` : ""}` : " "}</h1></section>
+      <section className="greeting"><button className="location-label location-button" aria-label={ready ? `Change location, ${location}` : "Change location"} onClick={openLocation}><Icon name="pin" size={16}/> {ready ? location : ""}</button><h1>{greeting ? `${greeting}${firstName ? `, ${firstName}` : ""}` : " "}</h1></section>
 
       <section className="recommendation card">
         <div className="recommendation-head"><h2>Best time to charge today</h2>{todayBest && <span className="recommended"><Icon name="bolt" size={15}/> {heroPill}</span>}</div>
@@ -73,7 +74,7 @@ export function Dashboard() {
         {todayBest && <p className="personal-note">{todayBest.start.isNow ? "The grid is cleaner right now than at any other time left today." : `${Math.round(todayBest.average)} gCO₂/kWh on average — the cleanest stretch left today.`}</p>}
         {todayBest && !todayBest.start.isNow && <AddToCalendarButton window={todayBest} place={place}/>}
         <div className="intensity"><span className="co2">CO₂</span> Right now <strong>{current ? `${Math.round(current.carbonIntensity)} gCO₂/kWh` : "Unavailable"}</strong></div>
-        {intensityDiff !== null && <p className="personal-note">{intensityDiff === 0 ? "About the same as your usual charging window" : `${Math.abs(intensityDiff)} gCO₂/kWh ${intensityDiff < 0 ? "cleaner" : "higher"} than your usual charging window`}</p>}
+        {intensityDiff !== null && <p className="personal-note">{intensityDiff === 0 ? "About the same as your usual charging window." : `${Math.abs(intensityDiff)} gCO₂/kWh ${intensityDiff < 0 ? "lower" : "higher"} than your usual charging window.`}</p>}
         <Link className="forecast-button" href="/forecast">See full forecast <Icon name="arrow" size={18}/></Link>
       </section>
 
@@ -82,13 +83,13 @@ export function Dashboard() {
       <section className="data-status" role={error ? "alert" : "status"}><span>{error || (data?.available ? `Grid data from ${data.source}${data.updatedAt ? ` · updated ${readingTime(data.updatedAt)}` : ""}` : "Waiting for grid data…")}</span><button onClick={refresh} disabled={loading}>{loading ? "Refreshing…" : "Refresh"}</button></section>
 
       <section className="metrics-grid">
-        <Link href="/log" className="card saved-card"><div><h2>Energy logged</h2><strong>{energyLogged.toFixed(1)} <small>kWh</small></strong></div><span className="metric-icon"><Icon name="bolt"/></span></Link>
-        <Link href="/rewards" className="card metric"><h2>Eco points</h2><strong>{points}</strong></Link>
-        <Link href="/rewards" className="card metric"><h2>CO₂ avoided</h2><strong>{savedKg.toFixed(1)} <small>kg</small></strong></Link>
+        <Link href="/log" className="card saved-card"><div><h2>Energy logged</h2><strong><CountUp value={energyLogged} decimals={1}/> <small>kWh</small></strong></div><span className="metric-icon"><Icon name="bolt"/></span></Link>
+        <Link href="/rewards" className="card metric"><h2>Eco points</h2><strong><CountUp value={points}/></strong></Link>
+        <Link href="/rewards" className="card metric"><h2>CO₂ avoided</h2><strong><CountUp value={savedKg} decimals={1}/> <small>kg</small></strong></Link>
       </section>
 
       <section className="timeline-row">
-        <Link href="/rewards" className="streak-card"><h2>Current streak</h2><div><strong>{streak}</strong><span>{streak ? `day${streak === 1 ? "" : "s"} in a row` : "Start today"}</span></div><Icon name="fire" size={104}/></Link>
+        <Link href="/rewards" className="streak-card"><h2>Current streak</h2><div><strong><CountUp value={streak}/></strong><span>{streak ? `day${streak === 1 ? "" : "s"} in a row` : "Start today"}</span></div><Icon name="fire" size={104}/></Link>
         <Link href="/forecast?day=tomorrow" className="card next-window"><h2>Tomorrow&apos;s best</h2><div><span className="round-icon"><Icon name="clock" size={18}/></span><p>{tomorrowBest ? <><strong>{formatWindow(tomorrowBest)}</strong><span>{Math.round(tomorrowBest.average)} gCO₂/kWh avg{data?.forecastIsTypical ? " · typical" : ""}</span></> : typicalTime ? <><strong>Around {formatTimeOfDay(typicalTime)}</strong><span>Your usual charging time</span></> : <><strong>Not available yet</strong><span>Check back when the forecast loads</span></>}</p></div></Link>
       </section>
 
@@ -96,7 +97,7 @@ export function Dashboard() {
 
       <StationsCard place={place} ready={ready}/>
 
-      <section className="activity"><h2>Recent activity</h2><Link href="/log" className="card activity-item"><span className="round-icon"><Icon name="bolt" size={19}/></span><div>{charges[0] ? <><strong>{charges[0].energyKwh} kWh logged</strong><span>{dayHeading(charges[0].loggedAt)}, {formatTimeOfDay(charges[0].chargedAt)}{charges[0].city !== location ? ` · ${charges[0].city}` : ""}</span></> : <><strong>No charges logged yet</strong><span>Log your first charge to see your impact.</span></>}</div><b>{charges[0] ? "View history" : "Log charge"}</b></Link></section>
+      <section className="activity"><h2>Recent activity</h2>{!chargesReady ? <div className="card activity-item skeleton-item" aria-hidden="true"/> : <Link href={charges[0] ? "/log" : "/log?quick=1"} className="card activity-item"><span className="round-icon"><Icon name="bolt" size={19}/></span><div>{charges[0] ? <><strong>{charges[0].energyKwh} kWh logged</strong><span>{dayHeading(charges[0].loggedAt)}, {formatTimeOfDay(charges[0].chargedAt)}{charges[0].city !== location ? ` · ${charges[0].city}` : ""}</span></> : <><strong>No charges logged yet</strong><span>Log your first charge to see your impact.</span></>}</div><b>{charges[0] ? "View history" : "Log a charge"}</b></Link>}</section>
     </main><BottomNav/>
     {locationOpen && <LocationModal current={place} onClose={closeLocation} onChoose={chooseLocation}/>}
   </div>;

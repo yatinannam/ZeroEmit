@@ -8,9 +8,13 @@ const NAV_ITEMS: [string, IconName, string][] = [["/", "home", "Home"], ["/forec
 
 export function BottomNav() {
   const pathname = usePathname();
-  return <nav className="bottom-nav" aria-label="Primary navigation">{NAV_ITEMS.map(([href, icon, label]) => <Link key={href} className={pathname === href || (href !== "/" && pathname.startsWith(`${href}/`)) || (href === "/" && pathname === "/stations") ? "active" : ""} href={href}><Icon name={icon}/><span>{label}</span></Link>)}</nav>;
+  return <nav className="bottom-nav" aria-label="Primary navigation">{NAV_ITEMS.map(([href, icon, label]) => {
+    const active = pathname === href || (href !== "/" && pathname.startsWith(`${href}/`)) || (href === "/" && pathname === "/stations");
+    return <Link key={href} className={active ? "active" : ""} aria-current={pathname === href ? "page" : active ? "true" : undefined} href={href}><Icon name={icon}/><span>{label}</span></Link>;
+  })}</nav>;
 }
 
 export function TopBar({ onChooseLocation }: { onChooseLocation: () => void }) {
-  return <header className="top-app-bar"><button aria-label="Choose location" onClick={onChooseLocation}><Icon name="pin"/></button><strong>ZeroEmit</strong><Link aria-label="Profile" href="/profile"><Icon name="user"/></Link></header>;
+  const pathname = usePathname();
+  return <header className="top-app-bar"><button aria-label="Choose location" onClick={onChooseLocation}><Icon name="pin"/></button><strong>ZeroEmit</strong><Link aria-label="Profile" aria-current={pathname === "/profile" ? "page" : undefined} href="/profile"><Icon name="user"/></Link></header>;
 }

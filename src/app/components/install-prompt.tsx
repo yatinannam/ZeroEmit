@@ -1,13 +1,13 @@
 "use client";
 import { useSyncExternalStore } from "react";
 import { DISMISS_DAYS, installPromptMode, type InstallPromptMode } from "../lib/install";
+import { DAY_MS } from "../lib/grid";
 import { Icon } from "./icon-set";
 
 // Chromium's install event; not in the DOM typings.
 type BeforeInstallPromptEvent = Event & { prompt(): Promise<void>; userChoice: Promise<{ outcome: "accepted" | "dismissed" }> };
 
 const DISMISSED_KEY = "zeroemit-install-dismissed";
-const DAY_MS = 86_400_000;
 
 // Module-level so a beforeinstallprompt fired before (or away from) Home is
 // still kept: the browser fires it once per page load, not per mount.

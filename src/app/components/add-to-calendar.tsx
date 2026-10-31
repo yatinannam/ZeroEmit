@@ -11,5 +11,5 @@ export function AddToCalendarButton({ window, place }: { window: ChargeWindow; p
   function add() {
     downloadIcs(chargingWindowIcs({ start: window.start.datetime, end: window.end.datetime, average: window.average, placeLabel: placeLabel(place), gridLabel: ZONE_LABELS[zoneOf(place)] }));
   }
-  return <button type="button" className="text-button calendar-button" onClick={add}><Icon name="clock" size={16}/> Add to calendar</button>;
+  return <button type="button" className="text-button calendar-button" onClick={add}><Icon name="calendar" size={16}/> Add to calendar</button>;
 }

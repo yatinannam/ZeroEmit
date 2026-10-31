@@ -26,8 +26,17 @@ export function CleanGridWatcher() {
   useEffect(() => {
     if (!state || !name) return;
     let cancelled = false;
+    // The interval and a return to the tab can fire together; one check at a
+    // time, so the same alert can't go out twice.
+    let checking = false;
 
     async function check() {
+      if (checking) return;
+      checking = true;
+      try { await checkOnce(); } catch { /* a bad response just skips this check */ } finally { checking = false; }
+    }
+
+    async function checkOnce() {
       if (!notificationPrefEnabled("bestTime")) return;
       const key = `${state}:${istDayKey(Date.now())}`;
       try { if (window.localStorage.getItem(ALERTED_KEY) === key) return; } catch { return; }

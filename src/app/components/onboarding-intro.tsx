@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
+import gsap from "gsap";
 import type { ChargeWindow, ForecastPoint } from "../lib/grid";
 import { ForecastChart } from "./forecast-chart";
 import { Icon } from "./icon-set";
+import { reducedMotion } from "./motion";
 
 // Illustrations are drawn from the app's own UI with sample numbers — they
 // show what the real screens look like, stay crisp, work offline and follow
@@ -63,23 +65,24 @@ function MiniForecast() {
 }
 
 function MiniRewards() {
-  return <div className="intro-mini intro-mini-rewards" aria-label="Sample rewards: 155 points, First Green Charge badge, 30.2 kg of CO₂ avoided" role="img">
+  return <div className="intro-mini" aria-label="Sample rewards: 155 points, First Green Charge badge, 30.2 kg of CO₂ avoided" role="img">
     <div className="intro-mini-head"><span>Eco points</span><b>155 <small>pts</small></b></div>
     <div className="progress-track"><div className="progress-fill" style={{ width: "78%" }}/></div>
     <div className="intro-badge"><span className="round-icon"><Icon name="bolt" size={18}/></span><span><strong>First Green Charge</strong><small>Completed</small></span></div>
-    <div className="intro-badge"><span className="round-icon"><Icon name="tree" size={18}/></span><span><strong>30.2 kg of CO₂ avoided</strong><small>This month</small></span></div>
+    <div className="intro-badge"><span className="round-icon"><Icon name="leaf" size={18}/></span><span><strong>30.2 kg of CO₂ avoided</strong><small>This month</small></span></div>
   </div>;
 }
 
 const SLIDES = [
   { title: "Charge when energy is cleaner.", body: "Electricity isn't equally clean throughout the day. ZeroEmit helps you find better charging windows.", Art: DayDial },
   { title: "Plan your next 24 hours.", body: "See how clean the grid is likely to be, hour by hour, from India's real regional grid data, and when the cleanest windows are.", Art: MiniForecast },
-  { title: "Turn cleaner choices into progress.", body: "Track CO₂ savings, earn Eco Points and build sustainable charging habits.", Art: MiniRewards },
+  { title: "Turn cleaner choices into progress.", body: "Track CO₂ savings, earn Eco points and build sustainable charging habits.", Art: MiniRewards },
 ];
 
 export function OnboardingIntro({ onDone }: { onDone: () => void }) {
   const [index, setIndex] = useState(0);
   const headings = useRef<(HTMLHeadingElement | null)[]>([]);
+  const slides = useRef<(HTMLElement | null)[]>([]);
   const pointerStart = useRef<number | null>(null);
   const moved = useRef(false);
   const last = index === SLIDES.length - 1;
@@ -90,6 +93,17 @@ export function OnboardingIntro({ onDone }: { onDone: () => void }) {
     moved.current = true;
     setIndex(next);
   };
+
+  // Each screen's picture, headline and text follow the slide in, a beat
+  // apart. Opacity only: the headline takes focus as the slide arrives.
+  useLayoutEffect(() => {
+    const slide = slides.current[index];
+    if (!slide || !moved.current || reducedMotion()) return;
+    const ctx = gsap.context(() => {
+      gsap.from([...slide.children], { x: 32, opacity: 0, duration: 0.5, ease: "power3.out", stagger: 0.07, delay: 0.08, clearProps: "transform,opacity" });
+    }, slide);
+    return () => ctx.revert();
+  }, [index]);
 
   // After the user moves to another screen, put focus on its headline so
   // screen readers announce it (not on first render — the gate handles that).
@@ -118,7 +132,7 @@ export function OnboardingIntro({ onDone }: { onDone: () => void }) {
     <div className="intro-viewport" onPointerDown={onPointerDown} onPointerUp={onPointerUp} onPointerCancel={() => { pointerStart.current = null; }} onScroll={(event) => { event.currentTarget.scrollLeft = 0; }}>
       <div className="intro-track" style={{ transform: `translateX(-${index * 100}%)` }}>
         {SLIDES.map(({ title, body, Art }, i) => (
-          <section key={title} className="intro-slide" role="group" aria-roledescription="slide" aria-label={`Step ${i + 1} of ${SLIDES.length}`} aria-hidden={i !== index} inert={i !== index}>
+          <section key={title} ref={(node) => { slides.current[i] = node; }} className="intro-slide" role="group" aria-roledescription="slide" aria-label={`Step ${i + 1} of ${SLIDES.length}`} aria-hidden={i !== index} inert={i !== index}>
             <div className="intro-art"><Art/></div>
             <h1 ref={(node) => { headings.current[i] = node; }} tabIndex={-1}>{title}</h1>
             <p>{body}</p>

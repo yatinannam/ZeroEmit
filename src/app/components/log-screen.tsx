@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useEffectEvent, useState } from "react";
 import { useRouter } from "next/navigation";
-import { intensityAt, istHourOfDay } from "../lib/grid";
+import { DAY_MS, intensityAt, istHourOfDay } from "../lib/grid";
 import { chargeTiming, hourlyPattern, type ChargeTiming } from "../lib/timing";
 import { chargeCost, formatRupees } from "../lib/cost";
 import { useProfile } from "./use-profile";
@@ -25,7 +25,6 @@ const localTime = (date: Date) => `${pad(date.getHours())}:${pad(date.getMinutes
 // How far back a charge can be logged: enough to catch up on a missed month,
 // while a mistyped year (1999 for 2026) is caught instead of saved.
 const MAX_BACKDATE_DAYS = 30;
-const DAY_MS = 24 * 60 * 60 * 1000;
 // The list shows this many charges at first, then more on request.
 const PAGE_SIZE = 50;
 
@@ -40,7 +39,18 @@ export function LogScreen({ quick = false }: { quick?: boolean }) {
   const [formError, setFormError] = useState("");
   const [selected, setSelected] = useState<Charge | null>(null);
   const grid = useGridData(ready ? place.state : null);
-  const { charges, addCharge, removeCharge, restoreCharge } = useCharges();
+  const { charges, ready: chargesReady, addCharge, removeCharge, restoreCharge } = useCharges();
+  // A charge saved before the grid answers would keep no intensity or
+  // timing for good (no bonus, no CO₂), so Save waits for it — but only so
+  // long: offline, a charge without grid data beats no charge at all.
+  const gridPending = grid.loading && !grid.data;
+  const [gridWaitOver, setGridWaitOver] = useState(false);
+  const savePending = gridPending && !gridWaitOver;
+  useEffect(() => {
+    if (!form || !gridPending) return;
+    const timer = setTimeout(() => setGridWaitOver(true), 8000);
+    return () => clearTimeout(timer);
+  }, [form, gridPending]);
 
   // Scoped to the selected city — different cities sit on different grids,
   // so a blended cross-city average wouldn't be a meaningful "usual" here.
@@ -74,6 +84,7 @@ export function LogScreen({ quick = false }: { quick?: boolean }) {
 
   function submitCharge(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (savePending) return;
     const data = new FormData(event.currentTarget);
     const energy = Number(data.get("energy"));
     const time = String(data.get("time"));
@@ -116,16 +127,16 @@ export function LogScreen({ quick = false }: { quick?: boolean }) {
 
       <section className="activity">
         <h2>All charges</h2>
-        {groups.length ? groups.map((group) => <div key={group.heading} className="log-group">
+        {!chargesReady ? [0, 1, 2].map((index) => <div key={index} className="card activity-item skeleton-item" aria-hidden="true"/>) : groups.length ? groups.map((group) => <div key={group.heading} className="log-group">
           <h3>{group.heading}</h3>
           {group.items.map((charge) => <button key={charge.id} className="card activity-item" onClick={() => setSelected(charge)}>
             <span className="round-icon"><Icon name="bolt" size={19}/></span>
-            <div><strong>{charge.energyKwh} kWh</strong><span>{formatTimeOfDay(charge.chargedAt)}{charge.city !== city ? ` · ${charge.city}` : ""}</span></div>
+            <span className="activity-text"><strong>{charge.energyKwh} kWh</strong><span>{formatTimeOfDay(charge.chargedAt)}{charge.city !== city ? ` · ${charge.city}` : ""}</span></span>
             <b>+{pointsForCharge(charge)} pts</b>
           </button>)}
         </div>) : null}
         {charges.length > shown && <button className="forecast-button" onClick={() => setShown((n) => n + PAGE_SIZE)}>Show older charges</button>}
-        {!charges.length && <section className="card empty-state"><span className="round-icon"><Icon name="bolt" size={22}/></span><strong>No charges yet</strong><p>Log each charge to earn Eco points and see the CO₂ you avoid.</p><button className="primary-button" onClick={() => openForm()}>Log your first charge</button></section>}
+        {chargesReady && !charges.length && <section className="card empty-state"><span className="round-icon"><Icon name="bolt" size={22}/></span><strong>No charges yet</strong><p>Log each charge to earn Eco points and see the CO₂ you avoid.</p><button className="primary-button" onClick={() => openForm()}>Log your first charge</button></section>}
       </section>
     </main>
     <BottomNav/>
@@ -139,7 +150,7 @@ export function LogScreen({ quick = false }: { quick?: boolean }) {
       </div>
       <label>Energy added (kWh)<input name="energy" type="number" inputMode="decimal" min="0.1" max={MAX_KWH} step="0.1" defaultValue={typicalEnergy ? Math.min(typicalEnergy, MAX_KWH).toFixed(1) : "18"} required/></label>
       {formError && <p className="form-error" role="alert">{formError}</p>}
-      <button className="primary-button" type="submit">Save charge</button>
+      <button className="primary-button" type="submit" disabled={savePending}>{savePending ? "Getting grid data…" : "Save charge"}</button>
     </Modal>}
 
     {selected && <Modal title={`${selected.energyKwh} kWh charge`} onClose={() => setSelected(null)}>

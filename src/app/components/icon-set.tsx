@@ -1,4 +1,4 @@
-export type IconName = "pin" | "user" | "bolt" | "arrow" | "arrow-left" | "close" | "tree" | "fire" | "clock" | "home" | "chart" | "history" | "award" | "chevron-right" | "bell" | "shield" | "info" | "trash" | "search" | "target" | "check" | "moon" | "share" | "download";
+export type IconName = "pin" | "user" | "bolt" | "arrow" | "arrow-left" | "close" | "tree" | "fire" | "clock" | "home" | "chart" | "history" | "award" | "chevron-right" | "bell" | "shield" | "info" | "trash" | "search" | "target" | "check" | "moon" | "share" | "download" | "leaf" | "calendar" | "navigation";
 
 export function Icon({ name, size = 22 }: { name: IconName; size?: number }) {
   const common = { width: size, height: size, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 1.9, strokeLinecap: "round" as const, strokeLinejoin: "round" as const, "aria-hidden": true };
@@ -9,12 +9,12 @@ export function Icon({ name, size = 22 }: { name: IconName; size?: number }) {
     arrow: <path d="M5 12h14m-6-6 6 6-6 6"/>,
     "arrow-left": <path d="M19 12H5m6-6-6 6 6 6"/>,
     close: <path d="M6 6 18 18M18 6 6 18"/>,
-    tree: <path d="M12 3 4 15h5l-3 6h12l-3-6h5L12 3Z"/>,
+    tree: <><path d="M12 3 5 13h4l-3 5h12l-3-5h4L12 3Z"/><path d="M12 18v3"/></>,
     fire: <path d="M12 22c4.4 0 7-3 7-7 0-3.5-2.1-6.2-5-9 .1 2.1-1 3.4-2.2 4.3C11.8 7.5 10.6 5.7 11 3 7.8 5.2 5 9.2 5 14c0 4.5 2.8 8 7 8Z"/>,
     clock: <><circle cx="12" cy="12" r="8"/><path d="M12 7v5l3 2"/></>,
     home: <><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V10Z"/><path d="M9 21v-6h6v6"/></>,
     chart: <><path d="M4 19V5M4 19h17M7 15l4-4 3 2 5-6"/></>,
-    history: <><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5M12 7v5l3 2"/></>,
+    history: <><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/></>,
     award: <><circle cx="12" cy="8" r="5"/><path d="m9 13-1 8 4-2 4 2-1-8"/></>,
     "chevron-right": <path d="m9 6 6 6-6 6"/>,
     bell: <><path d="M6 8a6 6 0 0 1 12 0c0 3.5 1 5.5 2 7H4c1-1.5 2-3.5 2-7Z"/><path d="M10 19a2 2 0 0 0 4 0"/></>,
@@ -26,6 +26,9 @@ export function Icon({ name, size = 22 }: { name: IconName; size?: number }) {
     moon: <path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5Z"/>,
     share: <><path d="M12 15V3"/><path d="m7 8 5-5 5 5"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></>,
     download: <><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></>,
+    leaf: <><path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z"/><path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"/></>,
+    calendar: <><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M8 2v4M16 2v4M3 10h18"/></>,
+    navigation: <path d="M3 11 21 3l-8 18-2-8-8-2Z"/>,
     trash: <><path d="M4 7h16"/><path d="M9 7V4h6v3"/><path d="m6 7 1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13"/></>,
   };
   return <svg {...common}>{paths[name]}</svg>;

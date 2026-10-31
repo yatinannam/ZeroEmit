@@ -153,7 +153,7 @@ describe("review fixes", () => {
   });
 
   test("a streak badge is only nudged while the streak is alive", () => {
-    const badge = { key: "streak-7", hint: "1 more day in a row to unlock 7 Day Streak." };
+    const badge = { key: "streak-7", hint: "1 more day in a row to unlock 7-Day Streak." };
     expect(bodies(plan(sub({ badge, lastChargeDay: "2026-10-13" }), undefined, ist("2026-10-14T18:30:00")))).toEqual([badge.hint]);
     expect(bodies(plan(sub({ badge, lastChargeDay: "2026-10-10" }), undefined, ist("2026-10-14T18:30:00")))).toEqual([]);
   });

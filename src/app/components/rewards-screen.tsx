@@ -10,10 +10,11 @@ import { BottomNav, TopBar } from "./app-shell";
 import { LocationModal } from "./location-modal";
 import { PageHeader } from "./page-header";
 import { LeaderboardCard } from "./leaderboard";
+import { CountUp, ProgressFill } from "./motion";
 
 const BADGE_ICONS: Record<string, IconName> = {
   "first-green": "bolt", "green-10": "check", "streak-7": "fire", "streak-30": "fire",
-  "peak-dodger": "clock", "co2-10": "tree", "co2-50": "award", "kwh-100": "target",
+  "peak-dodger": "clock", "co2-10": "leaf", "co2-50": "tree", "kwh-100": "target",
 };
 
 const EARN_ROWS: { icon: IconName; title: string; detail: string; reward: string }[] = [
@@ -40,9 +41,9 @@ export function RewardsScreen() {
       <PageHeader eyebrow="Rewards" title="Your eco journey." intro="Level up by charging when the grid is cleaner."/>
       <section className="card stat-card">
         <div className="recommendation-head"><h2>Eco points</h2>{streak > 0 && <span className="recommended"><Icon name="fire" size={15}/> {streak} day{streak === 1 ? "" : "s"} in a row</span>}</div>
-        <strong className="stat-figure">{points || 0} <small>pts</small></strong>
+        <strong className="stat-figure"><CountUp value={points}/> <small>pts</small></strong>
         <div className="tier-row"><b>{tier.name}</b>{nextTier && <span>{points} / {nextTier.threshold} to {nextTier.name}</span>}</div>
-        <div className="progress-track"><div className="progress-fill" style={{ width: `${Math.round(progressToNext * 100)}%` }}/></div>
+        <div className="progress-track" role="progressbar" aria-label={nextTier ? `Progress to ${nextTier.name}` : "Top level reached"} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(progressToNext * 100)}><ProgressFill percent={progressToNext * 100}/></div>
       </section>
 
       <LeaderboardCard/>
@@ -51,13 +52,13 @@ export function RewardsScreen() {
         <div className="section-head"><h2>Achievements</h2><span className="chip">{unlockedCount} of {badges.length} unlocked</span></div>
         <div className="metrics-grid badge-grid">
           {badges.map((badge) => <div key={badge.key} className={`card badge-card${badge.unlocked ? "" : " badge-locked"}`}>
-            <span className="round-icon badge-icon"><Icon name={BADGE_ICONS[badge.key]} size={22}/></span>
+            <span className="round-icon badge-icon"><Icon name={BADGE_ICONS[badge.key] ?? "award"} size={22}/></span>
             <strong>{badge.title}</strong>
             {badge.unlocked
               ? <span>Completed</span>
               : <>
                 <small className="badge-hint">{badge.description}</small>
-                <div className="progress-track badge-progress" aria-hidden="true"><div className="progress-fill" style={{ width: `${Math.round((badge.current / badge.target) * 100)}%` }}/></div>
+                <div className="progress-track badge-progress" aria-hidden="true"><ProgressFill percent={(badge.current / badge.target) * 100}/></div>
                 <span>{Math.floor(badge.current)} of {badge.target}{badge.unit}</span>
               </>}
           </div>)}
@@ -83,7 +84,7 @@ export function RewardsScreen() {
 
       <section className="card stat-card">
         <h2>Estimated CO₂ avoided</h2>
-        <strong className="stat-figure">{(savedGrams / 1000).toFixed(1)} <small>kg</small></strong>
+        <strong className="stat-figure"><CountUp value={savedGrams / 1000} decimals={1}/> <small>kg</small></strong>
         <p className="personal-note">Vs. charging without timing it around the grid</p>
         {equivalentsSentence(savedGrams / 1000) && <p className="equivalents">{equivalentsSentence(savedGrams / 1000)}</p>}
         {equivalentsSentence(savedGrams / 1000) && <p className="personal-note equivalents-note">{EQUIVALENTS_NOTE}</p>}

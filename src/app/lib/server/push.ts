@@ -2,6 +2,7 @@ import { createHash, timingSafeEqual } from "node:crypto";
 import webpush from "web-push";
 import { STATES } from "../places";
 import { achievements } from "../rewards";
+import { isUuid } from "./leaderboard";
 import { redis, redisConfigured, redisTransaction } from "./redis";
 
 const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
@@ -68,7 +69,6 @@ function validPushKeys(p256dh: string, auth: string) {
   const key = Buffer.from(p256dh, "base64url");
   return key.length === 65 && key[0] === 0x04 && Buffer.from(auth, "base64url").length === 16;
 }
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const BADGE_KEYS = new Set(achievements([], 0).map((badge) => badge.key));
 const isBetween = (value: unknown, min: number, max: number): value is number => typeof value === "number" && Number.isFinite(value) && value >= min && value <= max;
 
@@ -108,7 +108,7 @@ export function parseSubscriptionBody(body: unknown): Omit<StoredSubscription, "
   const progress = optionalBool(prefs.progress);
   if (leaderboard === null || progress === null) return null;
   const leaderboardId = b.leaderboardId ?? null;
-  if (leaderboardId !== null && !(typeof leaderboardId === "string" && UUID_PATTERN.test(leaderboardId))) return null;
+  if (leaderboardId !== null && !isUuid(leaderboardId)) return null;
   const badge = parseBadge(b.badge);
   const week = parseWeek(b.week);
   if (badge === false || week === false) return null;
@@ -172,17 +172,19 @@ export async function updateSubscriptionState(sub: StoredSubscription, state: Sc
   await redis("HSET", STATE_KEY, idFor(sub.subscription.endpoint), JSON.stringify(state));
 }
 
-// Returns false (and forgets the subscription) when the push service says it
-// no longer exists — the user uninstalled, cleared data, or revoked permission.
-export async function sendPush(sub: StoredSubscription, payload: PushPayload): Promise<boolean> {
+// "gone" (and the subscription is forgotten, state and all) when the push
+// service says it no longer exists — the user uninstalled, cleared data, or
+// revoked permission. "failed" is anything worth retrying later.
+export async function sendPush(sub: StoredSubscription, payload: PushPayload): Promise<"sent" | "failed" | "gone"> {
   try {
     // A hung push service must not hold up everyone else's reminders.
     await webpush.sendNotification(sub.subscription, JSON.stringify(payload), { TTL: 60 * 60, urgency: "normal", timeout: 8000 });
-    return true;
+    return "sent";
   } catch (error) {
     const status = (error as { statusCode?: number }).statusCode;
-    if (status === 404 || status === 410) await removeSubscription(sub.subscription.endpoint).catch(() => undefined);
-    return false;
+    if (status !== 404 && status !== 410) return "failed";
+    await removeSubscription(sub.subscription.endpoint).catch(() => undefined);
+    return "gone";
   }
 }
 

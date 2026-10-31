@@ -1,5 +1,6 @@
 import type { Charge } from "../components/use-charges";
 import { TIMING_BONUS } from "./timing";
+import { DAY_MS, IST_OFFSET_MS } from "./grid";
 
 export const POINTS_PER_CHARGE = 10;
 // Fallback only — used when a charge has no provider intensity_class (older
@@ -116,9 +117,9 @@ export function achievements(charges: Charge[], streak: number): Achievement[] {
   const rows: Omit<Achievement, "unlocked">[] = [
     { key: "first-green", title: "First Green Charge", description: "Charge in one of the day's best windows", current: green, target: 1, unit: "" },
     { key: "green-10", title: "Green Regular", description: "10 charges in best windows", current: green, target: 10, unit: "" },
-    { key: "streak-7", title: "7 Day Streak", description: "Charge 7 days in a row", current: streak, target: 7, unit: " days" },
-    { key: "streak-30", title: "30 Day Streak", description: "Charge 30 days in a row", current: streak, target: 30, unit: " days" },
-    { key: "peak-dodger", title: "Peak Dodger", description: "5 charges outside the 6-10 pm peak", current: offPeak, target: 5, unit: "" },
+    { key: "streak-7", title: "7-Day Streak", description: "Charge 7 days in a row", current: streak, target: 7, unit: " days" },
+    { key: "streak-30", title: "30-Day Streak", description: "Charge 30 days in a row", current: streak, target: 30, unit: " days" },
+    { key: "peak-dodger", title: "Peak Dodger", description: "5 charges outside the 6–10 pm peak", current: offPeak, target: 5, unit: "" },
     { key: "co2-10", title: "Carbon Cutter", description: "Avoid 10 kg of CO₂", current: savedKg, target: 10, unit: " kg" },
     { key: "co2-50", title: "Climate Champion", description: "Avoid 50 kg of CO₂", current: savedKg, target: 50, unit: " kg" },
     { key: "kwh-100", title: "100 kWh Club", description: "Charge 100 kWh in total", current: kwh, target: 100, unit: " kWh" },
@@ -133,7 +134,7 @@ const BADGE_STEPS: Record<string, { kind: "count" | "amount"; one?: string; many
   "green-10": { kind: "count", one: "green charge", many: "green charges" },
   "streak-7": { kind: "count", one: "day in a row", many: "days in a row" },
   "streak-30": { kind: "count", one: "day in a row", many: "days in a row" },
-  "peak-dodger": { kind: "count", one: "charge outside the 6-10 pm peak", many: "charges outside the 6-10 pm peak" },
+  "peak-dodger": { kind: "count", one: "charge outside the 6–10 pm peak", many: "charges outside the 6–10 pm peak" },
   "co2-10": { kind: "amount", unit: "kg more CO₂ avoided" },
   "co2-50": { kind: "amount", unit: "kg more CO₂ avoided" },
   "kwh-100": { kind: "amount", unit: "kWh more" },
@@ -163,8 +164,6 @@ export function closestBadge(badges: Achievement[]): { key: string; hint: string
   return { key: badge.key, hint: `${amount} ${steps.unit} to unlock ${badge.title}.` };
 }
 
-const IST_OFFSET_MS = 5.5 * 60 * 60_000;
-const DAY_MS = 24 * 60 * 60_000;
 
 // This IST week so far (Monday 00:00 IST onwards), for the weekly recap.
 export function weekSummary(charges: Charge[], now = Date.now()) {

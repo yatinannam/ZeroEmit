@@ -61,6 +61,8 @@ export async function joinLeaderboard(name: string, zone: Zone, charges: Charge[
     }
     const body = await response.json() as { rank: number };
     store.write(membership);
+    // The join already sent this score; don't send it again straight away.
+    rememberSynced(syncFingerprint(membership, zone, charges));
     try { window.localStorage.removeItem(PENDING_JOIN_KEY); } catch { /* storage unavailable */ }
     return { ok: true, rank: body.rank };
   } catch {
@@ -89,10 +91,18 @@ export function useLeaderboardVersion() {
 const SYNCED_KEY = "zeroemit-leaderboard-synced";
 const RESYNC_AFTER_MS = 6 * 60 * 60_000;
 
+function syncFingerprint(membership: Membership, zone: Zone, charges: Charge[]) {
+  return JSON.stringify([membership.id, membership.name, zone, toLeaderboardCharges(charges, istMonthKey(Date.now()))]);
+}
+
+function rememberSynced(fingerprint: string) {
+  try { window.localStorage.setItem(SYNCED_KEY, JSON.stringify({ fingerprint, at: Date.now() })); } catch { /* storage unavailable */ }
+}
+
 export async function syncLeaderboard(zone: Zone, charges: Charge[]) {
   const membership = store.getSnapshot();
   if (!membership) return true;
-  const fingerprint = JSON.stringify([membership.id, membership.name, zone, toLeaderboardCharges(charges, istMonthKey(Date.now()))]);
+  const fingerprint = syncFingerprint(membership, zone, charges);
   try {
     const last = JSON.parse(window.localStorage.getItem(SYNCED_KEY) ?? "null") as { fingerprint?: string; at?: number } | null;
     if (last?.fingerprint === fingerprint && Date.now() - (last.at ?? 0) < RESYNC_AFTER_MS) return true;
@@ -102,7 +112,7 @@ export async function syncLeaderboard(zone: Zone, charges: Charge[]) {
     // 410: this entry already left (e.g. from another tab), so forget it here too.
     if (response.status === 410) { store.write(null); return true; }
     if (!response.ok) return false;
-    try { window.localStorage.setItem(SYNCED_KEY, JSON.stringify({ fingerprint, at: Date.now() })); } catch { /* storage unavailable */ }
+    rememberSynced(fingerprint);
     version += 1;
     versionListeners.forEach((listener) => listener());
     return true;

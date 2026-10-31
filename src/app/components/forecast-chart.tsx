@@ -1,4 +1,9 @@
+"use client";
+
+import { useLayoutEffect, useRef } from "react";
+import gsap from "gsap";
 import { formatShortHour, type ChargeWindow, type ForecastPoint } from "../lib/grid";
+import { reducedMotion } from "./motion";
 
 const WIDTH = 328;
 const HEIGHT = 130;
@@ -18,6 +23,24 @@ export function chartDomain(values: number[]): [number, number] {
 }
 
 export function ForecastChart({ points, highlight }: { points: ForecastPoint[]; highlight: ChargeWindow | null }) {
+  const svg = useRef<SVGSVGElement>(null);
+  const shape = points.map((point) => point.carbonIntensity).join();
+
+  // Draw the line in from the left each time a different day's curve
+  // appears, then let the fill and the best-window band settle in.
+  useLayoutEffect(() => {
+    if (!svg.current || reducedMotion()) return;
+    const ctx = gsap.context(() => {
+      const line = svg.current?.querySelector<SVGPathElement>(".forecast-chart-line");
+      const length = line?.getTotalLength() ?? 0;
+      if (line && length) gsap.fromTo(line, { strokeDasharray: length, strokeDashoffset: length }, { strokeDashoffset: 0, duration: 0.9, ease: "power2.inOut", clearProps: "strokeDasharray,strokeDashoffset" });
+      gsap.from(".forecast-chart-area", { opacity: 0, duration: 0.6, delay: 0.3, clearProps: "opacity" });
+      gsap.from(".forecast-chart-band", { scaleY: 0, transformOrigin: "50% 100%", duration: 0.5, ease: "power3.out", delay: 0.5, clearProps: "transform" });
+      gsap.from(".forecast-chart-dot", { scale: 0, transformOrigin: "50% 50%", duration: 0.4, ease: "back.out(3)", delay: 0.1, clearProps: "transform" });
+    }, svg);
+    return () => ctx.revert();
+  }, [shape]);
+
   if (points.length < 2) return null;
   const [low, high] = chartDomain(points.map((point) => point.carbonIntensity));
   const plotHeight = HEIGHT - TOP_PAD - BOTTOM_PAD;
@@ -40,7 +63,7 @@ export function ForecastChart({ points, highlight }: { points: ForecastPoint[]; 
   const tickIndexes = Array.from({ length: Math.floor(lastIndex / step) + 1 }, (_, i) => i * step);
   if (lastIndex - tickIndexes[tickIndexes.length - 1] >= step / 2) tickIndexes.push(lastIndex);
 
-  return <svg className="forecast-chart" viewBox={`0 0 ${WIDTH} ${HEIGHT}`} role="img" aria-label="Carbon intensity by hour">
+  return <svg ref={svg} className="forecast-chart" viewBox={`0 0 ${WIDTH} ${HEIGHT}`} role="img" aria-label="Carbon intensity by hour">
     {bandStart >= 0 && <rect className="forecast-chart-band" x={x(bandStart)} y={TOP_PAD} width={Math.max(x(bandEnd) - x(bandStart), 4)} height={plotHeight}/>}
     <line className="forecast-chart-baseline" x1="0" y1={baseline} x2={WIDTH} y2={baseline}/>
     <path className="forecast-chart-area" d={areaPath}/>

@@ -30,6 +30,8 @@ beforeEach(async () => {
   requests.length = 0;
   statuses = [200];
   await joinLeaderboard("Asha", "western", []);
+  // Start each test as if that score had never been sent.
+  storage.delete("zeroemit-leaderboard-synced");
   requests.length = 0;
 });
 
@@ -134,6 +136,15 @@ describe("joining again after a lost response", () => {
 });
 
 describe("skipping unchanged syncs", () => {
+  test("a join's score isn't sent again straight after", async () => {
+    await leaveLeaderboard();
+    statuses = [200];
+    await joinLeaderboard("Asha", "western", []);
+    requests.length = 0;
+    expect(await syncLeaderboard("western", [])).toBe(true);
+    expect(requests.filter((request) => request.method === "POST")).toHaveLength(0);
+  });
+
   test("the same charges aren't sent twice; a change is", async () => {
     const charge = { id: "a", energyKwh: 20, chargedAt: "12:00", city: "Pune, Maharashtra", carbonIntensity: 450, intensityClass: null, loggedAt: new Date().toISOString() };
     requests.length = 0;

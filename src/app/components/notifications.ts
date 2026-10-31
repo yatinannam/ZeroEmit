@@ -14,8 +14,14 @@ function subscribe(listener: () => void) {
   listeners.add(listener);
   // Also pick up a permission change made in browser settings while open.
   let status: PermissionStatus | null = null;
-  navigator.permissions?.query({ name: "notifications" }).then((result) => { status = result; result.addEventListener("change", listener); }).catch(() => undefined);
-  return () => { listeners.delete(listener); status?.removeEventListener("change", listener); };
+  let unsubscribed = false;
+  navigator.permissions?.query({ name: "notifications" }).then((result) => {
+    // The query can answer after the component already unsubscribed.
+    if (unsubscribed) return;
+    status = result;
+    result.addEventListener("change", listener);
+  }).catch(() => undefined);
+  return () => { unsubscribed = true; listeners.delete(listener); status?.removeEventListener("change", listener); };
 }
 
 function permissionNow(): Permission {

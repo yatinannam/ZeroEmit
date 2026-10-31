@@ -70,9 +70,19 @@ describe("toLeaderboardCharges", () => {
     expect(out[0].green).toBe(false);
   });
 
-  test("sends at most 100 charges", () => {
-    const many = Array.from({ length: 120 }, (_, i) => charge(new Date(Date.parse("2026-10-01T00:00:00.000Z") + i * 3_600_000).toISOString()));
-    expect(toLeaderboardCharges(many, "2026-10")).toHaveLength(100);
+  test("a busy day can't crowd out the rest of the month", () => {
+    // Ten charges on each of the month's 31 days: 3 a day are sent, every day kept.
+    const many = Array.from({ length: 310 }, (_, i) => charge(new Date(Date.parse("2026-10-01T00:00:00+05:30") + Math.floor(i / 10) * 86_400_000 + (i % 10) * 3_600_000).toISOString()));
+    const out = toLeaderboardCharges(many, "2026-10");
+    expect(out).toHaveLength(93);
+    expect(new Set(out.map((entry) => entry.date)).size).toBe(31);
+  });
+
+  test("keeps each day's highest-scoring charges", () => {
+    const day = [0, 1, 2, 3].map((hour) => charge(`2026-10-10T0${hour}:00:00.000Z`, { id: `c${hour}`, intensityClass: "yellow", ...(hour === 3 ? { timing: "best" as const } : {}) }));
+    const out = toLeaderboardCharges(day, "2026-10");
+    expect(out).toHaveLength(3);
+    expect(out.some((entry) => entry.timing === "best")).toBe(true);
   });
 });
 

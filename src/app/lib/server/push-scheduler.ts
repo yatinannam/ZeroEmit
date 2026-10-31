@@ -1,4 +1,4 @@
-import { formatHour, formatWindow, HOUR_MS, IST_TIME_ZONE, istDayKey, istHourOfDay, mergeLiveReading, topWindows, type ForecastPoint } from "../grid";
+import { formatHour, formatWindow, HOUR_MS, IST_OFFSET_MS, IST_TIME_ZONE, istDayKey, istHourOfDay, mergeLiveReading, topWindows, type ForecastPoint } from "../grid";
 import { istMonthKey } from "../leaderboard";
 import { STATES, type Zone } from "../places";
 import { GREEN_CHARGE_FALLBACK_THRESHOLD } from "../rewards";
@@ -68,7 +68,6 @@ export type Standings = { current: Standing | null; lastMonth: Standing | null }
 const markValue = (mark: MarkKey, now: number) => (mark === "top" || mark === "monthEnd" ? istMonthKey(now) : istDayKey(now));
 const LOG_ACTION = [{ action: "log", title: "Log a charge" }];
 const BADGE_NUDGE_EVERY_DAYS = 3;
-const IST_OFFSET_MS = 5.5 * HOUR_MS;
 
 // Leaderboard news: last month's final result on the 1st, being overtaken
 // (once a day), or reaching #1 (once a month). Also returns the rank to
@@ -251,16 +250,24 @@ export async function runPushSchedule(now = Date.now()) {
       const standings = boards && sub.leaderboardId && sub.prefs.leaderboard ? { current: boards.current.get(sub.leaderboardId) ?? null, lastMonth: boards.lastMonth.get(sub.leaderboardId) ?? null } : undefined;
       const { planned, lb } = plan(sub, plansByZone.get(STATES[sub.state]?.zone), now, standings);
       const markers: SentMarkers = { ...sub.sent, badges: { ...sub.sent.badges } };
+      let gone = false;
       for (const { payload, marks, badge } of planned) {
         // Stop at the first failure: an expired subscription was already
         // removed, and anything undelivered is retried on the next run.
-        if (!(await sendPush(sub, payload))) { failed += 1; break; }
+        const result = await sendPush(sub, payload);
+        if (result !== "sent") { failed += 1; gone = result === "gone"; break; }
         sent += 1;
         for (const mark of marks) markers[mark] = markValue(mark, now);
         if (badge) markers.badges = { ...markers.badges, [badge]: today };
       }
+      // Its state went with it; writing it back would leave an orphan entry.
+      if (gone) return;
       if (!Object.keys(markers.badges ?? {}).length) delete markers.badges;
-      if (JSON.stringify(markers) !== JSON.stringify(sub.sent) || JSON.stringify(lb) !== JSON.stringify(sub.lb)) await updateSubscriptionState(sub, { sent: markers, lb });
+      // Keep the old rank while an overtake notice is still undelivered, or
+      // the next run would see no change and never send it.
+      const overtakeUndelivered = planned.some(({ marks }) => marks.includes("overtake")) && markers.overtake === sub.sent.overtake;
+      const nextLb = overtakeUndelivered ? sub.lb : lb;
+      if (JSON.stringify(markers) !== JSON.stringify(sub.sent) || JSON.stringify(nextLb) !== JSON.stringify(sub.lb)) await updateSubscriptionState(sub, { sent: markers, lb: nextLb });
     });
     if (failed) console.error(`push schedule: ${failed} of ${subs.length} subscribers had a failed send`);
     return { subscriptions: subs.length, zones: zones.length, sent, failed };

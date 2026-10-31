@@ -38,7 +38,7 @@ export function chargingWindowIcs(window: CalendarWindow, now = Date.now()) {
     `DTEND:${icsTime(window.end)}`,
     "SUMMARY:Charge your EV (cleanest window)",
     `LOCATION:${escapeText(window.placeLabel)}`,
-    `DESCRIPTION:${escapeText(`About ${Math.round(window.average)} gCO₂/kWh on average, one of the cleanest stretches on the ${window.gridLabel} today. Times from ZeroEmit: https://zero-emit.vercel.app`)}`,
+    `DESCRIPTION:${escapeText(`About ${Math.round(window.average)} gCO₂/kWh on average, one of the cleanest stretches of the day on the ${window.gridLabel}. Times from ZeroEmit: https://zero-emit.vercel.app`)}`,
     "BEGIN:VALARM",
     "TRIGGER:-PT10M",
     "ACTION:DISPLAY",
