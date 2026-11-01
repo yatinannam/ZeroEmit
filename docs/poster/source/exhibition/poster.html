@@ -17,20 +17,22 @@
 * { box-sizing:border-box; margin:0; padding:0; }
 html { background:var(--mint); }
 body { width:2245px; height:3178px; overflow:hidden; font-family:Inter, Arial, sans-serif; color:var(--ink); background:var(--mint); -webkit-font-smoothing:antialiased; }
-.poster { display:flex; flex-direction:column; height:100%; padding:72px 92px 0; }
+.poster { display:flex; flex-direction:column; height:100%; padding:68px 80px 0; }
 
 /* Header: SRM logo top-left, title beside it (board template). */
 header { display:flex; align-items:center; gap:64px; }
 .srm { height:150px; width:auto; flex:none; }
 .title h1 { font-size:80px; line-height:1.04; font-weight:800; letter-spacing:-.025em; color:var(--forest); }
 .title p { margin-top:14px; font-size:32px; font-weight:500; color:var(--moss); }
-.rule { flex:none; height:5px; margin-top:32px; border-radius:3px; background:var(--forest); }
+.rule { flex:none; height:5px; margin-top:26px; border-radius:3px; background:var(--forest); }
 
 /* Sections */
-h2 { font-size:46px; line-height:1.1; font-weight:750; letter-spacing:-.015em; color:var(--forest); margin-bottom:22px; }
+h2 { font-size:46px; line-height:1.1; font-weight:750; letter-spacing:-.015em; color:var(--forest); margin-bottom:18px; }
 h3 { font-size:28px; line-height:1.2; font-weight:700; color:var(--ink); }
 p, li { font-size:26px; line-height:1.42; color:var(--moss); }
-.row { display:grid; gap:72px; margin-top:30px; }
+.row { display:grid; gap:32px; margin-top:22px; }
+/* Every section sits on the same soft green panel as the dashboard. */
+.panel { padding:22px 30px 24px; border-radius:34px; background:linear-gradient(160deg, #e3f5de, #d3ecd0); }
 .note { font-size:20px; line-height:1.38; color:var(--moss); margin-top:10px; }
 .dots { list-style:none; display:grid; gap:10px; }
 .dots li { position:relative; padding-left:30px; }
@@ -48,15 +50,15 @@ p, li { font-size:26px; line-height:1.42; color:var(--moss); }
 #day-chart { display:block; width:100%; height:auto; margin-top:6px; }
 
 .solution-lead { font-size:28px; line-height:1.45; color:var(--ink); }
-.journey { list-style:none; margin-top:26px; display:grid; border-top:2px solid var(--sage); }
-.journey li { display:grid; grid-template-columns:68px 1fr; gap:22px; align-items:center; padding:20px 0; border-bottom:2px solid var(--sage); }
-.journey .ic { width:68px; height:68px; border-radius:50%; display:grid; place-items:center; background:var(--mint-soft); color:var(--forest); }
+.journey { list-style:none; margin-top:26px; display:grid; border-top:2px solid #bfd8bb; }
+.journey li { display:grid; grid-template-columns:68px 1fr; gap:22px; align-items:center; padding:20px 0; border-bottom:2px solid #bfd8bb; }
+.journey .ic { width:68px; height:68px; border-radius:50%; display:grid; place-items:center; background:var(--card); color:var(--forest); }
 .journey .ic svg { width:34px; height:34px; }
 .journey h3 { margin-bottom:2px; }
 .journey p { font-size:24px; line-height:1.38; }
 
 /* Features + methodology */
-.row-2 { grid-template-columns:0.8fr 1.2fr; }
+.row-2 { grid-template-columns:0.95fr 1.05fr; }
 .features { display:grid; grid-template-columns:1fr 1fr; gap:18px 30px; }
 .feature { display:grid; grid-template-columns:56px 1fr; gap:18px; align-items:start; }
 .feature .ic { width:56px; height:56px; border-radius:16px; display:grid; place-items:center; background:var(--forest); color:#fff; }
@@ -76,26 +78,26 @@ p, li { font-size:26px; line-height:1.42; color:var(--moss); }
 .arrow svg { width:28px; height:28px; }
 .steps { list-style:none; margin-top:22px; display:grid; gap:10px; counter-reset:step; }
 .steps li { display:grid; grid-template-columns:44px 1fr; gap:16px; align-items:start; font-size:22px; line-height:1.38; }
-.steps li::before { counter-increment:step; content:counter(step); width:44px; height:44px; border-radius:50%; display:grid; place-items:center; font-size:22px; font-weight:800; color:var(--forest); background:var(--mint-soft); }
+.steps li::before { counter-increment:step; content:counter(step); width:44px; height:44px; border-radius:50%; display:grid; place-items:center; font-size:22px; font-weight:800; color:var(--forest); background:var(--card); }
 .steps b { color:var(--ink); font-weight:700; }
 .stack-head { margin-top:24px; font-size:25px; }
 .stack { display:flex; flex-wrap:wrap; align-items:center; gap:10px; margin-top:12px; }
 .stack span { padding:6px 15px; border-radius:999px; font-size:19px; font-weight:600; color:var(--forest); background:var(--card); border:2px solid var(--sage); }
 
 /* Dashboard */
-.dashboard { margin-top:30px; padding:24px 48px 24px; border-radius:34px; background:linear-gradient(160deg, #e3f5de, #d3ecd0); }
+.dashboard { margin-top:22px; padding:22px 48px 22px; border-radius:34px; background:linear-gradient(160deg, #e3f5de, #d3ecd0); }
 .dash-head { display:flex; justify-content:space-between; align-items:baseline; gap:30px; }
 .dash-head h2 { margin-bottom:0; }
 .dash-head p { font-size:22px; }
 .phones { display:grid; grid-template-columns:repeat(5, 1fr); gap:30px; margin-top:24px; }
 .screen { display:flex; flex-direction:column; align-items:center; text-align:center; }
-.phone { width:250px; padding:10px; border-radius:38px; background:var(--ink); box-shadow:0 20px 40px rgb(13 99 27 / 22%); }
-.phone img { display:block; width:100%; border-radius:29px; }
+.phone { width:238px; padding:10px; border-radius:37px; background:var(--ink); box-shadow:0 20px 40px rgb(13 99 27 / 22%); }
+.phone img { display:block; width:100%; border-radius:28px; }
 .screen h3 { margin-top:14px; font-size:26px; }
 .screen p { margin-top:2px; font-size:21px; line-height:1.32; max-width:330px; }
 
 /* Impact + SDGs */
-.row-3 { grid-template-columns:1fr 1fr; }
+.row-3 { grid-template-columns:1.06fr 1fr; }
 .example { display:grid; grid-template-columns:auto 1fr; gap:28px; align-items:center; padding:20px 26px; border-radius:22px; background:var(--card); border:2px solid var(--sage); }
 .from-to { display:flex; align-items:center; gap:14px; }
 .from-to div { display:flex; flex-direction:column; align-items:center; }
@@ -120,7 +122,7 @@ p, li { font-size:26px; line-height:1.42; color:var(--moss); }
 /* Footer: students, faculty, QR (board template). */
 footer { margin-top:auto; }
 .footer-rule { height:5px; border-radius:3px; background:var(--forest); }
-.footer-body { display:grid; grid-template-columns:1fr auto; gap:56px; align-items:center; padding:22px 0 36px; }
+.footer-body { display:grid; grid-template-columns:1fr auto; gap:56px; align-items:center; padding:18px 0 30px; }
 .team-head h2 { font-size:34px; margin-bottom:14px; }
 .students { list-style:none; display:grid; grid-template-columns:repeat(5, auto); justify-content:space-between; gap:24px; }
 .students li { display:flex; flex-direction:column; gap:4px; }
@@ -150,7 +152,7 @@ footer { margin-top:auto; }
 <div class="rule" role="presentation"></div>
 
 <section class="row row-1">
-  <div>
+  <div class="panel">
     <h2>Problem statement</h2>
     <ul class="dots">
       <li><strong>An EV is only as clean as the power that charges it,</strong> and most of India's electricity still comes from coal.</li>
@@ -162,12 +164,12 @@ footer { margin-top:auto; }
         <h3>A typical day on the Southern grid</h3>
         <div class="legend"><span><i style="background:#c9e6c6"></i>Cleanest 2 hours</span><span><i style="background:#e4e7e1"></i>Evening peak</span></div>
       </div>
-      <svg id="day-chart" viewBox="0 0 1000 214" role="img" aria-label="Carbon intensity by hour on the Southern grid: lowest around noon, highest in the evening and at night"></svg>
+      <svg id="day-chart" viewBox="0 0 1000 196" role="img" aria-label="Carbon intensity by hour on the Southern grid: lowest around noon, highest in the evening and at night"></svg>
       <p class="note">gCO₂/kWh by hour (IST), averaged over the 14 days to 1 Nov 2026. Source: India Energy Atlas.</p>
     </div>
   </div>
 
-  <div>
+  <div class="panel">
     <h2>Proposed solution</h2>
     <p class="solution-lead">ZeroEmit is a free web app that EV drivers install on their phone. It reads the live carbon intensity of the driver's regional grid, forecasts the next 24 hours and tells them when to plug in.</p>
     <ul class="journey">
@@ -179,7 +181,7 @@ footer { margin-top:auto; }
 </section>
 
 <section class="row row-2">
-  <div>
+  <div class="panel">
     <h2>Key features</h2>
     <div class="features">
       <div class="feature"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="m13 2-8 11h6l-1 9 8-11h-6l1-9Z"/></svg></span><div><h3>Live grid intensity</h3><p>All 5 regional grids, every state and 255 cities.</p></div></div>
@@ -195,7 +197,7 @@ footer { margin-top:auto; }
     <div class="stack"><span>Next.js 16</span><span>React 19</span><span>TypeScript</span><span>PWA</span><span>Web Push</span><span>Upstash Redis</span><span>Vercel</span><span>GitHub Actions</span><span>Leaflet</span><span>GSAP</span><span>Lenis</span></div>
   </div>
 
-  <div>
+  <div class="panel">
     <h2>Methodology and system architecture</h2>
     <div class="pipeline">
       <div class="stage"><h3>Data sources</h3><ul><li>India Energy Atlas grid data</li><li>Electricity Maps fallback</li><li>OpenStreetMap chargers</li></ul></div>
@@ -228,7 +230,7 @@ footer { margin-top:auto; }
 </section>
 
 <section class="row row-3">
-  <div class="impact">
+  <div class="panel impact">
     <h2>Impact</h2>
     <div class="example">
       <div class="from-to">
@@ -246,7 +248,7 @@ footer { margin-top:auto; }
     </ul>
   </div>
 
-  <div>
+  <div class="panel">
     <h2>SDG mapping</h2>
     <div class="sdgs">
       <div class="sdg"><div class="tile" style="background:#fcc30b;color:#141e14"><small>SDG</small><b>7</b></div><h3>Affordable and Clean Energy</h3><p>Shifts charging to hours with more clean power, such as midday solar.</p></div>
@@ -283,7 +285,7 @@ footer { margin-top:auto; }
 <script>
 // The problem chart, drawn from the real typical-day values (gCO2/kWh by IST hour).
 const PATTERN = [784, 782, 782, 782, 781, 780, 776, 689, 621, 565, 533, 517, 513, 522, 545, 587, 651, 722, 775, 781, 781, 783, 784, 785];
-const W = 1000, H = 214, L = 64, R = 16, T = 30, B = 38;
+const W = 1000, H = 196, L = 64, R = 16, T = 30, B = 38;
 const LOW = 470, HIGH = 820;
 const x = (h) => L + (h / 23) * (W - L - R);
 const y = (v) => T + (1 - (v - LOW) / (HIGH - LOW)) * (H - T - B);
