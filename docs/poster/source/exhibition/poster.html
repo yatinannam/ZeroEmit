@@ -1,0 +1,309 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>ZeroEmit exhibition poster</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<!--
+  Drawn on an A1 canvas (594 x 841 mm at 96 px/in = 2245 x 3178 px).
+  render.cjs prints it to A1-A4 PDFs by scaling, so every size is the same
+  vector layout. Colours and type follow the ZeroEmit app (globals.css).
+-->
+<style>
+:root {
+  --forest:#0d631b; --leaf:#2e7d32; --mint:#f1fdec; --mint-soft:#c9f7c9; --mint-deep:#cbffc2;
+  --card:#ffffff; --sage:#dae6d6; --ink:#141e14; --moss:#40493d; --peak:#8b9488;
+}
+* { box-sizing:border-box; margin:0; padding:0; }
+html { background:var(--mint); }
+body { width:2245px; height:3178px; overflow:hidden; font-family:Inter, Arial, sans-serif; color:var(--ink); background:var(--mint); -webkit-font-smoothing:antialiased; }
+.poster { display:flex; flex-direction:column; height:100%; padding:72px 92px 0; }
+
+/* Header: SRM logo top-left, title beside it (board template). */
+header { display:flex; align-items:center; gap:64px; }
+.srm { height:150px; width:auto; flex:none; }
+.title h1 { font-size:80px; line-height:1.04; font-weight:800; letter-spacing:-.025em; color:var(--forest); }
+.title p { margin-top:14px; font-size:32px; font-weight:500; color:var(--moss); }
+.rule { flex:none; height:5px; margin-top:32px; border-radius:3px; background:var(--forest); }
+
+/* Sections */
+h2 { font-size:46px; line-height:1.1; font-weight:750; letter-spacing:-.015em; color:var(--forest); margin-bottom:22px; }
+h3 { font-size:28px; line-height:1.2; font-weight:700; color:var(--ink); }
+p, li { font-size:26px; line-height:1.42; color:var(--moss); }
+.row { display:grid; gap:72px; margin-top:30px; }
+.note { font-size:20px; line-height:1.38; color:var(--moss); margin-top:10px; }
+.dots { list-style:none; display:grid; gap:10px; }
+.dots li { position:relative; padding-left:30px; }
+.dots li::before { content:""; position:absolute; left:3px; top:15px; width:11px; height:11px; border-radius:50%; background:var(--leaf); }
+.dots strong { color:var(--ink); font-weight:650; }
+
+/* Problem + solution */
+.row-1 { grid-template-columns:1.12fr 1fr; }
+.chart-card { margin-top:20px; padding:20px 26px 16px; border:2px solid var(--sage); border-radius:22px; background:var(--card); }
+.chart-head { display:flex; justify-content:space-between; align-items:baseline; gap:20px; }
+.chart-head h3 { font-size:25px; }
+.legend { display:flex; gap:22px; font-size:20px; color:var(--moss); }
+.legend span { display:flex; align-items:center; gap:8px; }
+.legend i { width:22px; height:14px; border-radius:4px; display:inline-block; }
+#day-chart { display:block; width:100%; height:auto; margin-top:6px; }
+
+.solution-lead { font-size:28px; line-height:1.45; color:var(--ink); }
+.journey { list-style:none; margin-top:26px; display:grid; border-top:2px solid var(--sage); }
+.journey li { display:grid; grid-template-columns:68px 1fr; gap:22px; align-items:center; padding:20px 0; border-bottom:2px solid var(--sage); }
+.journey .ic { width:68px; height:68px; border-radius:50%; display:grid; place-items:center; background:var(--mint-soft); color:var(--forest); }
+.journey .ic svg { width:34px; height:34px; }
+.journey h3 { margin-bottom:2px; }
+.journey p { font-size:24px; line-height:1.38; }
+
+/* Features + methodology */
+.row-2 { grid-template-columns:0.8fr 1.2fr; }
+.features { display:grid; grid-template-columns:1fr 1fr; gap:18px 30px; }
+.feature { display:grid; grid-template-columns:56px 1fr; gap:18px; align-items:start; }
+.feature .ic { width:56px; height:56px; border-radius:16px; display:grid; place-items:center; background:var(--forest); color:#fff; }
+.feature .ic svg { width:29px; height:29px; }
+.feature h3 { font-size:25px; margin:2px 0 4px; }
+.feature p { font-size:21px; line-height:1.36; }
+
+.pipeline { display:grid; grid-template-columns:1fr 30px 1fr 30px 1.15fr 30px 1fr; align-items:stretch; }
+.stage { padding:16px 18px; border-radius:18px; background:var(--card); border:2px solid var(--sage); }
+.stage h3 { font-size:23px; margin-bottom:8px; }
+.stage ul { list-style:none; display:grid; gap:4px; }
+.stage li { font-size:19px; line-height:1.3; }
+.stage.engine { background:var(--forest); border-color:var(--forest); }
+.stage.engine h3 { color:#fff; }
+.stage.engine li { color:var(--mint-deep); }
+.arrow { display:grid; place-items:center; color:var(--leaf); }
+.arrow svg { width:28px; height:28px; }
+.steps { list-style:none; margin-top:22px; display:grid; gap:10px; counter-reset:step; }
+.steps li { display:grid; grid-template-columns:44px 1fr; gap:16px; align-items:start; font-size:22px; line-height:1.38; }
+.steps li::before { counter-increment:step; content:counter(step); width:44px; height:44px; border-radius:50%; display:grid; place-items:center; font-size:22px; font-weight:800; color:var(--forest); background:var(--mint-soft); }
+.steps b { color:var(--ink); font-weight:700; }
+.stack-head { margin-top:24px; font-size:25px; }
+.stack { display:flex; flex-wrap:wrap; align-items:center; gap:10px; margin-top:12px; }
+.stack span { padding:6px 15px; border-radius:999px; font-size:19px; font-weight:600; color:var(--forest); background:var(--card); border:2px solid var(--sage); }
+
+/* Dashboard */
+.dashboard { margin-top:30px; padding:24px 48px 24px; border-radius:34px; background:linear-gradient(160deg, #e3f5de, #d3ecd0); }
+.dash-head { display:flex; justify-content:space-between; align-items:baseline; gap:30px; }
+.dash-head h2 { margin-bottom:0; }
+.dash-head p { font-size:22px; }
+.phones { display:grid; grid-template-columns:repeat(5, 1fr); gap:30px; margin-top:24px; }
+.screen { display:flex; flex-direction:column; align-items:center; text-align:center; }
+.phone { width:250px; padding:10px; border-radius:38px; background:var(--ink); box-shadow:0 20px 40px rgb(13 99 27 / 22%); }
+.phone img { display:block; width:100%; border-radius:29px; }
+.screen h3 { margin-top:14px; font-size:26px; }
+.screen p { margin-top:2px; font-size:21px; line-height:1.32; max-width:330px; }
+
+/* Impact + SDGs */
+.row-3 { grid-template-columns:1fr 1fr; }
+.example { display:grid; grid-template-columns:auto 1fr; gap:28px; align-items:center; padding:20px 26px; border-radius:22px; background:var(--card); border:2px solid var(--sage); }
+.from-to { display:flex; align-items:center; gap:14px; }
+.from-to div { display:flex; flex-direction:column; align-items:center; }
+.from-to b { font-size:44px; line-height:1; font-weight:800; }
+.from-to small { font-size:18px; font-weight:600; color:var(--moss); margin-top:6px; }
+.from-to .peak b { color:var(--peak); }
+.from-to .clean b { color:var(--forest); }
+.from-to svg { width:32px; height:32px; color:var(--leaf); }
+.example p { font-size:24px; color:var(--ink); }
+.example p strong { color:var(--forest); }
+.impact .dots { margin-top:18px; }
+.impact .dots li { font-size:24px; }
+
+.sdgs { display:grid; grid-template-columns:repeat(3, 1fr); gap:20px; }
+.sdg { padding:18px 20px 20px; border-radius:22px; background:var(--card); border:2px solid var(--sage); }
+.sdg .tile { width:84px; height:84px; border-radius:12px; display:flex; flex-direction:column; justify-content:center; padding:0 10px; margin-bottom:12px; }
+.sdg .tile small { font-size:14px; font-weight:800; letter-spacing:.04em; }
+.sdg .tile b { font-size:42px; line-height:1; font-weight:800; }
+.sdg h3 { font-size:24px; margin-bottom:6px; }
+.sdg p { font-size:21px; line-height:1.36; }
+
+/* Footer: students, faculty, QR (board template). */
+footer { margin-top:auto; }
+.footer-rule { height:5px; border-radius:3px; background:var(--forest); }
+.footer-body { display:grid; grid-template-columns:1fr auto; gap:56px; align-items:center; padding:22px 0 36px; }
+.team-head h2 { font-size:34px; margin-bottom:14px; }
+.students { list-style:none; display:grid; grid-template-columns:repeat(5, auto); justify-content:space-between; gap:24px; }
+.students li { display:flex; flex-direction:column; gap:4px; }
+.students b { font-size:26px; color:var(--ink); white-space:nowrap; }
+.students span { font-size:22px; color:var(--moss); font-variant-numeric:tabular-nums; }
+.students a { font-size:22px; color:var(--forest); font-weight:600; text-decoration:none; }
+.faculty { margin-top:22px; padding-top:18px; border-top:2px solid var(--sage); display:flex; gap:20px; align-items:baseline; font-size:26px; }
+.faculty span { color:var(--moss); }
+.faculty b { color:var(--ink); }
+.faculty a { color:var(--forest); font-weight:600; text-decoration:none; }
+.qr-box { width:262px; padding:12px 12px 10px; border:4px solid var(--forest); border-radius:12px; background:#fff; text-align:center; }
+.qr-box img { display:block; width:100%; height:auto; }
+.qr-box strong { display:block; margin-top:2px; font-size:22px; color:var(--forest); }
+.qr-box span { display:block; margin-top:2px; font-size:19px; color:var(--moss); }
+</style>
+</head>
+<body>
+<div class="poster">
+
+<header>
+  <img class="srm" src="srm-logo.svg" alt="SRM Institute of Science and Technology">
+  <div class="title">
+    <h1>ZeroEmit: AI-Powered<br>Carbon-Aware EV Charging</h1>
+    <p>Charge your EV when India's grid is cleaner.</p>
+  </div>
+</header>
+<div class="rule" role="presentation"></div>
+
+<section class="row row-1">
+  <div>
+    <h2>Problem statement</h2>
+    <ul class="dots">
+      <li><strong>An EV is only as clean as the power that charges it,</strong> and most of India's electricity still comes from coal.</li>
+      <li><strong>Grid carbon intensity swings through the day:</strong> on the Southern grid, 513 gCO₂/kWh at noon but 781 at 8 pm.</li>
+      <li><strong>Drivers can't see this,</strong> so they charge by habit, often in the evening, when each kWh emits the most CO₂.</li>
+    </ul>
+    <div class="chart-card">
+      <div class="chart-head">
+        <h3>A typical day on the Southern grid</h3>
+        <div class="legend"><span><i style="background:#c9e6c6"></i>Cleanest 2 hours</span><span><i style="background:#e4e7e1"></i>Evening peak</span></div>
+      </div>
+      <svg id="day-chart" viewBox="0 0 1000 214" role="img" aria-label="Carbon intensity by hour on the Southern grid: lowest around noon, highest in the evening and at night"></svg>
+      <p class="note">gCO₂/kWh by hour (IST), averaged over the 14 days to 1 Nov 2026. Source: India Energy Atlas.</p>
+    </div>
+  </div>
+
+  <div>
+    <h2>Proposed solution</h2>
+    <p class="solution-lead">ZeroEmit is a free web app that EV drivers install on their phone. It reads the live carbon intensity of the driver's regional grid, forecasts the next 24 hours and tells them when to plug in.</p>
+    <ul class="journey">
+      <li><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V5M4 19h17M7 15l4-4 3 2 5-6"/></svg></span><div><h3>Know the best time</h3><p>The cleanest 2-hour windows for today and tomorrow, for the driver's city.</p></div></li>
+      <li><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 3.5 1 5.5 2 7H4c1-1.5 2-3.5 2-7Z"/><path d="M10 19a2 2 0 0 0 4 0"/></svg></span><div><h3>Get reminded</h3><p>A notification before the best window starts.</p></div></li>
+      <li><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z"/><path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"/></svg></span><div><h3>See the impact</h3><p>Each logged charge shows the CO₂ it avoided and earns points for good timing.</p></div></li>
+    </ul>
+  </div>
+</section>
+
+<section class="row row-2">
+  <div>
+    <h2>Key features</h2>
+    <div class="features">
+      <div class="feature"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="m13 2-8 11h6l-1 9 8-11h-6l1-9Z"/></svg></span><div><h3>Live grid intensity</h3><p>All 5 regional grids, every state and 255 cities.</p></div></div>
+      <div class="feature"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V5M4 19h17M7 15l4-4 3 2 5-6"/></svg></span><div><h3>24-hour forecast</h3><p>Hourly curve and the 3 cleanest windows each day.</p></div></div>
+      <div class="feature"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 3.5 1 5.5 2 7H4c1-1.5 2-3.5 2-7Z"/><path d="M10 19a2 2 0 0 0 4 0"/></svg></span><div><h3>Smart reminders</h3><p>Best-window alerts, a daily digest and streak nudges.</p></div></div>
+      <div class="feature"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/></svg></span><div><h3>Charge log</h3><p>kWh, grid intensity, cost and CO₂ avoided per charge.</p></div></div>
+      <div class="feature"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="5"/><path d="m9 13-1 8 4-2 4 2-1-8"/></svg></span><div><h3>Rewards</h3><p>Eco points, 4 levels, 8 badges and a monthly leaderboard.</p></div></div>
+      <div class="feature"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 5-8 11-8 11S4 15 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="2.5"/></svg></span><div><h3>Charger finder</h3><p>Public EV chargers nearby on a map, with directions.</p></div></div>
+      <div class="feature"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3"/><path d="m7 8 5-5 5 5"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg></span><div><h3>Impact card</h3><p>A one-tap image of the month's CO₂ avoided.</p></div></div>
+      <div class="feature"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 5 6v6c0 4.5 3 7.5 7 9 4-1.5 7-4.5 7-9V6l-7-3Z"/></svg></span><div><h3>Private and offline</h3><p>History stays on the phone; works without signal.</p></div></div>
+    </div>
+    <h3 class="stack-head">Built with</h3>
+    <div class="stack"><span>Next.js 16</span><span>React 19</span><span>TypeScript</span><span>PWA</span><span>Web Push</span><span>Upstash Redis</span><span>Vercel</span><span>GitHub Actions</span><span>Leaflet</span><span>GSAP</span><span>Lenis</span></div>
+  </div>
+
+  <div>
+    <h2>Methodology and system architecture</h2>
+    <div class="pipeline">
+      <div class="stage"><h3>Data sources</h3><ul><li>India Energy Atlas grid data</li><li>Electricity Maps fallback</li><li>OpenStreetMap chargers</li></ul></div>
+      <div class="arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14m-6-6 6 6-6 6"/></svg></div>
+      <div class="stage"><h3>Server on Vercel</h3><ul><li>Next.js API routes</li><li>Upstash Redis cache</li><li>Scheduler every 15 min</li></ul></div>
+      <div class="arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14m-6-6 6 6-6 6"/></svg></div>
+      <div class="stage engine"><h3>Carbon-aware decision engine</h3><ul><li>Forecast, rank, nudge, score</li><li>Explainable rules on real grid data</li></ul></div>
+      <div class="arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14m-6-6 6 6-6 6"/></svg></div>
+      <div class="stage"><h3>ZeroEmit app</h3><ul><li>React 19 web app</li><li>Works offline</li><li>Push notifications</li></ul></div>
+    </div>
+    <ol class="steps">
+      <li><span><b>Read</b> the current carbon intensity of the driver's regional grid, cached on the server.</span></li>
+      <li><span><b>Forecast</b> a typical day: the average for each hour over the last 14 days, with the live reading for the current hour.</span></li>
+      <li><span><b>Rank</b> every 2-hour window in the next 24 hours by average intensity; keep the 3 cleanest that don't overlap.</span></li>
+      <li><span><b>Nudge</b> with a push reminder before the best window, and an alert when now is the cleanest time left.</span></li>
+      <li><span><b>Score</b> each logged charge: +10 points in a best window, +5 at a cleaner-than-average hour. CO₂ avoided = (650 − intensity at charging) × kWh.</span></li>
+    </ol>
+  </div>
+</section>
+
+<section class="dashboard">
+  <div class="dash-head"><h2>Dashboard</h2><p>Screens from the live app, shown with sample data.</p></div>
+  <div class="phones">
+    <div class="screen"><div class="phone"><img src="app-home.png" alt="Home screen"></div><h3>Home</h3><p>Today's best time to charge.</p></div>
+    <div class="screen"><div class="phone"><img src="app-forecast.png" alt="Forecast screen"></div><h3>Forecast</h3><p>The day's curve, best window.</p></div>
+    <div class="screen"><div class="phone"><img src="app-rewards.png" alt="Rewards screen"></div><h3>Rewards</h3><p>Points, levels and badges.</p></div>
+    <div class="screen"><div class="phone"><img src="app-profile.png" alt="Profile screen"></div><h3>Impact</h3><p>CO₂ avoided, points and streak.</p></div>
+    <div class="screen"><div class="phone"><img src="app-stations.png" alt="Chargers screen"></div><h3>Chargers</h3><p>Public EV chargers nearby.</p></div>
+  </div>
+</section>
+
+<section class="row row-3">
+  <div class="impact">
+    <h2>Impact</h2>
+    <div class="example">
+      <div class="from-to">
+        <div class="peak"><b>781</b><small>8 pm</small></div>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14m-6-6 6 6-6 6"/></svg>
+        <div class="clean"><b>513</b><small>12 pm</small></div>
+      </div>
+      <p>Moving one 30 kWh charge from 8 pm to noon on the Southern grid avoids about <strong>8 kg of CO₂</strong>.</p>
+    </div>
+    <p class="note">Illustrative: (781 − 513) gCO₂/kWh × 30 kWh, from the chart's data. Not a measured result.</p>
+    <ul class="dots">
+      <li><strong>Lower emissions per kWh</strong> from timing alone, on chargers drivers already use.</li>
+      <li><strong>Less charging in the evening peak,</strong> when the grid leans hardest on coal.</li>
+      <li><strong>Visible, lasting habits:</strong> monthly CO₂ avoided, streaks and badges for each driver.</li>
+    </ul>
+  </div>
+
+  <div>
+    <h2>SDG mapping</h2>
+    <div class="sdgs">
+      <div class="sdg"><div class="tile" style="background:#fcc30b;color:#141e14"><small>SDG</small><b>7</b></div><h3>Affordable and Clean Energy</h3><p>Shifts charging to hours with more clean power, such as midday solar.</p></div>
+      <div class="sdg"><div class="tile" style="background:#fd9d24;color:#141e14"><small>SDG</small><b>11</b></div><h3>Sustainable Cities and Communities</h3><p>Cleaner urban EV transport, with data for 255 cities.</p></div>
+      <div class="sdg"><div class="tile" style="background:#3f7e44;color:#ffffff"><small>SDG</small><b>13</b></div><h3>Climate Action</h3><p>Cuts the CO₂ behind every charge and shows drivers what they avoided.</p></div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="footer-rule" role="presentation"></div>
+  <div class="footer-body">
+    <div>
+      <div class="team-head"><h2>Team</h2></div>
+      <ul class="students">
+        <li><b>Yatin Annam</b><span>RA2411030010101</span><a>ya8476@srmist.edu.in</a></li>
+        <li><b>Huner Bhavsar</b><span>RA2411056010173</span></li>
+        <li><b>Abhinesh Kumar Singh</b><span>RA2411030010026</span></li>
+        <li><b>Hrishi Penti</b><span>RA2411028010092</span><a>ph8719@srmist.edu.in</a></li>
+        <li><b>Muhesh</b><span>RA2411026010478</span></li>
+      </ul>
+      <div class="faculty"><span>Faculty</span><b>Dr. S. MUTHUKUMAR</b><a>muthukus1@srmist.edu.in</a></div>
+    </div>
+    <div class="qr-box">
+      <img src="qr-zeroemit.svg" alt="QR code for https://zero-emit.vercel.app">
+      <strong>zero-emit.vercel.app</strong>
+      <span>Scan to open ZeroEmit</span>
+    </div>
+  </div>
+</footer>
+
+</div>
+
+<script>
+// The problem chart, drawn from the real typical-day values (gCO2/kWh by IST hour).
+const PATTERN = [784, 782, 782, 782, 781, 780, 776, 689, 621, 565, 533, 517, 513, 522, 545, 587, 651, 722, 775, 781, 781, 783, 784, 785];
+const W = 1000, H = 214, L = 64, R = 16, T = 30, B = 38;
+const LOW = 470, HIGH = 820;
+const x = (h) => L + (h / 23) * (W - L - R);
+const y = (v) => T + (1 - (v - LOW) / (HIGH - LOW)) * (H - T - B);
+const base = y(LOW);
+const line = PATTERN.map((v, h) => `${h ? "L" : "M"}${x(h).toFixed(1)},${y(v).toFixed(1)}`).join(" ");
+const parts = [];
+// Evening peak (6-10 pm) and the cleanest 2-hour window (11 am-1 pm).
+parts.push(`<rect x="${x(18)}" y="${T}" width="${x(22) - x(18)}" height="${base - T}" fill="#e4e7e1"/>`);
+parts.push(`<rect x="${x(11)}" y="${T}" width="${x(13) - x(11)}" height="${base - T}" fill="#c9e6c6"/>`);
+for (const v of [500, 600, 700, 800]) parts.push(`<line x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}" stroke="#dae6d6" stroke-width="1.5"/><text x="${L - 12}" y="${y(v) + 7}" text-anchor="end" font-size="19" fill="#40493d">${v}</text>`);
+parts.push(`<path d="${line} L${x(23)},${base} L${x(0)},${base} Z" fill="#0d631b" opacity=".08"/>`);
+parts.push(`<path d="${line}" fill="none" stroke="#0d631b" stroke-width="4" stroke-linejoin="round" stroke-linecap="round"/>`);
+parts.push(`<line x1="${L}" x2="${W - R}" y1="${base}" y2="${base}" stroke="#bfcaba" stroke-width="2"/>`);
+for (const [h, label] of [[0, "12 am"], [6, "6 am"], [12, "12 pm"], [18, "6 pm"], [23, "11 pm"]]) parts.push(`<text x="${x(h)}" y="${H - 8}" text-anchor="${h === 0 ? "start" : h === 23 ? "end" : "middle"}" font-size="20" fill="#40493d">${label}</text>`);
+// Call out noon and 8 pm.
+for (const [h, dx, dy, anchor] of [[12, 16, -12, "start"], [20, 0, -18, "middle"]]) {
+  parts.push(`<circle cx="${x(h)}" cy="${y(PATTERN[h])}" r="8" fill="#0d631b" stroke="#fff" stroke-width="3"/>`);
+  parts.push(`<text x="${x(h) + dx}" y="${y(PATTERN[h]) + dy}" text-anchor="${anchor}" font-size="23" font-weight="800" fill="${h === 12 ? "#0d631b" : "#141e14"}">${PATTERN[h]}</text>`);
+}
+document.getElementById("day-chart").innerHTML = parts.join("");
+</script>
+</body>
+</html>
