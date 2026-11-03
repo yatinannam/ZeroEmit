@@ -1,103 +1,257 @@
 # ZeroEmit
 
-ZeroEmit is a mobile-first Next.js PWA that helps EV drivers in India charge when the grid is cleaner: it recommends the cleanest charging windows from live regional grid data, rewards charging at those times, and shows the impact.
+A mobile-first Next.js PWA that tells EV drivers in India when their regional grid is cleanest, scores charges by how well they were timed, and runs an opt-in monthly leaderboard and scheduled Web Push reminders.
 
-Live at [zero-emit.vercel.app](https://zero-emit.vercel.app).
+Live at [zero-emit.vercel.app](https://zero-emit.vercel.app). The exhibition poster (PNG/PDF, with editable HTML source) is in [`docs/poster`](docs/poster).
 
-![ZeroEmit poster: main UI, time-slot recommendations, rewards, leaderboard, your impact and the shareable result](docs/poster/ZeroEmit-poster-landscape.png)
+## Stack
 
-Poster downloads: landscape ([PNG](docs/poster/ZeroEmit-poster-landscape.png), [PDF](docs/poster/ZeroEmit-poster-landscape.pdf)) · portrait ([PNG](docs/poster/ZeroEmit-poster-portrait.png), [PDF](docs/poster/ZeroEmit-poster-portrait.pdf)). Both include a QR code to the live app. The editable HTML source and app screenshots are in [`docs/poster/source`](docs/poster/source); screens use sample data.
+| Layer | Choice |
+| --- | --- |
+| Framework | Next.js 16 (App Router, Route Handlers), React 19 with React Compiler |
+| Language / runtime | TypeScript 5, Bun 1.3 (package manager, scripts, test runner) |
+| Styling | Tailwind CSS 4 (PostCSS) plus hand-written tokens in `src/app/globals.css`, light/dark via `prefers-color-scheme` or `data-theme` |
+| Motion | GSAP 3 (`@gsap/react`), Lenis smooth scroll; everything is skipped under `prefers-reduced-motion` |
+| Maps | Leaflet 1.9 with OpenStreetMap tiles |
+| Server state | Upstash Redis over its REST API (`src/app/lib/server/redis.ts`), no ORM |
+| Push | `web-push` (VAPID) |
+| Hosting | Vercel; GitHub Actions for the 15-minute scheduler and the weekly charger refresh |
 
-## Features
+> This Next.js version has breaking changes from older releases. Read the guide in `node_modules/next/dist/docs/` before changing framework-level code (see `AGENTS.md`).
 
-- **Best time to charge.** Home shows today's cleanest 2-hour window for your region; Forecast shows the hour-by-hour curve and the top 3 windows for today and tomorrow. **Add to calendar** saves a window as a calendar event with a reminder 10 minutes before it starts (works on every phone, no notifications needed).
-- **Locations across India.** ~250 searchable cities in every mainland state/UT, each mapped to one of India's five regional grids, or "Use current location" (resolved to the nearest city on the device).
-- **Log charges.** Each charge records the grid intensity and how well it was timed. Charges can be logged up to 30 days back, and a deleted charge can be restored with **Undo**. Charge details show an estimated cost from your electricity price (Profile & vehicle; ₹8/kWh, a typical home tariff, until you set yours).
-- **Eco points and rewards.** 10 points per charge, **+10** in one of the day's 3 cleanest 2-hour windows for your region, **+5** at a cleaner-than-average hour. Four levels, 8 badges with live progress, and streaks. (India's grid rarely reaches an absolute "green" level, so points reward timing relative to your region.)
-- **Monthly leaderboard (opt-in).** All India or by grid region, resetting on the 1st. Only a display name, region and this month's points and CO₂ avoided are shared. The server recomputes every score from the charges themselves, judging each charge's timing from its own grid data, so a bonus can't be faked, and caps the CO₂ a charge can claim to what its region's grid can plausibly reach. Each display name can be used by one entry a month (ignoring case and spacing), and members show up once they've logged a charge that month.
-- **Your impact.** This month vs last month: energy, CO₂ avoided, green-charge rate, charges and cost, with everyday comparisons ("like not driving 113 km in a petrol car"), and a shareable impact card (this month, last month or all time).
-- **Nearest chargers, on a map.** Public EV chargers within 30 km, nearest first, with connector types, 24/7 status and Google Maps directions, plus an OpenStreetMap map (Leaflet). They're searched around **your own location** if you tap "Use my location" (rounded to ~1 km on the device before it's sent), otherwise around your city's centre. Grid data and points still use your city's regional grid.
-- **Notifications** (see below), **dark mode**, an **install prompt** (Android/Chrome install button; iPhone "Add to Home Screen" steps), and a three-screen welcome intro.
+## Architecture
 
-## Data sources
+```mermaid
+flowchart LR
+  subgraph Device
+    UI[React screens] --> LS[(localStorage stores)]
+    SW[Service worker]
+  end
+  UI -- /api/grid --> GRID[grid-source]
+  UI -- /api/stations --> ST[chargers snapshot]
+  UI -- /api/leaderboard/* --> LB[leaderboard]
+  UI -- /api/push/subscription --> PUSH[push store]
+  GRID --> ATLAS[India Energy Atlas]
+  GRID -. fallback .-> EM[Electricity Maps]
+  GRID <--> R[(Upstash Redis)]
+  LB <--> R
+  PUSH <--> R
+  GHA[GitHub Actions, every 15 min] -- /api/push/run --> SCHED[push-scheduler]
+  VC[Vercel cron, daily] -- /api/push/run --> SCHED
+  SCHED --> R
+  SCHED --> GRID
+  SCHED -- Web Push --> SW
+```
 
-- **Grid carbon intensity:** [India Energy Atlas](https://api.energymap.in) zone-level data for the five regional grids. The server ignores the provider's still-filling current hour, which reads far too low.
-- **Charging stations and map:** [OpenStreetMap](https://www.openstreetmap.org/copyright) data. Asking the public Overpass API on each visit took up to 20 s from India (or got rate-limited), so a snapshot of every charger in India (about 600, 66 KB) ships in `src/app/lib/server/chargers-india.json` and `/api/stations` picks the nearest from it in milliseconds. Map tiles are OpenStreetMap's standard tiles. Coverage is good in big cities and patchy elsewhere.
-- **Impact comparisons:** about 150 g CO₂/km for a petrol car and 21 kg CO₂ absorbed per mature tree per year; the app shows these assumptions next to the numbers.
+There are no accounts. Profile, charges, location and settings live in `localStorage`; the server only sees what a feature needs (a state for grid data, a city or rounded position for chargers, and opt-in leaderboard/push records). The leaderboard identifies a device by a random UUID `id` plus a secret `key`, stored server-side only as a hash.
 
-## Run locally
+## Repository layout
+
+```
+src/app/
+  page.tsx, forecast/, log/, stations/, rewards/, rewards/leaderboard/, profile/   routes (thin; render a *-screen component)
+  layout.tsx            fonts, theme boot script, global client mounts (LocationGate, PushSync, LeaderboardSync, ThemeSync, ToastHost, ...)
+  manifest.ts           PWA manifest
+  api/                  Route Handlers (see API)
+  components/           client components, hooks and localStorage stores
+  lib/                  pure logic shared by client and server (grid, timing, rewards, leaderboard scoring, places, stations, cost, calendar)
+  lib/server/           server-only code: grid-source, leaderboard, push, push-scheduler, overpass, redis, http helpers
+  lib/server/chargers-india.json   bundled OpenStreetMap charger snapshot
+public/sw.js            service worker (caching, push, notification clicks)
+public/icons/           source SVG icons and generated PNGs
+scripts/fetch-chargers.ts   rebuilds the charger snapshot from Overpass
+.github/workflows/      push-schedule.yml (every 15 min), chargers-refresh.yml (weekly)
+docs/poster/            exhibition poster and its HTML source
+pics/                   original design mockups
+```
+
+Tests sit next to the code as `*.test.ts` and run under `bun test`. `tsconfig.json` excludes them from the type check.
+
+## Client
+
+### Routes
+
+| Path | Screen | Notes |
+| --- | --- | --- |
+| `/` | Dashboard | Today's best 2-hour window, live intensity, metrics, streak, tomorrow's best, nearest chargers |
+| `/forecast` | Forecast | Hourly chart and top windows for today/tomorrow (`?day=tomorrow`); tap a window to add it to the calendar |
+| `/log` | Charge log | History, add/delete with undo; `?quick=1` opens the form (used by notification actions) |
+| `/stations` | Chargers | Leaflet map and up to 20 nearest chargers within 30 km |
+| `/rewards` | Rewards | Points, levels, badges, how to earn |
+| `/rewards/leaderboard` | Leaderboard | Join/rename/leave, all-India or per-zone board |
+| `/profile` | Profile | Name/vehicle/price, impact table, share card (`?share=last-month`), settings, delete data |
+
+### Local state
+
+Every persisted value goes through `createLocalStorageStore` (`components/local-storage-store.ts`), a `useSyncExternalStore` adapter that:
+
+- caches the parsed value against the raw string, so snapshots stay referentially stable;
+- returns a fixed server snapshot, so prerendered HTML never depends on storage;
+- wraps every storage call in `try/catch`, and keeps a write in memory for the visit when storage refuses it (private mode, blocked storage, quota).
+
+Main keys, all prefixed `zeroemit-`:
+
+| Key | Holds |
+| --- | --- |
+| `charges` | Charge records: `energyKwh`, `chargedAt`, `city`, `carbonIntensity`, `intensitySource`, `timing` (`best`/`cleaner`/`other`), `baselineIntensity`, `loggedAt` |
+| `profile` | `name`, `vehicle`, `pricePerKwh`, `joinedAt` |
+| `location` | Chosen `{ name, state }`; `null` means first launch |
+| `notification-prefs` | Per-kind switches |
+| `theme` | `system`/`light`/`dark` |
+| `leaderboard`, `leaderboard-pending-join`, `leaderboard-pending-leave`, `leaderboard-synced` | Membership (`id`, `key`, name, zone) and retry queues |
+| `intro-seen`, `install-dismissed`, `chargers-near-me`, `push-active`, `clean-alert` | UI flags |
+
+### First load and hydration
+
+- `lib/theme-boot.ts` runs inline in `<head>` before first paint. It applies a pinned theme, and on first launch (no saved location) sets `data-first-run` on `<html>`, which hides `.mobile-app` until the welcome flow covers it.
+- `LocationGate` (mounted in the layout) shows the three-slide intro and the "Where do you charge?" picker over any route until a place is chosen, and marks everything behind it `inert`.
+- `useLocationPicker().ready` is false until hydration *and* a saved place exist. Screens use it to hold off on showing a place name or fetching data for the default city.
+
+### Grid data on the client
+
+`useGridData(state)` fetches `/api/grid`. It refetches every 15 minutes while the page is visible and on return if the last fetch is at least 5 minutes old. A failed refresh keeps the last good data for the same state and surfaces the error. `lib/grid.ts` only treats `current` as "now" when the reading is under 3 hours old (Atlas's newest complete hour trails the clock).
+
+### Service worker (`public/sw.js`)
+
+- `zeroemit-v3`: app shell, network-first for navigations (falls back to the cached page after a timeout or offline).
+- `zeroemit-static-v1`: `/_next/static` assets, cache-first, trimmed to the newest 150 entries.
+- `/api/*` is never cached.
+- Handles `push` and `notificationclick`; a click focuses an open window or opens the notification's URL, including the "Log a charge" action.
+
+`sw.js` itself is served with `no-store` and a strict CSP (`next.config.ts`). All responses get `nosniff`, `X-Frame-Options: DENY` and a strict referrer policy.
+
+## Scoring (`lib/rewards.ts`, `lib/timing.ts`)
+
+| Rule | Value |
+| --- | --- |
+| Points per charge | 10 |
+| Timing bonus | +10 if the charge starts in one of the day's 3 cleanest 2-hour windows for its zone (23:00 windows wrap past midnight); +5 at a cleaner-than-average hour |
+| Minimum energy for points | 2 kWh (`MIN_POINTS_KWH`); smaller charges still count for energy totals and streaks |
+| Maximum energy per charge | 150 kWh |
+| CO₂ avoided | `max(0, baseline - intensity) × kWh`; baseline is the day's average intensity for the zone (`baselineIntensity`), or 650 g/kWh for older charges without it |
+| Streak badges | Unlock from the longest streak ever (IST days), so a broken streak doesn't re-lock them |
+
+All day/week/month boundaries use IST (`istDayKey`, `istMonthKey`).
+
+## Server
+
+### API
+
+| Method & path | Auth | Purpose | Caching / limits |
+| --- | --- | --- | --- |
+| `GET /api/grid?state=` | none | Current intensity, 24-hour forecast or typical pattern for the state's zone | `s-maxage=300, swr=600`; 400 for an unknown state |
+| `GET /api/stations?state=&city=` or `&lat=&lon=` | none | Up to 20 chargers within 30 km; `farther` holds the nearest 3 when none are in range | `s-maxage=86400` |
+| `GET /api/leaderboard?scope=all\|<zone>&me=` | none | Top 50 for the month, plus the caller's standing when `me` is given | `s-maxage=10, swr=30` without `me`, `no-store` with it |
+| `POST /api/leaderboard/member` | same-origin + `id`/`key` | Join, sync score or rename | 20 new members per IP per hour, 30 updates per member per hour; 409 `name-taken` |
+| `DELETE /api/leaderboard/member` | same-origin + `id`/`key` | Leave | |
+| `POST /api/leaderboard/admin` | `Bearer CRON_SECRET` | Remove an entry by name and zone (moderation) | |
+| `POST /api/push/subscription` | same-origin | Save or update a push subscription with its prefs and summary | 20 new per IP per hour, 60 updates per device per hour, cap 2000 (503 `full`) |
+| `DELETE /api/push/subscription` | same-origin | Remove a subscription | |
+| `POST /api/push/test` | same-origin | Send a test push through the real path | 429 within a few seconds of the last test |
+| `GET`/`POST /api/push/run` | `Bearer CRON_SECRET` | Run the scheduler | `maxDuration = 60` |
+
+"Same-origin" is `fromOwnSite()` in `lib/server/http.ts`: JSON content type, and `Sec-Fetch-Site`/`Origin` must match the site. Request bodies are read as a stream through `readLimitedJson()`, which stops at the size limit. Cron calls compare the secret in constant time.
+
+### Grid data (`lib/server/grid-source.ts`)
+
+1. India Energy Atlas zone-level data for the five regional grids (Northern, Western, Southern, Eastern, North-Eastern), with the all-India aggregate as a fallback. The provider's still-filling current hour is ignored because it reads far too low.
+2. Without a forecast entitlement (Pro plan), a typical day is built per zone from up to 14 days (336 hours) of hourly readings, averaged by IST hour, and labelled "Typical pattern".
+3. `ELECTRICITY_MAPS_API_KEY` is an optional, coarser fallback.
+4. Without any provider the API returns `available: false` and the UI shows "unavailable"; nothing is made up.
+
+Zone snapshots are cached in memory (60 s) and in Redis (`zone:<zone>`, 24 h TTL) and refreshed upstream at most hourly. `atlas:lock:<zone>` (30 s) stops parallel refreshes. `atlas:calls:<IST day>` stops all upstream calls after 90 per day (`ATLAS_DAILY_BUDGET`), to stay inside the trial key's 100/day.
+
+### Leaderboard (`lib/server/leaderboard.ts`, `lib/leaderboard.ts`)
+
+- The server re-scores every submission from the charges themselves (`scoreMonth`). It judges timing against its own grid pattern, counts at most 2 charges a day and 100 a month, and caps intensities at 2000 g/kWh. A client can't fake a bonus.
+- Display names are 1–20 characters and unique per month, ignoring case and spacing (`lb:<month>:names`, `HSETNX`). Names taken by others get a suggestion like "Asha 2".
+- Members with 0 points are left out of ranks, totals and leaderboard pushes.
+- Member records expire after 70 days without a sync. A sync that gets 404/409 clears local membership and tells the user they can rejoin.
+
+### Push scheduler (`lib/server/push-scheduler.ts`, `lib/server/push.ts`)
+
+GitHub Actions calls `/api/push/run` every 15 minutes from 06:30 to 22:15 IST; a Vercel cron at 08:00 IST is a daily backup (the Hobby plan allows only one). Each run:
+
+- refreshes at most 2 zones from upstream, and only when their data is over an hour old;
+- plans each subscriber's notifications:
+  - "best time" reminders, about 35 minutes before a clean window and at 9 pm for tonight's;
+  - the morning digest;
+  - streak reminders, which open `/log?quick=1` with a "Log a charge" action;
+  - leaderboard changes;
+  - badge nudges and the Sunday recap;
+- records sent "marks" per day or month in `push:state`, so nothing repeats;
+- sends with a concurrency of 20, never from 22:00 to 07:00 IST;
+- removes subscriptions that weren't refreshed for 90 days, and any the push service reports as gone.
+
+### Chargers (`lib/stations.ts`, `scripts/fetch-chargers.ts`)
+
+The public Overpass API was too slow from India (up to 20 s, or rate-limited), so `/api/stations` reads a bundled snapshot of every `amenity=charging_station` in India (about 600). Operator names are normalised when the snapshot is read ("tata power" becomes "Tata Power"). Chargers with no name show as "Unnamed EV charger", with distance and compass direction. On phones the map turns off one-finger dragging so the page still scrolls.
+
+### Redis keys
+
+| Key | Type | Use |
+| --- | --- | --- |
+| `zone:<zone>` | string (JSON) | Grid snapshot per zone |
+| `atlas:calls:<day>`, `atlas:lock:<zone>` | counter, lock | Upstream budget and single-flight refresh |
+| `lb:<month>:<scope>` | sorted set | Monthly board per scope (`all` or a zone) |
+| `lb:<month>:names` | hash | Name uniqueness for the month |
+| `lb:member:<id>` | string (JSON) | Member record: SHA-256 of the key, name, zone, month, points, CO₂ |
+| `lb:removed:<id>` | string | 24 h marker set on leave, so a sync already in flight can't recreate the entry |
+| `lb:new:<ip>`, `lb:rate:<id>` | counters | Leaderboard rate limits |
+| `push:subs` | hash | Subscriptions, prefs and summaries, keyed by an endpoint hash |
+| `push:state` | hash | Scheduler marks, so pushes aren't repeated |
+| `push:new:<ip>`, `push:rate:<id>` | counters | Subscription rate limits |
+
+## Environment variables
+
+| Variable | Needed for | Notes |
+| --- | --- | --- |
+| `INDIA_ENERGY_ATLAS_API_KEY` | Live grid data | Server-only. The free tier gives zone-level current data; forecasts need Pro |
+| `INDIA_ENERGY_ATLAS_FORECAST` | Optional | Set to `1` to call the forecast endpoint (needs the Pro plan; the trial key is always refused) |
+| `ELECTRICITY_MAPS_API_KEY` | Optional fallback | Free tier covers one zone |
+| `KV_REST_API_URL`, `KV_REST_API_TOKEN` | Leaderboard, push, grid cache | Set by Vercel's Upstash integration (`UPSTASH_REDIS_REST_URL`/`_TOKEN` also work) |
+| `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` | Scheduled push | Generate with `npx web-push generate-vapid-keys`; the public key is inlined at build time |
+| `CRON_SECRET` | `/api/push/run`, admin route | Same value in Vercel and as a GitHub Actions secret |
+
+Copy `.env.example` to `.env.local` for local development. Without Redis, the leaderboard and scheduled push return 503 and their UI hides itself. Without VAPID keys, "best time" alerts fall back to an in-app check while the app is open.
+
+## Development
 
 ```bash
 bun install
 cp .env.example .env.local
-bun dev
+bun dev                 # http://localhost:3000
 ```
 
-Add `INDIA_ENERGY_ATLAS_API_KEY` to `.env.local` for live grid data. The key is used only by the server route at `/api/grid`; it is never sent to the browser.
+| Command | Does |
+| --- | --- |
+| `bun test` | Unit tests (scoring, timing, grid, leaderboard, scheduler, push, http, stations, places, calendar, ...). The "boom" stack trace in the output comes from `pool.test.ts` on purpose |
+| `bunx tsc --noEmit` | Type check |
+| `bun run lint` | ESLint (`eslint-config-next`; `*.cjs` scripts may use `require`) |
+| `bun run build` / `bun start` | Production build and server |
+| `bun run chargers [answer.json]` | Rebuild the charger snapshot from Overpass, or from a saved Overpass answer |
+| `bun run icons` | Rasterise `public/icons/*.svg` into the manifest and Apple touch PNGs (uses `sharp`) |
 
-- **Current intensity** works on the free Sandbox tier via zone-level data for all five regional grids (Northern, Western, Southern, Eastern, North-Eastern), falling back to the all-India aggregate if a zone lookup fails.
-- **24-hour forecasts** require the Pro plan or above. On the free tier, the app builds a "typical day" pattern per zone from up to 14 days of real hourly readings (averaged by hour of day in IST) and labels it "Typical pattern" in the UI. It falls back further to your own charging history if even that isn't available yet.
-- `ELECTRICITY_MAPS_API_KEY` is an optional, lower-precision regional fallback (its free tier is limited to one zone per account).
+Before pushing, run `bun test`, `bunx tsc --noEmit`, `bun run lint` and `bun run build`.
 
-Without a configured provider, the app shows "Live data unavailable" instead of fabricated values.
+## Deployment
 
-## Tests
+1. Deploy to Vercel over HTTPS (needed for the service worker, push and install prompt).
+2. Add Upstash Redis from Vercel → Storage and connect it to the project.
+3. Set the VAPID variables and `CRON_SECRET` for Production, then redeploy so the public key is built in.
+4. In GitHub, add the repository secret `CRON_SECRET` and optionally the variable `SITE_URL` (defaults to the production URL).
+5. Open the app, turn on notifications, and use **Send a test notification**.
 
-```bash
-bun test                      # unit tests (scoring, leaderboard, scheduler, calendar, chargers, ...)
-bunx tsc --noEmit             # type check (test files are excluded from tsconfig)
-bun run lint
-```
+## Operations
 
-## Notifications
+- **Charger snapshot:** `chargers-refresh.yml` runs `bun scripts/fetch-chargers.ts` every Monday at 03:00 IST and commits the snapshot if it changed, which redeploys the app. The script queries several Overpass servers at once, and keeps the old snapshot if none answers or if the new one has 20% fewer chargers. When the servers are busy, run the query in `INDIA_CHARGERS_QUERY` (`src/app/lib/stations.ts`) on overpass-turbo.eu and pass the saved answer to `bun run chargers`.
+- **Moderation:** remove a leaderboard entry by name. Add `"maxPoints": 0` to remove only that name's entries with at most that many points, such as a leftover duplicate.
 
-Each kind is switchable in Profile → Notifications, and tapping one opens the relevant page. On iPhone, notifications require adding the app to the Home Screen (iOS 16.4+).
+  ```bash
+  curl -X POST https://zero-emit.vercel.app/api/leaderboard/admin \
+    -H "Authorization: Bearer $CRON_SECRET" -H "Content-Type: application/json" \
+    -d '{"name":"Display Name","zone":"southern"}'
+  ```
 
-- **On the device:** charge confirmations and rewards (levels, achievements, streak milestones), plus in-app toasts.
-- **Scheduled, from the server (Web Push), even when the app is closed:**
-  - **Best time to charge:** a reminder as today's cleanest window approaches, and at 9 pm for tonight's, each with a **Log a charge** button where the platform supports it (Android/desktop).
-  - **Morning digest** and an evening **streak reminder**.
-  - **Leaderboard updates** (once you've joined): someone passed you, reaching #1, and your final rank on the 1st (which opens a Last month share card).
-  - **Progress and weekly recap:** a nudge when a badge is nearly unlocked, and a Sunday-evening summary of your week.
-  - Nothing is sent 10 pm – 7 am IST. Without push configured, "best time" falls back to an in-app check while the app is open.
-
-### Setting up scheduled notifications and the leaderboard
-
-1. **Redis:** in Vercel → the project → Storage (Marketplace) → add **Upstash Redis** and connect it to the project. This sets `KV_REST_API_URL` / `KV_REST_API_TOKEN`. The leaderboard and push scheduler both use it.
-2. **Environment variables** in Vercel (Production), copied from your local `.env.local` (generate keys with `npx web-push generate-vapid-keys` if you don't have them):
-   `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` (your site URL), `CRON_SECRET` (any long random string).
-3. **Scheduler:** Vercel's Hobby plan only allows a once-a-day cron (`vercel.json`, a backup for the morning digest), so `.github/workflows/push-schedule.yml` calls `/api/push/run` every 15 minutes. Add a repository secret `CRON_SECRET` with the same value (and optionally a repository variable `SITE_URL`).
-4. **Redeploy** (the public key is baked in at build time), open the app, turn on notifications, and use **Send a test notification**: with push active it goes through the server, the same path as reminders.
-
-The scheduler refreshes grid data at most hourly per region and not at all overnight, and reads the leaderboard once per run. To stay well inside the trial key's 100 calls/day, the app as a whole stops calling India Energy Atlas after 90 calls in an IST day (counted in Redis) and serves the last good data until the next day. GitHub pauses scheduled workflows in public repos after 60 days without commits; re-enable it from the Actions tab if that happens.
-
-### Leaderboard moderation
-
-Only the device that joined can update or remove its entry. To remove an entry whose device can no longer leave, or an offensive name:
-
-```bash
-curl -X POST https://zero-emit.vercel.app/api/leaderboard/admin \
-  -H "Authorization: Bearer $CRON_SECRET" -H "Content-Type: application/json" \
-  -d '{"name":"Display Name","zone":"southern"}'
-```
-
-Add `"maxPoints":0` to remove only that name's entries with at most that many points this month, e.g. a leftover duplicate from another device that never logged a charge. Removing an entry frees its name.
-
-## Refreshing the charger snapshot
-
-The **Refresh charger snapshot** GitHub workflow runs `bun run chargers` every Monday and commits the snapshot if it changed, which redeploys the app. The script asks several Overpass servers at once and keeps the current snapshot if none answers, or if the new one has 20% fewer chargers (a likely partial answer). When the servers are busy, save the answer to the query in `INDIA_CHARGERS_QUERY` (`src/app/lib/stations.ts`) another way, e.g. on overpass-turbo.eu, and run `bun run chargers path/to/answer.json`.
-
-## Regenerating PWA icons
-
-`public/icons/zeroemit.svg` and `zeroemit-maskable.svg` are the source icons. Running `bun run icons` rasterizes them (via `sharp`) into the PNGs referenced by `app/manifest.ts` and `app/layout.tsx` (`icon-192.png`, `icon-512.png`, `icon-maskable-512.png`, `apple-touch-icon-180.png`). Re-run this after editing either source SVG and commit the resulting PNGs.
-
-## Production
-
-```bash
-bun run lint
-bunx tsc --noEmit
-bun run build
-bun start
-```
-
-Deploy behind HTTPS so the service worker, push and install prompt work. Charges, profile and settings stay on the device; there are no accounts, so the leaderboard identifies each device by a random ID and key, and joining on another device creates a separate entry.
+- **Scheduled workflows:** GitHub disables scheduled workflows in public repos after 60 days without commits. If that happens, every push except the 08:00 IST Vercel cron stops. Re-enable it from the Actions tab.
+- **Data sources and attribution:** grid data from [India Energy Atlas](https://api.energymap.in); chargers and map tiles © [OpenStreetMap contributors](https://www.openstreetmap.org/copyright) (ODbL). The credit appears wherever charger data is shown. Impact comparisons assume about 150 g CO₂/km for a petrol car and 21 kg CO₂ per mature tree per year.
