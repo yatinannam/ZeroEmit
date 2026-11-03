@@ -13,7 +13,10 @@ import type { ChargeTiming } from "../lib/timing";
 // ("live") or the typical value for that hour of day ("typical").
 // `timing`: how the charge was timed against the region's typical day when it
 // was logged (lib/timing.ts) — absent on charges from before it was recorded.
-export type Charge = { id: string; energyKwh: number; chargedAt: string; city: string; carbonIntensity: number | null; intensityClass?: string | null; intensitySource?: "live" | "typical"; timing?: ChargeTiming; loggedAt: string };
+// `baselineIntensity`: the region's average intensity that day (gCO₂/kWh),
+// what CO₂ avoided is measured against; absent on older charges, which use
+// the fixed UNTIMED_CHARGE_BASELINE (lib/rewards.ts).
+export type Charge = { id: string; energyKwh: number; chargedAt: string; city: string; carbonIntensity: number | null; intensityClass?: string | null; intensitySource?: "live" | "typical"; timing?: ChargeTiming; baselineIntensity?: number; loggedAt: string };
 const STORAGE_KEY = "zeroemit-charges";
 const EMPTY: Charge[] = [];
 
@@ -30,7 +33,12 @@ function normalizeCharge(raw: Charge): Charge {
   // The time of day ("HH:MM") and intensity feed every screen's formatting;
   // a damaged one is rebuilt or dropped rather than crash the app.
   const timed = typeof dated.chargedAt === "string" && /^\d{1,2}:\d{2}$/.test(dated.chargedAt) ? dated : { ...dated, chargedAt: timeOfDay(new Date(dated.loggedAt)) };
-  return Number.isFinite(timed.carbonIntensity) || timed.carbonIntensity === null ? timed : { ...timed, carbonIntensity: null };
+  const measured = Number.isFinite(timed.carbonIntensity) || timed.carbonIntensity === null ? timed : { ...timed, carbonIntensity: null };
+  // A damaged baseline is dropped: the charge falls back to the fixed one.
+  if (measured.baselineIntensity === undefined || (Number.isFinite(measured.baselineIntensity) && measured.baselineIntensity > 0)) return measured;
+  const { baselineIntensity, ...rest } = measured;
+  void baselineIntensity;
+  return rest;
 }
 
 const timeOfDay = (date: Date) => `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;

@@ -42,7 +42,9 @@ function run(command: (string | number)[]): unknown {
     case "HSETNX": { const hash = hashes.get(key) ?? new Map<string, string>(); if (hash.has(args[0])) return 0; hash.set(args[0], args[1]); hashes.set(key, hash); return 1; }
     case "HGET": return hashes.get(key)?.get(args[0]) ?? null;
     case "HGETALL": return [...(hashes.get(key) ?? new Map<string, string>()).entries()].flat();
-    case "HDEL": return hashes.get(key)?.delete(args[0]) ? 1 : 0;
+    case "HDEL": return args.filter((field) => hashes.get(key)?.delete(field)).length;
+    case "HEXISTS": return hashes.get(key)?.has(args[0]) ? 1 : 0;
+    case "HLEN": return hashes.get(key)?.size ?? 0;
     default: throw new Error(`fake redis: unsupported ${name}`);
   }
 }

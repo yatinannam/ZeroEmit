@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { chargeTiming, hourlyPattern, TIMING_BONUS } from "./timing";
+import { chargeTiming, defaultChargeMoment, hourlyPattern, isBestWindowStart, TIMING_BONUS } from "./timing";
 
 // A typical day at 600 gCO2/kWh with three clean dips: 12-2 pm (300),
 // 2-4 am (350) and 8-10 pm (380); 8 am is a bit below average (500).
@@ -30,6 +30,15 @@ describe("chargeTiming", () => {
     expect(chargeTiming(gappy, 12)).toBe("best");
   });
 
+  test("a window can start at 11 pm and run on to midnight, as recommended windows can", () => {
+    const night = Array.from({ length: 24 }, () => 600 as number | null);
+    night[23] = 300; night[0] = 300;
+    expect(chargeTiming(night, 23)).toBe("best");
+    expect(chargeTiming(night, 0)).toBe("best");
+    // 10 pm–midnight overlaps the 11 pm window, so it isn't picked as well.
+    expect(chargeTiming(night, 22)).not.toBe("best");
+  });
+
   test("bonuses: 10 for a best window, 5 for a cleaner hour", () => {
     expect(TIMING_BONUS).toEqual({ best: 10, cleaner: 5, other: 0 });
   });
@@ -50,5 +59,42 @@ describe("hourlyPattern", () => {
     const pattern = hourlyPattern(forecast);
     expect(pattern[12]).toBe(500);
     expect(pattern[11]).toBeNull();
+  });
+});
+
+describe("isBestWindowStart", () => {
+  test("true only for an hour inside one of the day's cleanest windows", () => {
+    expect(isBestWindowStart(day, 12)).toBe(true);
+    expect(isBestWindowStart(day, 18)).toBe(false);
+  });
+
+  test("false without a pattern to judge by", () => {
+    expect(isBestWindowStart(null, 12)).toBe(false);
+    expect(isBestWindowStart(Array(24).fill(null), 12)).toBe(false);
+  });
+});
+
+describe("defaultChargeMoment", () => {
+  const morning = new Date(2026, 10, 3, 7, 45);
+
+  test("a usual time later than now means yesterday's charge", () => {
+    expect(defaultChargeMoment("22:30", morning)).toEqual({ date: "2026-11-02", time: "22:30" });
+  });
+
+  test("a usual time already passed today stays today", () => {
+    expect(defaultChargeMoment("06:15", morning)).toEqual({ date: "2026-11-03", time: "06:15" });
+    expect(defaultChargeMoment("07:45", morning)).toEqual({ date: "2026-11-03", time: "07:45" });
+  });
+
+  test("yesterday crosses a month boundary", () => {
+    expect(defaultChargeMoment("23:00", new Date(2026, 10, 1, 8, 0))).toEqual({ date: "2026-10-31", time: "23:00" });
+  });
+
+  test("compares as times, not text, and pads for the time input", () => {
+    expect(defaultChargeMoment("9:30", new Date(2026, 10, 3, 10, 0))).toEqual({ date: "2026-11-03", time: "09:30" });
+  });
+
+  test("no usual time means right now", () => {
+    expect(defaultChargeMoment(null, morning)).toEqual({ date: "2026-11-03", time: "07:45" });
   });
 });

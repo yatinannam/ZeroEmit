@@ -67,12 +67,34 @@ export function mergeLiveReading(data: Pick<GridData, "forecast" | "current">, n
   return merged;
 }
 
+// How long a live reading can stand for "right now". The server only passes
+// on a reading from a snapshot under 90 minutes old, but the provider's
+// newest complete hour already trails the clock (the hour still being filled
+// in is skipped), so a current reading's own stamp can be a couple of hours
+// old. Past this, a page left open for hours (or kept on its last good data
+// while offline) stops calling an old reading "Now".
+export const LIVE_READING_MAX_AGE_MS = 3 * HOUR_MS;
+
+// Whether a live reading can stand for the grid at `timestamp`: from an hour
+// before its stamp (providers can stamp a reading slightly ahead of the
+// clock) until it's LIVE_READING_MAX_AGE_MS old.
+export function readingCovers(current: { datetime: string }, timestamp: number) {
+  const age = timestamp - Date.parse(current.datetime);
+  return age > -HOUR_MS && age < LIVE_READING_MAX_AGE_MS;
+}
+
+// The live reading, while it's still recent enough to call "right now".
+export function liveReading(data: GridData | null | undefined, now = Date.now()) {
+  return data?.available && data.current && readingCovers(data.current, now) ? data.current : undefined;
+}
+
 // Split into IST "today" and "tomorrow" windows.
 export function planByDay(data: GridData | null | undefined): { today: DayPlan; tomorrow: DayPlan } {
   const empty = { today: { points: [], windows: [] }, tomorrow: { points: [], windows: [] } };
   if (!data?.available) return empty;
   const now = Date.now();
-  const merged = mergeLiveReading(data, now);
+  // An old reading isn't "Now": without a recent one the forecast stands alone.
+  const merged = mergeLiveReading({ forecast: data.forecast, current: liveReading(data, now) }, now);
   const todayKey = istDayKey(now);
   const tomorrowKey = istDayKey(now + 24 * HOUR_MS);
   const plan = (key: string) => ({
@@ -85,13 +107,15 @@ export function planByDay(data: GridData | null | undefined): { today: DayPlan; 
 export const istHourOfDay = (timestamp: number) => Math.floor(((timestamp + IST_OFFSET_MS) % (24 * HOUR_MS)) / HOUR_MS);
 
 // Grid intensity for when a charge actually happened (not when it was logged):
-// the live reading if it was this hour; otherwise, for a typical-pattern
-// forecast (which spans every hour of the day), the typical value for that
-// hour. A live forecast only covers the future, so a past hour gets null —
-// no reading beats a guessed one for points and CO₂ math.
+// the live reading if it was taken around then (judged against the reading's
+// own time, not the clock — data loaded hours ago isn't live for a charge
+// now); otherwise, for a typical-pattern forecast (which spans every hour of
+// the day), the typical value for that hour. A live forecast only covers the
+// future, so a past hour gets null — no reading beats a guessed one for
+// points and CO₂ math.
 export function intensityAt(data: GridData | null | undefined, timestamp: number): { carbonIntensity: number; intensityClass: string | null; source: "live" | "typical" } | null {
   if (!data?.available) return null;
-  if (data.current && istHourStart(timestamp) === istHourStart(Date.now())) return { carbonIntensity: data.current.carbonIntensity, intensityClass: data.current.intensityClass ?? null, source: "live" };
+  if (data.current && readingCovers(data.current, timestamp)) return { carbonIntensity: data.current.carbonIntensity, intensityClass: data.current.intensityClass ?? null, source: "live" };
   if (!data.forecastIsTypical) return null;
   const match = data.forecast.find((point) => istHourOfDay(new Date(point.datetime).getTime()) === istHourOfDay(timestamp));
   return match ? { carbonIntensity: match.carbonIntensity, intensityClass: null, source: "typical" } : null;
@@ -99,6 +123,20 @@ export function intensityAt(data: GridData | null | undefined, timestamp: number
 
 export function formatHour(datetime: string) {
   return new Intl.DateTimeFormat("en-IN", { hour: "numeric", minute: "2-digit", timeZone: IST_TIME_ZONE }).format(new Date(datetime));
+}
+
+// When the data was last updated: "6:00 pm" today, "yesterday, 6:00 pm", or
+// "1 Nov, 6:00 pm" further back (IST days), so a snapshot from yesterday
+// evening doesn't pass for this evening's. Providers stamp the latest reading
+// with the hour it's for, which can be slightly ahead of the real clock —
+// never show an "updated" time in the future.
+export function formatUpdatedAt(iso: string, now = Date.now()) {
+  const time = Math.min(Date.parse(iso), now);
+  if (Number.isNaN(time)) return "";
+  const clock =new Intl.DateTimeFormat("en-IN", { hour: "numeric", minute: "2-digit", timeZone: IST_TIME_ZONE }).format(time);
+  if (istDayKey(time) === istDayKey(now)) return clock;
+  if (istDayKey(time) === istDayKey(now - DAY_MS)) return `yesterday, ${clock}`;
+  return `${new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "short", timeZone: IST_TIME_ZONE }).format(time)}, ${clock}`;
 }
 
 // "1 pm" — compact enough for chart axis ticks.

@@ -13,6 +13,13 @@ export type Station = { id: string; name: string; operator: string | null; lat: 
 // 4 within 30 km of SRM KTR, the nearest 17.7 km away), so 15 km often found none.
 export const STATIONS_RADIUS_M = 30_000;
 const MAX_STATIONS = 20;
+// Most listed cities have no mapped charger within the radius (Jaipur's
+// nearest is ~97 km away), so the nearest few beyond it are offered instead.
+const FARTHER_STATIONS = 3;
+
+// What a charger is called when OpenStreetMap has no name, operator or brand
+// for it (about a third of India's).
+export const UNNAMED_STATION = "Unnamed EV charger";
 
 // OpenStreetMap socket tags, as drivers know the connectors.
 const CONNECTORS: [tag: string, label: string][] = [
@@ -29,6 +36,49 @@ export function distanceKm(a: LatLon, b: LatLon) {
   const h = Math.sin(rad(b.lat - a.lat) / 2) ** 2 + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(rad(b.lon - a.lon) / 2) ** 2;
   return 2 * 6371 * Math.asin(Math.sqrt(h));
 }
+
+const COMPASS = ["north", "north-east", "east", "south-east", "south", "south-west", "west", "north-west"];
+
+// Which way `to` lies from `from`, to the nearest of 8 compass points.
+export function compassDirection(from: LatLon, to: LatLon) {
+  const rad = (degrees: number) => (degrees * Math.PI) / 180;
+  const y = Math.sin(rad(to.lon - from.lon)) * Math.cos(rad(to.lat));
+  const x = Math.cos(rad(from.lat)) * Math.sin(rad(to.lat)) - Math.sin(rad(from.lat)) * Math.cos(rad(to.lat)) * Math.cos(rad(to.lon - from.lon));
+  const bearing = (Math.atan2(y, x) * 180) / Math.PI;
+  return COMPASS[Math.round(((bearing + 360) % 360) / 45) % 8];
+}
+
+// OpenStreetMap's operator/brand tags are typed by hand, so one network shows
+// up as "tata", "Tata power" and "tata power". Known networks get their own
+// spelling; tags that only say "charging station" count as no operator;
+// anything else typed all in lower case is title-cased.
+const OPERATOR_ALIASES: Record<string, string | null> = {
+  "tata": "Tata Power", "tata power": "Tata Power", "tata power charging station": "Tata Power", "tata power ez charge": "Tata Power EZ Charge",
+  "ather": "Ather Energy", "ather energy": "Ather Energy", "ather grid": "Ather Grid",
+  "eesl": "EESL", "energy efficiency services limited eesl": "EESL",
+  "electriva": "ElectriVa", "chargezone": "ChargeZone", "charge zone": "ChargeZone", "charge zone charging station": "ChargeZone",
+  "go ec": "GO EC", "goec": "GO EC", "goec charging station": "GO EC", "go ego": "goEgo", "goego": "goEgo", "goego charging station": "goEgo",
+  "jio bp": "Jio-bp pulse", "jio bp pulse": "Jio-bp pulse", "jio pulse": "Jio-bp pulse", "jio bp pulse ev charging station": "Jio-bp pulse",
+  "kseb": "KSEB", "kseb charging station": "KSEB", "kerala state electricity board": "KSEB",
+  "vida": "Vida", "hero vida": "Vida", "zeon": "Zeon Charging", "zeon charging": "Zeon Charging", "zeon network": "Zeon Charging", "zeon charging station": "Zeon Charging", "zeon power": "Zeon Charging",
+  "indian oil": "Indian Oil", "indian oils": "Indian Oil", "iocl": "Indian Oil", "hindustan petroleum": "Hindustan Petroleum", "hp echarge": "HP eCharge", "hp echarge ev charging station": "HP eCharge",
+  "ola electric": "Ola Electric", "ola fast charger": "Ola Electric", "ola hypercharger": "Ola Electric", "bolt": "Bolt.Earth", "bolt earth": "Bolt.Earth", "tesla supercharger": "Tesla",
+  "ev charging station": null, "electric vehicle charging station": null, "charging station": null, "ev charger": null, "plug share": null, "plugshare": null,
+};
+
+const aliasKey = (text: string) => text.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+const titleCase = (text: string) => (text === text.toLowerCase() ? text.replace(/(^|\s)(\p{Ll})/gu, (_, space: string, letter: string) => space + letter.toUpperCase()).replace(/\bEv\b/g, "EV") : text);
+
+export function normalizeOperator(raw: string | null): string | null {
+  if (!raw) return null;
+  const key = aliasKey(raw);
+  return key in OPERATOR_ALIASES ? OPERATOR_ALIASES[key] : titleCase(raw);
+}
+
+// A name that only says what it is ("Electric Vehicle Charging Station") is
+// no name at all; the operator says more.
+const GENERIC_NAME = /^(ev|e vehicle|electric vehicle)? ?(charging|charge|charger)( station| point)?$/;
+const stationName = (raw: string | null) => (raw && !GENERIC_NAME.test(aliasKey(raw)) ? titleCase(raw) : null);
 
 // Every charging station in India, mapped as a point or as a building/area
 // (`out center` gives the latter a middle point).
@@ -67,10 +117,11 @@ export function parseOverpass(response: unknown, origin: LatLon): Station[] {
     if (typeof lat !== "number" || typeof lon !== "number") continue;
     const tags = raw.tags ?? {};
     const text = (key: string) => (typeof tags[key] === "string" && (tags[key] as string).trim() ? (tags[key] as string).trim() : null);
-    const operator = text("operator") ?? text("brand");
+    // Tidied here, as the app serves them, so the snapshot keeps OSM's own tags.
+    const operator = normalizeOperator(text("operator")) ?? normalizeOperator(text("brand"));
     stations.push({
       id: `${String(raw.type)}/${String(raw.id)}`,
-      name: text("name") ?? text("name:en") ?? operator ?? "EV charging station",
+      name: stationName(text("name")) ?? stationName(text("name:en")) ?? operator ?? UNNAMED_STATION,
       operator,
       lat,
       lon,
@@ -84,7 +135,25 @@ export function parseOverpass(response: unknown, origin: LatLon): Station[] {
 
 // The nearest chargers (up to 20) within `radiusKm` of `origin`.
 export function nearbyStations(snapshot: unknown[], origin: LatLon, radiusKm = STATIONS_RADIUS_M / 1000): Station[] {
-  return parseOverpass({ elements: snapshot }, origin).filter((station) => station.distanceKm <= radiusKm);
+  return stationsAround(snapshot, origin, radiusKm).stations;
+}
+
+// The nearest chargers within `radiusKm` and, only when there are none, the
+// nearest 3 beyond it (`farther`), so a small city isn't a dead end.
+export function stationsAround(snapshot: unknown[], origin: LatLon, radiusKm = STATIONS_RADIUS_M / 1000): { stations: Station[]; farther: Station[] } {
+  const nearest = parseOverpass({ elements: snapshot }, origin);
+  const stations = nearest.filter((station) => station.distanceKm <= radiusKm);
+  return { stations, farther: stations.length ? [] : nearest.slice(0, FARTHER_STATIONS) };
+}
+
+// Google Maps' own search for chargers, for when OpenStreetMap has few.
+export function chargerSearchUrl(near: string) {
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`EV charging station near ${near}`)}`;
+}
+
+// OpenStreetMap's editor at `at`, for adding a charger that's missing.
+export function addChargerUrl({ lat, lon }: LatLon) {
+  return `https://www.openstreetmap.org/edit#map=15/${lat}/${lon}`;
 }
 
 // 2 decimal places (~1 km): close enough to find nearby chargers, coarse

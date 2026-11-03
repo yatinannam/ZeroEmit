@@ -1,12 +1,12 @@
 "use client";
 
-import { FormEvent, useEffect, useEffectEvent, useState } from "react";
+import { FormEvent, MouseEvent, useEffect, useEffectEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { DAY_MS, intensityAt, istHourOfDay } from "../lib/grid";
-import { chargeTiming, hourlyPattern, type ChargeTiming } from "../lib/timing";
+import { chargeTiming, defaultChargeMoment, hourlyPattern, localDate, type ChargeTiming } from "../lib/timing";
 import { chargeCost, formatRupees } from "../lib/cost";
 import { useProfile } from "./use-profile";
-import { chargeOutcome, MAX_CHARGE_KWH as MAX_KWH, pointsForCharge } from "../lib/rewards";
+import { baselineFromPattern, chargeOutcome, earnsPoints, MAX_CHARGE_KWH as MAX_KWH, MIN_POINTS_KWH, pointsForCharge } from "../lib/rewards";
 import { sendNotification } from "./notifications";
 import { showToast } from "./toast";
 import { averageEnergyKwh, dayHeading, formatTimeOfDay, typicalChargeTime } from "../lib/personalization";
@@ -19,9 +19,6 @@ import { LocationModal } from "./location-modal";
 import { Modal } from "./modal";
 import { PageHeader } from "./page-header";
 
-const pad = (value: number) => String(value).padStart(2, "0");
-const localDate = (date: Date) => `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
-const localTime = (date: Date) => `${pad(date.getHours())}:${pad(date.getMinutes())}`;
 // How far back a charge can be logged: enough to catch up on a missed month,
 // while a mistyped year (1999 for 2026) is caught instead of saved.
 const MAX_BACKDATE_DAYS = 30;
@@ -34,7 +31,9 @@ export function LogScreen({ quick = false }: { quick?: boolean }) {
   const router = useRouter();
   const { profile } = useProfile();
   const { place, ready, location: city, locationOpen, openLocation, closeLocation, chooseLocation } = useLocationPicker();
-  const [form, setForm] = useState<{ date: string; time: string; today: string; earliest: string } | null>(null);
+  // `energy` is set only when the form comes back after a location change,
+  // so what was typed survives the trip to the location sheet.
+  const [form, setForm] = useState<{ date: string; time: string; today: string; earliest: string; energy?: string } | null>(null);
   const [shown, setShown] = useState(PAGE_SIZE);
   const [formError, setFormError] = useState("");
   const [selected, setSelected] = useState<Charge | null>(null);
@@ -67,20 +66,35 @@ export function LogScreen({ quick = false }: { quick?: boolean }) {
 
   function openForm(atNow = false) {
     const now = new Date();
-    // Default to the usual charging time when it's already passed today
-    // (the common "log last night's charge" case), otherwise to right now.
-    const time = !atNow && typicalTime && typicalTime <= localTime(now) ? typicalTime : localTime(now);
+    // Default to the usual charging time on the last day it came round —
+    // today once it's passed, otherwise yesterday (the common "log last
+    // night's charge" case) — or, with no usual time, to right now.
+    const { date, time } = defaultChargeMoment(atNow ? null : typicalTime, now);
     setFormError("");
-    setForm({ date: localDate(now), time, today: localDate(now), earliest: localDate(new Date(now.getTime() - MAX_BACKDATE_DAYS * DAY_MS)) });
+    setForm({ date, time, today: localDate(now), earliest: localDate(new Date(now.getTime() - MAX_BACKDATE_DAYS * DAY_MS)) });
   }
 
   // Open once, then drop ?quick=1 so a refresh or Back doesn't reopen it.
+  // Waits for a place (`ready`): on first launch the setup screen comes first,
+  // and a form opened behind it would trap the keyboard there.
   const openQuickForm = useEffectEvent(() => { openForm(true); router.replace("/log", { scroll: false }); });
   useEffect(() => {
-    if (!quick) return;
+    if (!quick || !ready) return;
     const timer = setTimeout(openQuickForm, 0);
     return () => clearTimeout(timer);
-  }, [quick]);
+  }, [quick, ready]);
+
+  // The charge is saved under the selected location, so the form shows it.
+  // Changing it swaps the form for the location sheet (two dialogs at once
+  // would fight over focus and Escape), keeping what was typed so far.
+  function changeLocation(event: MouseEvent<HTMLButtonElement>) {
+    const fields = event.currentTarget.form;
+    if (form && fields) {
+      const typed = new FormData(fields);
+      setForm({ ...form, date: String(typed.get("date")), time: String(typed.get("time")), energy: String(typed.get("energy")) });
+    }
+    openLocation();
+  }
 
   function submitCharge(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -97,15 +111,22 @@ export function LogScreen({ quick = false }: { quick?: boolean }) {
     // Timing against the region's typical day; unknown without grid data.
     const pattern = grid.data?.available ? hourlyPattern(grid.data.forecast) : null;
     const timing: ChargeTiming | undefined = pattern?.some((value) => value !== null) ? chargeTiming(pattern, istHourOfDay(when)) : undefined;
-    const charge = { energyKwh: Math.round(energy * 10) / 10, chargedAt: time, city, carbonIntensity: intensity?.carbonIntensity ?? null, intensityClass: intensity?.intensityClass ?? null, intensitySource: intensity?.source, ...(timing ? { timing } : {}), loggedAt: new Date(when).toISOString() };
+    // The region's average that day: what CO₂ avoided is measured against.
+    const baseline = baselineFromPattern(pattern);
+    const charge = { energyKwh: Math.round(energy * 10) / 10, chargedAt: time, city, carbonIntensity: intensity?.carbonIntensity ?? null, intensityClass: intensity?.intensityClass ?? null, intensitySource: intensity?.source, ...(timing ? { timing } : {}), ...(baseline !== null ? { baselineIntensity: Math.round(baseline) } : {}), loggedAt: new Date(when).toISOString() };
     const { points, rewards } = chargeOutcome(charges, { ...charge, id: "" });
-    const bonus = timing === "best" ? "+10 for charging in one of the day's best windows" : timing === "cleaner" ? "+5 for a cleaner-than-average hour" : null;
+    // A charge too small to earn points says so instead of "+0 points".
+    const counts = earnsPoints(charge);
+    const bonus = !counts ? null : timing === "best" ? "+10 for charging in one of the day's best windows" : timing === "cleaner" ? "+5 for a cleaner-than-average hour" : null;
     addCharge(charge);
     setForm(null);
-    const saved = `Charge saved: +${points} points`;
+    const saved = counts ? `Charge saved: +${points} points` : `Charge saved. Charges under ${MIN_POINTS_KWH} kWh don't earn points`;
     const day = dayHeading(charge.loggedAt);
     const dayPhrase = day === "Today" || day === "Yesterday" ? day.toLowerCase() : `on ${day}`;
-    showToast(rewards.length ? `${saved}. ${rewards[0]}.` : bonus ? `${saved}, including ${bonus}` : saved);
+    // Saved without grid data (it timed out or failed), the charge keeps no
+    // timing bonus or CO₂ figure for good — say so rather than drop them quietly.
+    const noGrid = !grid.data?.available ? " — grid data unavailable, so no timing bonus or CO₂ estimate" : "";
+    showToast(rewards.length ? `${saved}${noGrid}. ${rewards[0]}.` : bonus ? `${saved}, including ${bonus}` : `${saved}${noGrid}`);
     void sendNotification("charges", saved, `${charge.energyKwh} kWh ${dayPhrase} at ${formatTimeOfDay(time)}.${bonus ? ` Includes ${bonus}.` : ""}`, "/log");
     if (rewards.length) void sendNotification("rewards", rewards[0], rewards.length > 1 ? `${rewards.slice(1).join(". ")}.` : "Keep charging when the grid is cleaner to earn more.", "/rewards");
   }
@@ -143,12 +164,13 @@ export function LogScreen({ quick = false }: { quick?: boolean }) {
 
     {locationOpen && <LocationModal current={place} onClose={closeLocation} onChoose={chooseLocation}/>}
 
-    {form && <Modal title="Log a charge" onClose={() => setForm(null)} onSubmit={submitCharge}>
+    {form && !locationOpen && <Modal title="Log a charge" onClose={() => setForm(null)} onSubmit={submitCharge}>
       <div className="form-row">
-        <label>Date<input name="date" type="date" defaultValue={form.date} min={form.earliest} max={form.today} required/></label>
-        <label>Time<input name="time" type="time" defaultValue={form.time} required/></label>
+        <label>Date<input name="date" type="date" defaultValue={form.date} min={form.earliest} max={form.today} required onChange={() => setFormError("")}/></label>
+        <label>Time<input name="time" type="time" defaultValue={form.time} required onChange={() => setFormError("")}/></label>
       </div>
-      <label>Energy added (kWh)<input name="energy" type="number" inputMode="decimal" min="0.1" max={MAX_KWH} step="0.1" defaultValue={typicalEnergy ? Math.min(typicalEnergy, MAX_KWH).toFixed(1) : "18"} required/></label>
+      <label>Energy added (kWh)<input name="energy" type="number" inputMode="decimal" min="0.1" max={MAX_KWH} step="0.1" defaultValue={form.energy ?? (typicalEnergy ? Math.min(typicalEnergy, MAX_KWH).toFixed(1) : "18")} required onChange={() => setFormError("")}/></label>
+      <p className="form-location">Location: {city} · <button type="button" className="text-button" aria-label={`Change location, ${city}`} onClick={changeLocation}>Change</button></p>
       {formError && <p className="form-error" role="alert">{formError}</p>}
       <button className="primary-button" type="submit" disabled={savePending}>{savePending ? "Getting grid data…" : "Save charge"}</button>
     </Modal>}
@@ -158,7 +180,7 @@ export function LogScreen({ quick = false }: { quick?: boolean }) {
         <div><dt>When</dt><dd>{dayHeading(selected.loggedAt)}, {formatTimeOfDay(selected.chargedAt)}</dd></div>
         <div><dt>Location</dt><dd>{selected.city}</dd></div>
         <div><dt>Grid intensity</dt><dd>{selected.carbonIntensity !== null ? `${Math.round(selected.carbonIntensity)} gCO₂/kWh${selected.intensitySource === "typical" ? " (typical for that hour)" : ""}` : "Not recorded"}</dd></div>
-        <div><dt>Points</dt><dd>+{pointsForCharge(selected)}</dd></div>
+        <div><dt>Points</dt><dd>+{pointsForCharge(selected)}{!earnsPoints(selected) && ` (under ${MIN_POINTS_KWH} kWh)`}</dd></div>
         <div><dt>Est. cost</dt><dd>{formatRupees(chargeCost(selected.energyKwh, profile.pricePerKwh))}</dd></div>
       </dl>
       <button className="forecast-button action-button destructive-button" onClick={deleteSelected}><Icon name="trash" size={18}/> Delete charge</button>

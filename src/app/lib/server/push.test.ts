@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, mock, test } from "bun:test";
-import { fakeRedisModule, resetFakeRedis } from "./test-redis";
+import { fakeRedis, fakeRedisModule, resetFakeRedis } from "./test-redis";
 
 mock.module("./redis", () => fakeRedisModule);
-const { listSubscriptions, parseSubscriptionBody, removeSubscription, saveSubscription, updateSubscriptionState } = await import("./push");
+const { listSubscriptions, MAX_SUBSCRIPTIONS, parseSubscriptionBody, pruneStaleSubscriptions, removeSubscription, saveSubscription, STALE_SUBSCRIPTION_MS, updateSubscriptionState } = await import("./push");
 beforeEach(() => { resetFakeRedis(); });
 
 const base = {
@@ -98,5 +98,47 @@ describe("push keys", () => {
     expect(keys("AAAA", base.subscription.keys.auth)).toBeNull(); // too short
     expect(keys("A" + base.subscription.keys.p256dh.slice(1), base.subscription.keys.auth)).toBeNull(); // not an uncompressed point
     expect(keys(base.subscription.keys.p256dh, "abcd")).toBeNull();
+  });
+});
+
+describe("subscription limits", () => {
+  const NOW = Date.parse("2026-10-14T06:30:00.000Z");
+  const withEndpoint = (n: number) => ({ ...parseSubscriptionBody(base)!, subscription: { ...base.subscription, endpoint: `https://fcm.googleapis.com/fcm/send/device-${n}` } });
+
+  test("one address can add at most 20 new subscriptions an hour; existing ones still update", async () => {
+    for (let n = 1; n <= 20; n += 1) expect(await saveSubscription(withEndpoint(n), "203.0.113.7", NOW)).toBe("ok");
+    expect(await saveSubscription(withEndpoint(21), "203.0.113.7", NOW)).toBe("rate-limited");
+    expect(await saveSubscription(withEndpoint(1), "203.0.113.7", NOW)).toBe("ok");
+    expect(await saveSubscription(withEndpoint(22), "198.51.100.1", NOW)).toBe("ok");
+    expect(await saveSubscription(withEndpoint(23), "203.0.113.7", NOW + 3_600_000)).toBe("ok"); // next hour
+  });
+
+  test("one device can update at most 60 times an hour", async () => {
+    for (let i = 0; i < 60; i += 1) expect(await saveSubscription(withEndpoint(1), null, NOW)).toBe("ok");
+    expect(await saveSubscription(withEndpoint(1), null, NOW)).toBe("rate-limited");
+  });
+
+  test("past the total cap, new subscriptions are refused but existing ones update", async () => {
+    await saveSubscription(withEndpoint(1), null, NOW);
+    const subs = fakeRedis.hashes.get("push:subs")!;
+    for (let n = subs.size; n < MAX_SUBSCRIPTIONS; n += 1) subs.set(`filler-${n}`, "{}");
+    expect(await saveSubscription(withEndpoint(2), null, NOW)).toBe("full");
+    expect(await saveSubscription(withEndpoint(1), null, NOW)).toBe("ok");
+  });
+});
+
+describe("pruneStaleSubscriptions", () => {
+  test("drops subscriptions (and their state) not refreshed in 90 days, keeping the rest", async () => {
+    const NOW = Date.parse("2026-10-14T06:30:00.000Z");
+    const fresh = { ...parseSubscriptionBody(base)!, subscription: { ...base.subscription, endpoint: "https://fcm.googleapis.com/fcm/send/fresh" } };
+    const old = { ...parseSubscriptionBody(base)!, subscription: { ...base.subscription, endpoint: "https://fcm.googleapis.com/fcm/send/old" } };
+    await saveSubscription(fresh, null, NOW - 10 * 24 * 3_600_000);
+    await saveSubscription(old, null, NOW - STALE_SUBSCRIPTION_MS - 1);
+    const [first, second] = await listSubscriptions();
+    for (const sub of [first, second]) await updateSubscriptionState(sub, { sent: { day: "2026-10-13" } });
+    const kept = await pruneStaleSubscriptions(await listSubscriptions(), NOW);
+    expect(kept.map((sub) => sub.subscription.endpoint)).toEqual([fresh.subscription.endpoint]);
+    expect((await listSubscriptions()).map((sub) => sub.subscription.endpoint)).toEqual([fresh.subscription.endpoint]);
+    expect(fakeRedis.hashes.get("push:state")?.size).toBe(1);
   });
 });

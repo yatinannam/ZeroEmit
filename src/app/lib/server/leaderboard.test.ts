@@ -249,3 +249,56 @@ describe("removeMembersByName with a points limit (admin)", () => {
     expect((await readLeaderboard("all", null, NOW)).rows).toEqual([expect.objectContaining({ name: "Yatin Annam", points: 60 })]);
   });
 });
+
+describe("boardStandings without points", () => {
+  test("members with no points this month don't rank, count or sit above anyone", async () => {
+    await submitMember(member(1, 0), NOW); // joined first, no charges
+    await submitMember(member(2, 3), NOW); // 30 points
+    await submitMember(member(3, 0), NOW); // joined later, no charges
+    const standings = await boardStandings("2026-10", [uuid(1), uuid(2), uuid(3)]);
+    expect(standings.get(uuid(2))).toMatchObject({ rank: 1, total: 1, above: null, aboveId: null });
+    expect(standings.has(uuid(1))).toBe(false);
+    expect(standings.has(uuid(3))).toBe(false);
+  });
+
+  test("last month's total counts only members who scored", async () => {
+    const september = Date.parse("2026-09-20T06:30:00.000Z");
+    await submitMember({ ...member(1, 0), charges: [{ date: "2026-09-20", kwh: 20, intensity: 600, green: false }] }, september);
+    await submitMember(member(2, 0), september);
+    expect((await boardStandings("2026-09", [uuid(1), uuid(2)])).get(uuid(1))).toMatchObject({ rank: 1, total: 1 });
+    expect((await boardStandings("2026-09", [uuid(2)])).has(uuid(2))).toBe(false);
+  });
+});
+
+describe("renaming", () => {
+  test("goes through the member route with the same id and key, and frees the old name", async () => {
+    await submitMember(member(1, 3, { name: "Asha" }), NOW);
+    expect(await submitMember(member(1, 3, { name: "Asha Rao" }), NOW + 1000)).toMatchObject({ ok: true });
+    expect((await readLeaderboard("all", null, NOW)).rows.map((row) => row.name)).toEqual(["Asha Rao"]);
+    expect((await submitMember(member(2, 1, { name: "Asha" }), NOW + 2000)).ok).toBe(true);
+  });
+
+  test("can't take a name someone else holds", async () => {
+    await submitMember(member(1, 3, { name: "Asha" }), NOW);
+    await submitMember(member(2, 3, { name: "Meera" }), NOW);
+    expect(await submitMember(member(2, 3, { name: "asha" }), NOW + 1000)).toEqual({ ok: false, status: 409 });
+    expect((await readLeaderboard("all", null, NOW)).rows.map((row) => row.name).sort()).toEqual(["Asha", "Meera"]);
+  });
+
+  test("in a new month still needs a free name, while keeping the same name carries on", async () => {
+    const september = Date.parse("2026-09-20T06:30:00.000Z");
+    const septemberCharge = [{ date: "2026-09-20", kwh: 20, intensity: 600, green: false }];
+    await submitMember({ ...member(1, 0, { name: "Asha" }), charges: septemberCharge }, september);
+    await submitMember({ ...member(2, 0, { name: "Meera" }), charges: septemberCharge }, september);
+    await submitMember(member(3, 1, { name: "Ravi" }), NOW); // October's "Ravi"
+    expect(await submitMember(member(1, 2, { name: "Ravi" }), NOW + 1000)).toEqual({ ok: false, status: 409 });
+    expect((await submitMember(member(2, 2, { name: "Meera" }), NOW + 1000)).ok).toBe(true);
+  });
+});
+
+describe("tiny charges", () => {
+  test("charges under 2 kWh don't score on the board", async () => {
+    const tiny = Array.from({ length: 5 }, (_, i) => ({ date: `2026-10-0${i + 1}`, kwh: 0.1, intensity: 300, green: true }));
+    expect(await submitMember({ ...member(1, 0), charges: tiny }, NOW)).toMatchObject({ ok: true, points: 0, co2Kg: 0 });
+  });
+});

@@ -6,6 +6,10 @@ import { usePathname } from "next/navigation";
 import gsap from "gsap";
 import Lenis from "lenis";
 
+// Some tweens target optional parts (e.g. the forecast chart's "now" dot,
+// absent for tomorrow); a missing one just has nothing to animate.
+gsap.config({ nullTargetWarn: false });
+
 // Every animation here is decoration: content is already on the page and
 // readable before (and without) it, and it all stays still when the phone
 // asks for reduced motion.

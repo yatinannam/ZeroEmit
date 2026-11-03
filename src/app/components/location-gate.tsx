@@ -31,6 +31,10 @@ export function LocationGate() {
   const panelRef = useRef<HTMLDivElement>(null);
   const open = hydrated && stored === null;
 
+  // The boot script hid the page on first launch (see theme-boot.ts); show it
+  // again once the gate is up to cover it, or a place turns out to be saved.
+  useEffect(() => { if (hydrated) document.documentElement.removeAttribute("data-first-run"); }, [hydrated]);
+
   // Focus the step that's showing — and again when the intro hands over.
   useEffect(() => { if (open) panelRef.current?.focus(); }, [open, introSeen]);
 

@@ -16,7 +16,13 @@ export function createLocalStorageStore<T>(key: string, parse: (raw: string) => 
     return () => { listeners.delete(listener); window.removeEventListener("storage", listener); };
   }
 
+  // Set when storage refused a write (blocked, private mode, full): the value
+  // then lives in memory for this visit, so choices like the first-run place
+  // still take effect instead of the screen ignoring the tap.
+  let memoryRaw: string | null | undefined;
+
   function readRaw(): string | null {
+    if (memoryRaw !== undefined) return memoryRaw;
     try { return window.localStorage.getItem(key); } catch { return null; }
   }
 
@@ -38,7 +44,8 @@ export function createLocalStorageStore<T>(key: string, parse: (raw: string) => 
   function getServerSnapshot(): T { return fallback; }
 
   function write(value: T) {
-    try { window.localStorage.setItem(key, serialize(value)); } catch { /* storage unavailable/quota exceeded — update won't persist */ }
+    const raw = serialize(value);
+    try { window.localStorage.setItem(key, raw); memoryRaw = undefined; } catch { memoryRaw = raw; /* storage unavailable/quota exceeded — kept in memory, won't persist */ }
     notify();
   }
 

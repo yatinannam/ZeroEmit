@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { achievements, currentRewardTier, currentStreakDays, estimatedCarbonSavedGrams, POINTS_PER_CHARGE, REWARD_TIERS, totalPoints } from "../lib/rewards";
 import { TIMING_BONUS } from "../lib/timing";
 import { EQUIVALENTS_NOTE, equivalentsSentence } from "../lib/equivalents";
@@ -17,16 +18,17 @@ const BADGE_ICONS: Record<string, IconName> = {
   "peak-dodger": "clock", "co2-10": "leaf", "co2-50": "tree", "kwh-100": "target",
 };
 
-const EARN_ROWS: { icon: IconName; title: string; detail: string; reward: string }[] = [
-  { icon: "history", title: "Log a charge", detail: "Every charge you log", reward: `+${POINTS_PER_CHARGE}` },
-  { icon: "bolt", title: "Charge in a best window", detail: "One of the day's 3 cleanest 2-hour windows for your region", reward: `+${TIMING_BONUS.best} bonus` },
+// `href`: where to go to do it, for the rows that are one tap from doing.
+const EARN_ROWS: { icon: IconName; title: string; detail: string; reward: string; href?: string }[] = [
+  { icon: "history", title: "Log a charge", detail: "Every charge you log", reward: `+${POINTS_PER_CHARGE}`, href: "/log?quick=1" },
+  { icon: "bolt", title: "Charge in a best window", detail: "One of the day's 3 cleanest 2-hour windows for your region", reward: `+${TIMING_BONUS.best} bonus`, href: "/forecast" },
   { icon: "clock", title: "Charge at a cleaner hour", detail: "Any hour cleaner than your region's daily average", reward: `+${TIMING_BONUS.cleaner} bonus` },
   { icon: "fire", title: "Keep a streak", detail: "Charge on consecutive days", reward: "Badges" },
 ];
 
 export function RewardsScreen() {
   const { place, locationOpen, openLocation, closeLocation, chooseLocation } = useLocationPicker();
-  const { charges } = useCharges();
+  const { charges, ready } = useCharges();
   const points = totalPoints(charges);
   const streak = currentStreakDays(charges);
   const { current: tier, next: nextTier } = currentRewardTier(points);
@@ -44,6 +46,7 @@ export function RewardsScreen() {
         <strong className="stat-figure"><CountUp value={points}/> <small>pts</small></strong>
         <div className="tier-row"><b>{tier.name}</b>{nextTier && <span>{points} / {nextTier.threshold} to {nextTier.name}</span>}</div>
         <div className="progress-track" role="progressbar" aria-label={nextTier ? `Progress to ${nextTier.name}` : "Top level reached"} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(progressToNext * 100)}><ProgressFill percent={progressToNext * 100}/></div>
+        {ready && !charges.length && <p className="personal-note">No charges yet. <Link className="text-button" href="/log?quick=1">Log your first charge</Link> to start earning points.</p>}
       </section>
 
       <LeaderboardCard/>
@@ -68,11 +71,10 @@ export function RewardsScreen() {
       <section className="card stat-card earn-card">
         <h2>How to earn</h2>
         <ul className="earn-list">
-          {EARN_ROWS.map((row) => <li key={row.title}>
-            <span className="round-icon"><Icon name={row.icon} size={18}/></span>
-            <span><strong>{row.title}</strong><small>{row.detail}</small></span>
-            <b>{row.reward}</b>
-          </li>)}
+          {EARN_ROWS.map((row) => {
+            const content = <><span className="round-icon"><Icon name={row.icon} size={18}/></span><span><strong>{row.title}</strong><small>{row.detail}</small></span><b>{row.reward}</b></>;
+            return <li key={row.title} className={row.href ? "earn-link-row" : undefined}>{row.href ? <Link className="earn-link" href={row.href}>{content}</Link> : content}</li>;
+          })}
         </ul>
         <h3>Levels</h3>
         <ol className="level-list">

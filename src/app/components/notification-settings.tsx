@@ -1,7 +1,9 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { Modal } from "./modal";
+import { useLeaderboardMembership } from "./use-leaderboard";
 import { Icon } from "./icon-set";
 import { showToast } from "./toast";
 import { isPushActive, sendServerTestPush } from "./push-client";
@@ -17,6 +19,7 @@ const STATUS: Record<Permission, string> = {
 export function NotificationSettings({ onClose }: { onClose: () => void }) {
   const permission = useNotificationPermission();
   const { prefs, setPref } = useNotificationPrefs();
+  const joined = useLeaderboardMembership() !== null;
   const [error, setError] = useState("");
 
   async function turnOn() {
@@ -26,11 +29,15 @@ export function NotificationSettings({ onClose }: { onClose: () => void }) {
 
   // With scheduled notifications active, test the real path (server, push
   // service, phone); otherwise just this device's local notifications.
+  // A failed server test shows only its error: a local test after it would
+  // claim success for a path that isn't the one reminders take.
   async function sendTest() {
+    setError("");
     if (isPushActive()) {
       const problem = await sendServerTestPush();
-      if (!problem) { showToast("Test sent from the server. It should arrive in a few seconds."); return; }
-      setError(problem);
+      if (problem) setError(problem);
+      else showToast("Test sent from the server. It should arrive in a few seconds.");
+      return;
     }
     await sendTestNotification();
     showToast("Test notification sent");
@@ -47,6 +54,8 @@ export function NotificationSettings({ onClose }: { onClose: () => void }) {
         <input type="checkbox" role="switch" className="switch" checked={permission === "granted" && prefs[kind.key]} disabled={permission !== "granted"} onChange={(event) => setPref(kind.key, event.target.checked)}/>
       </label>)}
     </div>
+    {/* Leaderboard updates need an entry on the board; offer the way there. */}
+    {serverPushAvailable && !joined && <p className="personal-note">Leaderboard updates start once you join the leaderboard. <Link className="text-button" href="/rewards/leaderboard" onClick={onClose}>Join the leaderboard</Link></p>}
     {permission === "granted" && <button className="forecast-button action-button" onClick={sendTest}>Send a test notification</button>}
   </Modal>;
 }

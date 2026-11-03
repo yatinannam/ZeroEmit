@@ -1,4 +1,4 @@
-export type IconName = "pin" | "user" | "bolt" | "arrow" | "arrow-left" | "close" | "tree" | "fire" | "clock" | "home" | "chart" | "history" | "award" | "chevron-right" | "bell" | "shield" | "info" | "trash" | "search" | "target" | "check" | "moon" | "share" | "download" | "leaf" | "calendar" | "navigation";
+export type IconName = "pin" | "user" | "bolt" | "arrow" | "arrow-left" | "close" | "tree" | "fire" | "clock" | "home" | "chart" | "history" | "award" | "chevron-right" | "bell" | "shield" | "info" | "trash" | "search" | "target" | "check" | "moon" | "share" | "download" | "leaf" | "calendar" | "navigation" | "pencil";
 
 export function Icon({ name, size = 22 }: { name: IconName; size?: number }) {
   const common = { width: size, height: size, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 1.9, strokeLinecap: "round" as const, strokeLinejoin: "round" as const, "aria-hidden": true };
@@ -17,6 +17,7 @@ export function Icon({ name, size = 22 }: { name: IconName; size?: number }) {
     history: <><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/></>,
     award: <><circle cx="12" cy="8" r="5"/><path d="m9 13-1 8 4-2 4 2-1-8"/></>,
     "chevron-right": <path d="m9 6 6 6-6 6"/>,
+    pencil: <><path d="M4 20h4L18.5 9.5a2.83 2.83 0 0 0-4-4L4 16v4Z"/><path d="m13.5 6.5 4 4"/></>,
     bell: <><path d="M6 8a6 6 0 0 1 12 0c0 3.5 1 5.5 2 7H4c1-1.5 2-3.5 2-7Z"/><path d="M10 19a2 2 0 0 0 4 0"/></>,
     shield: <path d="M12 3 5 6v6c0 4.5 3 7.5 7 9 4-1.5 7-4.5 7-9V6l-7-3Z"/>,
     info: <><circle cx="12" cy="12" r="8.5"/><path d="M12 11v5"/><path d="M12 8v.01"/></>,

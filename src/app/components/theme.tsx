@@ -28,8 +28,11 @@ export function useThemeChoice() {
 
 // Mounted once in the layout. Also re-applies the attribute after React's
 // development-mode remount clears attributes the inline script set on <html>.
+// Reads the stored choice itself rather than `choice`: during hydration
+// `choice` is the server's "system", and applying that would briefly undo a
+// pinned theme the boot script already set.
 export function ThemeSync() {
   const [choice] = useThemeChoice();
-  useLayoutEffect(() => applyTheme(choice), [choice]);
+  useLayoutEffect(() => applyTheme(store.getSnapshot()), [choice]);
   return null;
 }

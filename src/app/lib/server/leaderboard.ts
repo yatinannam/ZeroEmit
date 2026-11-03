@@ -76,7 +76,8 @@ const nameClaim = (name: string) => name.replace(/[‌‍]/g, "").toLowerCase().
 const REMOVED_MARKER_S = 24 * 60 * 60;
 
 // Counts one more event in this hour's bucket; true while still within `limit`.
-async function withinHourlyLimit(name: string, limit: number, now: number) {
+// Shared with push subscriptions (./push).
+export async function withinHourlyLimit(name: string, limit: number, now: number) {
   const key = `${name}:${Math.floor(now / 3_600_000)}`;
   const count = await redis<number>("INCR", key);
   if (count === 1) await redis("EXPIRE", key, 3600);
@@ -101,11 +102,12 @@ export async function submitMember(input: MemberInput, now = Date.now(), ip: str
   const sameMonth = existing !== null && existing.month === month;
   const claim = nameClaim(input.name);
   const oldClaim = sameMonth ? nameClaim(existing.name) : null;
-  // Joining, or renaming this month, needs a name nobody else holds. A member
-  // carrying on into a new month keeps syncing either way.
+  const renamed = existing !== null && nameClaim(existing.name) !== claim;
+  // Joining, or renaming, needs a name nobody else holds this month. A member
+  // carrying on into a new month under the same name keeps syncing either way.
   // Claimed atomically up front: two people joining with the same name at
   // the same moment can't both get it.
-  if (!existing || (sameMonth && oldClaim !== claim)) {
+  if (!existing || renamed) {
     const won = await redis<number>("HSETNX", namesKey(month), claim, input.id);
     if (!won && (await redis<string | null>("HGET", namesKey(month), claim)) !== input.id) return { ok: false, status: 409 };
   }
@@ -185,14 +187,20 @@ export type Standing = { rank: number; total: number; points: number; co2Kg: num
 // needs, however many subscribers there are (the free Redis tier is billed
 // per command). Points come from the board itself — the member record only
 // holds the latest month — so CO₂ is known only while the record is that
-// month's. Members not on the board are left out.
+// month's. Members not on the board are left out, and so (as on the board
+// readLeaderboard shows) are members without a point that month: they don't
+// rank, don't count in the total and are never "above" anyone.
 export async function boardStandings(month: string, ids: string[]): Promise<Map<string, Standing>> {
   const standings = new Map<string, Standing>();
   if (!ids.length) return standings;
   const flat = await redis<string[]>("ZREVRANGE", boardKey(month, "all"), 0, -1, "WITHSCORES");
   const order: string[] = [];
   const scores = new Map<string, number>();
-  for (let i = 0; i < flat.length; i += 2) { order.push(flat[i]); scores.set(flat[i], Number(flat[i + 1])); }
+  // Scores are points plus a fraction under 1, so ">= 1" means a charge counted.
+  for (let i = 0; i < flat.length; i += 2) {
+    const score = Number(flat[i + 1]);
+    if (score >= 1) { order.push(flat[i]); scores.set(flat[i], score); }
+  }
   const indexOf = new Map(order.map((id, index) => [id, index]));
   const onBoard = ids.filter((id) => indexOf.has(id));
   if (!onBoard.length) return standings;

@@ -1,7 +1,7 @@
 import type { Charge } from "../components/use-charges";
 import { istDayKey, istHourOfDay } from "./grid";
 import { ZONE_LABELS, type Zone } from "./places";
-import { GREEN_CHARGE_BONUS, isGreenCharge, MAX_CHARGE_KWH, pointsForCharge, POINTS_PER_CHARGE, UNTIMED_CHARGE_BASELINE } from "./rewards";
+import { baselineFromPattern, GREEN_CHARGE_BONUS, isGreenCharge, MAX_CHARGE_KWH, MIN_POINTS_KWH, pointsForCharge, POINTS_PER_CHARGE, UNTIMED_CHARGE_BASELINE } from "./rewards";
 import { chargeTiming, TIMING_BONUS, type ChargeTiming } from "./timing";
 
 // Rules shared by the app (building what it sends) and the server (which
@@ -71,12 +71,17 @@ export function scoreMonth(entries: LeaderboardCharge[], month: string, today: s
   // inflate the CO₂ shown on the public board.
   const known = pattern?.filter((value): value is number => value !== null) ?? [];
   const [low, high] = known.length ? [Math.min(...known) * 0.8, Math.max(...known) * 1.2] : [0, MAX_INTENSITY];
+  // CO₂ avoided is measured against the region's average day, as on the
+  // device (lib/rewards.ts); without the server's pattern, the fixed baseline.
+  const baseline = baselineFromPattern(pattern) ?? UNTIMED_CHARGE_BASELINE;
   for (const entry of entries) {
     if (!entry.date.startsWith(`${month}-`) || entry.date > today || !isRealDay(entry.date)) continue;
     const kwh = clamp(entry.kwh, 0, MAX_CHARGE_KWH);
+    // As on the device, a charge under MIN_POINTS_KWH scores nothing.
+    if (kwh < MIN_POINTS_KWH) continue;
     const intensity = entry.intensity === null ? null : clamp(clamp(entry.intensity, 0, MAX_INTENSITY), low, high);
     const points = POINTS_PER_CHARGE + bonusFor(entry, intensity, pattern);
-    const grams = intensity === null ? 0 : Math.max(0, UNTIMED_CHARGE_BASELINE - intensity) * kwh;
+    const grams = intensity === null ? 0 : Math.max(0, baseline - intensity) * kwh;
     const day = byDay.get(entry.date) ?? [];
     day.push({ points, grams });
     byDay.set(entry.date, day);
@@ -116,4 +121,35 @@ export function validateDisplayName(raw: unknown): string | null {
   if (lower.split(" ").some((word) => BLOCKED_WORDS.has(word))) return null;
   const squashed = lower.replace(/[^a-z]/g, "");
   return BLOCKED_ANYWHERE.some((word) => squashed.includes(word)) ? null : name;
+}
+
+const NOT_NAME_CHARACTERS = new RegExp("[^\\p{L}\\p{M}\\p{N}\\u200C\\u200D]+", "gu");
+const MAX_NAME_LENGTH = 20;
+
+// A profile name turned into a display name the board accepts, to pre-fill
+// the join form: punctuation becomes a space ("K. Ramesh" -> "K Ramesh") and
+// whole words are kept while they fit. "" when nothing valid is left.
+export function displayNameFrom(raw: string): string {
+  const words = raw.replace(NOT_NAME_CHARACTERS, " ").trim().split(" ").filter(Boolean);
+  let name = "";
+  for (const word of words) {
+    const next = name ? `${name} ${word}` : word;
+    if (next.replace(JOINERS, "").length > MAX_NAME_LENGTH) break;
+    name = next;
+  }
+  // A first word that's too long on its own is cut to fit.
+  if (!name && words.length) name = [...words[0]].slice(0, MAX_NAME_LENGTH).join("");
+  return validateDisplayName(name) ?? "";
+}
+
+// Another name to suggest when `name` is taken: a number added, or the
+// number it ends with raised ("Asha" -> "Asha 2", "Asha 2" -> "Asha 3"),
+// so it's never the taken name. null if no valid one fits.
+export function alternativeName(name: string): string | null {
+  const numbered = /^(.*) (\d+)$/.exec(name);
+  const base = numbered ? numbered[1] : name;
+  const suffix = numbered ? String(Number(numbered[2]) + 1) : "2";
+  const room = MAX_NAME_LENGTH - suffix.length - 1;
+  const trimmed = base.replace(JOINERS, "").length > room ? displayNameFrom([...base].slice(0, room).join("")) : base;
+  return trimmed ? validateDisplayName(`${trimmed} ${suffix}`) : null;
 }

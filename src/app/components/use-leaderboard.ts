@@ -3,7 +3,7 @@
 import { useSyncExternalStore } from "react";
 import { createLocalStorageStore } from "./local-storage-store";
 import type { Charge } from "./use-charges";
-import { istMonthKey, toLeaderboardCharges } from "../lib/leaderboard";
+import { alternativeName, istMonthKey, toLeaderboardCharges } from "../lib/leaderboard";
 import type { Zone } from "../lib/places";
 
 // This device's leaderboard entry: a public id, the secret key that proves the
@@ -36,17 +36,29 @@ function submit(membership: Membership, zone: Zone, charges: Charge[]) {
 // server saved a join but the response was lost, trying again reuses them
 // instead of creating a second entry.
 const PENDING_JOIN_KEY = "zeroemit-leaderboard-pending-join";
-function pendingJoin(): { id: string; key: string } {
+function storedPendingJoin(): { id: string; key: string } | null {
   try {
     const stored = JSON.parse(window.localStorage.getItem(PENDING_JOIN_KEY) ?? "null") as { id?: unknown; key?: unknown } | null;
     if (stored && typeof stored.id === "string" && typeof stored.key === "string") return { id: stored.id, key: stored.key };
-  } catch { /* fall through to a new one */ }
+  } catch { /* unreadable: treated as none */ }
+  return null;
+}
+function pendingJoin(): { id: string; key: string } {
+  const stored = storedPendingJoin();
+  if (stored) return stored;
   const fresh = { id: crypto.randomUUID(), key: crypto.randomUUID() };
   try { window.localStorage.setItem(PENDING_JOIN_KEY, JSON.stringify(fresh)); } catch { /* storage unavailable */ }
   return fresh;
 }
+function forgetPendingJoin() {
+  try { window.localStorage.removeItem(PENDING_JOIN_KEY); } catch { /* storage unavailable */ }
+}
 
-export async function joinLeaderboard(name: string, zone: Zone, charges: Charge[]): Promise<{ ok: true; rank: number } | { ok: false; error: string }> {
+// Joins, or (already a member) renames this device's entry: the server treats
+// a new name under the same id and key as a rename, with the same rules as
+// joining (valid, and not held by anyone else this month). `points` is this
+// month's score as the server counted it.
+export async function joinLeaderboard(name: string, zone: Zone, charges: Charge[]): Promise<{ ok: true; rank: number; points: number } | { ok: false; error: string }> {
   const current = store.getSnapshot();
   const { id, key } = current ?? pendingJoin();
   const membership: Membership = { id, key, name };
@@ -54,21 +66,31 @@ export async function joinLeaderboard(name: string, zone: Zone, charges: Charge[
     const response = await submit(membership, zone, charges);
     if (!response.ok) {
       const { code } = await response.json().catch(() => ({})) as { code?: string };
+      const suggestion = alternativeName(name);
       const error = code === "name" ? "That name can't be used. Try another one."
-        : code === "name-taken" ? `That name is already on this month's leaderboard. Try adding an initial, like "${name.split(" ")[0]} ${name.split(" ")[1]?.[0] ?? "R"}".`
-        : response.status === 429 ? "Too many updates. Try again in a while." : "Couldn't join the leaderboard. Try again.";
+        : code === "name-taken" ? `That name is already on this month's leaderboard. Try another${suggestion ? `, like "${suggestion}"` : ""}.`
+        : response.status === 429 ? "Too many updates. Try again in a while." : current ? "Couldn't change your name. Try again." : "Couldn't join the leaderboard. Try again.";
       return { ok: false, error };
     }
-    const body = await response.json() as { rank: number };
+    const body = await response.json() as { rank: number; points?: number };
     store.write(membership);
     // The join already sent this score; don't send it again straight away.
     rememberSynced(syncFingerprint(membership, zone, charges));
-    try { window.localStorage.removeItem(PENDING_JOIN_KEY); } catch { /* storage unavailable */ }
-    return { ok: true, rank: body.rank };
+    forgetPendingJoin();
+    return { ok: true, rank: body.rank, points: body.points ?? 0 };
   } catch {
     return { ok: false, error: "Couldn't reach the server. Check your connection." };
   }
 }
+
+// The toast after joining. A rank only once there's a point to rank by:
+// until then the board doesn't list the member (see readLeaderboard).
+export function joinedMessage({ rank, points }: { rank: number; points: number }) {
+  return points > 0 ? `You're #${rank} on the leaderboard this month` : "You're in. Log a charge this month to appear on the board.";
+}
+
+// Shown when a sync finds this device's entry gone from the server.
+export const ENTRY_GONE_MESSAGE = "Your leaderboard entry is no longer on the board. Join again from Rewards to get back on.";
 
 // Bumped after each sync the server accepts, so an open board refetches and
 // shows the new score (the sync runs a moment after a charge is logged).
@@ -99,7 +121,9 @@ function rememberSynced(fingerprint: string) {
   try { window.localStorage.setItem(SYNCED_KEY, JSON.stringify({ fingerprint, at: Date.now() })); } catch { /* storage unavailable */ }
 }
 
-export async function syncLeaderboard(zone: Zone, charges: Charge[]) {
+// Resolves to "gone" (also nothing to retry) when the server no longer has
+// this entry, so the caller can say so.
+export async function syncLeaderboard(zone: Zone, charges: Charge[]): Promise<boolean | "gone"> {
   const membership = store.getSnapshot();
   if (!membership) return true;
   const fingerprint = syncFingerprint(membership, zone, charges);
@@ -111,6 +135,14 @@ export async function syncLeaderboard(zone: Zone, charges: Charge[]) {
     const response = await submit(membership, zone, charges);
     // 410: this entry already left (e.g. from another tab), so forget it here too.
     if (response.status === 410) { store.write(null); return true; }
+    // 404, or 409 for a record that expired (RETENTION_S on the server) while
+    // someone else took its name: syncing again can't bring it back. Forget it
+    // here, and remove it in case the server does still hold it after all.
+    if (response.status === 404 || response.status === 409) {
+      store.write(null);
+      void leaveEntries([{ id: membership.id, key: membership.key }]);
+      return "gone";
+    }
     if (!response.ok) return false;
     rememberSynced(fingerprint);
     version += 1;
@@ -151,18 +183,31 @@ async function sendLeave(entry: PendingLeave) {
   }
 }
 
+// Queues each entry's removal, then tries it now; whether all went through.
+async function leaveEntries(entries: PendingLeave[]) {
+  pendingLeaves.write([...pendingLeaves.getSnapshot(), ...entries]);
+  const outcomes = await Promise.all(entries.map(sendLeave));
+  const done = new Set(entries.filter((_, index) => outcomes[index]).map((entry) => entry.id));
+  pendingLeaves.write(pendingLeaves.getSnapshot().filter((pending) => !done.has(pending.id)));
+  return outcomes.every(Boolean);
+}
+
 // Forgets the entry on this device at once, so the UI updates; the removal is
 // retried (see retryPendingLeave) until the server confirms it. Resolves to
 // whether it went through now.
+// A join the server saved but whose answer never arrived exists only as the
+// pending join's id and key, so that one is removed too ("Delete my data"
+// must not leave it public).
 export async function leaveLeaderboard() {
   const membership = store.getSnapshot();
-  if (!membership) return true;
-  const entry = { id: membership.id, key: membership.key };
+  const entries = [membership, storedPendingJoin()]
+    .filter((entry) => entry !== null)
+    .map(({ id, key }) => ({ id, key }))
+    .filter((entry, index, list) => list.findIndex((other) => other.id === entry.id) === index);
+  if (!entries.length) return true;
   store.write(null);
-  pendingLeaves.write([...pendingLeaves.getSnapshot(), entry]);
-  const done = await sendLeave(entry);
-  if (done) pendingLeaves.write(pendingLeaves.getSnapshot().filter((pending) => pending.id !== entry.id));
-  return done;
+  forgetPendingJoin();
+  return leaveEntries(entries);
 }
 
 export async function retryPendingLeave() {

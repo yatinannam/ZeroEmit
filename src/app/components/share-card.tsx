@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { chargesInMonth, currentStreakDays, impactSummary } from "../lib/rewards";
+import { chargesInMonth, currentStreakDays, impactSummary, longestStreakDays } from "../lib/rewards";
 import type { Charge } from "./use-charges";
 import { Icon } from "./icon-set";
 import { Modal } from "./modal";
@@ -9,7 +9,13 @@ import { showToast } from "./toast";
 
 export type SharePeriod = "month" | "lastMonth" | "all";
 type Period = SharePeriod;
-type CardData = { name: string; periodLabel: string; co2Kg: number; kwh: number; greenRate: number | null; streak: number };
+// `streakLabel`: "STREAK" (today's) or "BEST STREAK" (within a past month).
+type CardData = { name: string; periodLabel: string; co2Kg: number; kwh: number; count: number; greenRate: number | null; streak: number; streakLabel: string };
+
+// The card leads with CO₂ avoided only when there's some to show; "0.0 kg of
+// CO₂ avoided" (charges at or above the day's average) leads with energy.
+const leadsWithCo2 = (co2Kg: number) => co2Kg >= 0.05;
+const formatKwh = (kwh: number) => kwh.toFixed(kwh >= 100 ? 0 : 1);
 
 const W = 1080;
 const H = 1350;
@@ -63,20 +69,21 @@ async function drawCard(data: CardData): Promise<Blob> {
   if (logo) ctx.drawImage(logo, PAD, 64, 84, 84);
   text("ZeroEmit", PAD + (logo ? 104 : 0), 122, 600, 46, "#ffffff");
   text(data.name ? `${data.name}'s charging impact` : "My charging impact", PAD, 262, 600, 38, C.onPrimaryContainer);
-  const kg = data.co2Kg.toFixed(1);
-  text(kg, PAD, 432, 700, 164, "#ffffff");
+  const co2Led = leadsWithCo2(data.co2Kg);
+  const [figure, figureUnit, caption] = co2Led ? [data.co2Kg.toFixed(1), "kg", "of CO₂ avoided"] : [formatKwh(data.kwh), "kWh", "of EV charging logged"];
+  text(figure, PAD, 432, 700, 164, "#ffffff");
   ctx.font = font(700, 164);
-  text("kg", PAD + ctx.measureText(kg).width + 18, 432, 600, 60, "#ffffff");
-  text("of CO₂ avoided", PAD, 508, 500, 50, "#ffffff");
+  text(figureUnit, PAD + ctx.measureText(figure).width + 18, 432, 600, 60, "#ffffff");
+  text(caption, PAD, 508, 500, 50, "#ffffff");
   text(data.periodLabel, PAD, 578, 500, 34, C.onPrimaryContainer);
 
   // Stat tiles
   const gap = 24;
   const tileW = (W - PAD * 2 - gap * 2) / 3;
   const stats: [string, string, string][] = [
-    ["ENERGY", data.kwh.toFixed(data.kwh >= 100 ? 0 : 1), "kWh"],
+    co2Led ? ["ENERGY", formatKwh(data.kwh), "kWh"] : ["CHARGES", String(data.count), ""],
     ["GREEN CHARGES", data.greenRate === null ? "—" : `${Math.round(data.greenRate * 100)}`, data.greenRate === null ? "" : "%"],
-    ["STREAK", String(data.streak), data.streak === 1 ? "day" : "days"],
+    [data.streakLabel, String(data.streak), data.streak === 1 ? "day" : "days"],
   ];
   stats.forEach(([label, value, unit], i) => {
     const x = PAD + i * (tileW + gap);
@@ -106,8 +113,8 @@ async function drawCard(data: CardData): Promise<Blob> {
   });
 
   text("Charging when the grid is cleaner.", PAD, 1060, 600, 46, C.ink);
-  text("CO₂ avoided is estimated against charging", PAD, 1122, 400, 30, C.muted);
-  text("without timing it around the grid.", PAD, 1164, 400, 30, C.muted);
+  text(co2Led ? "CO₂ avoided is estimated against charging" : "Each charge is timed against the region's", PAD, 1122, 400, 30, C.muted);
+  text(co2Led ? "without timing it around the grid." : "cleanest hours of the day.", PAD, 1164, 400, 30, C.muted);
 
   ctx.fillStyle = C.border;
   ctx.fillRect(PAD, 1224, W - PAD * 2, 2);
@@ -126,15 +133,20 @@ function periodLabel(period: Period) {
   return new Intl.DateTimeFormat("en-IN", { month: "long", year: "numeric" }).format(month);
 }
 
+// A finished month shows its best streak; today's streak says nothing about it.
 function cardData(charges: Charge[], period: Period, name: string): CardData {
-  const summary = impactSummary(chargesFor(charges, period));
+  const inPeriod = chargesFor(charges, period);
+  const summary = impactSummary(inPeriod);
+  const pastMonth = period === "lastMonth";
   return {
     name,
     periodLabel: periodLabel(period),
     co2Kg: summary.co2Kg,
     kwh: summary.kwh,
+    count: summary.count,
     greenRate: summary.greenRate,
-    streak: currentStreakDays(charges),
+    streak: pastMonth ? longestStreakDays(inPeriod) : currentStreakDays(charges),
+    streakLabel: pastMonth ? "BEST STREAK" : "STREAK",
   };
 }
 
@@ -161,7 +173,8 @@ export function ShareImpactModal({ charges, name, onClose, initialPeriod }: { ch
 
   const ready = image?.period === period ? image : null;
   const summary = impactSummary(chargesFor(charges, period));
-  const shareText = `I avoided ${summary.co2Kg.toFixed(1)} kg of CO₂ by charging my EV when the grid was cleaner. zero-emit.vercel.app`;
+  const co2Led = leadsWithCo2(summary.co2Kg);
+  const shareText = co2Led ? `I avoided ${summary.co2Kg.toFixed(1)} kg of CO₂ by charging my EV when the grid was cleaner. zero-emit.vercel.app` : `I've logged ${formatKwh(summary.kwh)} kWh of EV charging, timed around India's grid. zero-emit.vercel.app`;
   const canShareFile = Boolean(ready && typeof navigator !== "undefined" && navigator.canShare?.({ files: [ready.file] }));
 
   async function share() {
@@ -190,7 +203,7 @@ export function ShareImpactModal({ charges, name, onClose, initialPeriod }: { ch
     </div>
     <div className="share-preview">
       {/* eslint-disable-next-line @next/next/no-img-element -- a local blob: URL, nothing for next/image to optimise */}
-      {ready ? <img src={ready.url} alt={`Impact card: ${summary.co2Kg.toFixed(1)} kg of CO₂ avoided`}/> : <p className="personal-note">{failed ? "Couldn't create the image on this device." : "Creating your card…"}</p>}
+      {ready ? <img src={ready.url} alt={co2Led ? `Impact card: ${summary.co2Kg.toFixed(1)} kg of CO₂ avoided` : `Impact card: ${formatKwh(summary.kwh)} kWh of EV charging logged`}/> : <p className="personal-note">{failed ? "Couldn't create the image on this device." : "Creating your card…"}</p>}
     </div>
     <div className="share-actions">
       {canShareFile && <button className="primary-button" onClick={share}><Icon name="share" size={18}/> Share</button>}

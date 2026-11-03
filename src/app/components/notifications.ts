@@ -83,8 +83,14 @@ export function useNotificationPrefs() {
   return { prefs, setPref };
 }
 
+// Used by "Delete my data". Everything off, not back to the defaults: the
+// browser's permission outlives the reset, so defaults would have PushSync
+// quietly subscribe the device to every scheduled notification again once
+// setup is redone. They come back on when the user allows notifications
+// again (requestNotificationPermission) or switches them on.
+const ALL_OFF: Prefs = { charges: false, rewards: false, bestTime: false, dailyDigest: false, streakReminders: false, leaderboard: false, progress: false };
 export function resetNotificationPrefs() {
-  prefsStore.write(DEFAULT_PREFS);
+  prefsStore.write(ALL_OFF);
 }
 
 export function notificationPrefEnabled(kind: NotificationKind) {
@@ -130,6 +136,9 @@ export async function requestNotificationPermission(): Promise<{ granted: boolea
   if (Notification.permission === "granted") return { granted: true, message: "Notifications are already on for this device." };
   const permission = Notification.permission === "default" ? await Notification.requestPermission() : Notification.permission;
   if (permission !== "granted") return { granted: false, message: "Notifications are blocked for this site. Allow them in your browser's site settings, then try again." };
+  // Allowing them is asking for them: after a reset left every kind off, the
+  // usual ones come back on.
+  if (Object.values(prefsStore.getSnapshot()).every((on) => !on)) prefsStore.write(DEFAULT_PREFS);
   try { window.localStorage.setItem(REMINDER_KEY, "true"); } catch { /* storage unavailable */ }
   // A permission grant is silent, so send one real notification to prove it works end to end.
   await display("ZeroEmit notifications are on", { body: "You'll get the best times to charge, charge confirmations and rewards here.", tag: "zeroemit-enabled", data: { url: "/" } });

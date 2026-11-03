@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { chargerOrigin, compactChargers, directionsUrl, distanceKm, INDIA_CHARGERS_QUERY, nearbyStations, parseOverpass, roundCoordinate } from "./stations";
+import { addChargerUrl, chargerOrigin, chargerSearchUrl, compactChargers, compassDirection, directionsUrl, distanceKm, INDIA_CHARGERS_QUERY, nearbyStations, normalizeOperator, parseOverpass, roundCoordinate, stationsAround } from "./stations";
 
 const PUNE = { lat: 18.5204, lon: 73.8567 };
 
@@ -62,8 +62,23 @@ describe("parseOverpass", () => {
     expect(stations[1].distanceKm).toBe(1.3); // ~1.07 km north, ~0.71 km west
   });
 
-  test("name falls back to the operator, then a generic label", () => {
-    expect(stations.map((station) => station.name)).toEqual(["Statiq", "Tata Power EZ Charge", "EV charging station"]);
+  test("name falls back to the operator, then says it's unnamed", () => {
+    expect(stations.map((station) => station.name)).toEqual(["Statiq", "Tata Power EZ Charge", "Unnamed EV charger"]);
+  });
+
+  test("a name that only says 'charging station' gives way to the operator", () => {
+    const [named] = parseOverpass({ elements: [{ type: "node", id: 5, lat: 18.52, lon: 73.86, tags: { name: "Electric Vehicle Charging Station", operator: "tata power" } }] }, PUNE);
+    expect(named.name).toBe("Tata Power");
+    const [lower] = parseOverpass({ elements: [{ type: "node", id: 6, lat: 18.52, lon: 73.86, tags: { name: "srt tata ev charging station" } }] }, PUNE);
+    expect(lower.name).toBe("Srt Tata EV Charging Station");
+  });
+
+  test("operators are tidied, falling back to the brand", () => {
+    const parsed = parseOverpass({ elements: [
+      { type: "node", id: 7, lat: 18.52, lon: 73.86, tags: { operator: "EV charging station", brand: "Tata power" } },
+      { type: "node", id: 8, lat: 18.53, lon: 73.86, tags: { operator: "TATA" } },
+    ] }, PUNE);
+    expect(parsed.map((station) => station.operator)).toEqual(["Tata Power", "Tata Power"]);
   });
 
   test("connector types the station has, skipping ones marked no", () => {
@@ -109,6 +124,61 @@ describe("chargerOrigin", () => {
     expect(origin?.source).toBe("city");
     expect(origin?.origin.lat).toBeCloseTo(18.52, 1);
     expect(chargerOrigin({ city: "Atlantis", state: "maharashtra" })).toBeNull();
+  });
+});
+
+describe("normalizeOperator", () => {
+  test("one spelling per known network, whatever the case", () => {
+    expect(["tata", "Tata power", "tata power", "Tata Power"].map(normalizeOperator)).toEqual(["Tata Power", "Tata Power", "Tata Power", "Tata Power"]);
+    expect(["ather energy", "Ather energy", "Ather grid"].map(normalizeOperator)).toEqual(["Ather Energy", "Ather Energy", "Ather Grid"]);
+    expect(["Energy Efficiency Services Limited (EESL)", "eesl", "Jio-bp", "Jio BP Pulse"].map(normalizeOperator)).toEqual(["EESL", "EESL", "Jio-bp pulse", "Jio-bp pulse"]);
+  });
+
+  test("all-lower-case names are title-cased; others are kept as typed", () => {
+    expect(normalizeOperator("rama chandra agencies")).toBe("Rama Chandra Agencies");
+    expect(normalizeOperator("ChargeMOD")).toBe("ChargeMOD");
+    expect(normalizeOperator("BESCOM")).toBe("BESCOM");
+  });
+
+  test("a tag that only says 'charging station' is no operator", () => {
+    expect(normalizeOperator("Electric Vehicle Charging Station")).toBeNull();
+    expect(normalizeOperator(null)).toBeNull();
+  });
+});
+
+describe("compassDirection", () => {
+  test("the nearest of 8 compass points", () => {
+    expect(compassDirection(PUNE, { lat: 19.076, lon: 72.8777 })).toBe("north-west"); // Mumbai
+    expect(compassDirection(PUNE, { lat: 18.0, lon: 73.8567 })).toBe("south");
+    expect(compassDirection(PUNE, { lat: 18.5204, lon: 74.5 })).toBe("east");
+  });
+});
+
+describe("stationsAround", () => {
+  const snapshot = [
+    { type: "node", id: 1, lat: 19.0, lon: 73.85, tags: {} }, // ~53 km
+    { type: "node", id: 2, lat: 19.5, lon: 73.85, tags: {} }, // ~109 km
+    { type: "node", id: 3, lat: 20.0, lon: 73.85, tags: {} },
+    { type: "node", id: 4, lat: 21.0, lon: 73.85, tags: {} },
+  ];
+
+  test("with none in range, the nearest 3 beyond it", () => {
+    const { stations, farther } = stationsAround(snapshot, PUNE);
+    expect(stations).toEqual([]);
+    expect(farther.map((station) => station.id)).toEqual(["node/1", "node/2", "node/3"]);
+  });
+
+  test("with some in range, nothing farther, so the answer stays small", () => {
+    const { stations, farther } = stationsAround([...snapshot, { type: "node", id: 9, lat: 18.53, lon: 73.85, tags: {} }], PUNE);
+    expect(stations.map((station) => station.id)).toEqual(["node/9"]);
+    expect(farther).toEqual([]);
+  });
+});
+
+describe("chargerSearchUrl and addChargerUrl", () => {
+  test("Google Maps' search for chargers near a place, and OpenStreetMap's editor there", () => {
+    expect(chargerSearchUrl("Jaipur, Rajasthan")).toBe("https://www.google.com/maps/search/?api=1&query=EV%20charging%20station%20near%20Jaipur%2C%20Rajasthan");
+    expect(addChargerUrl({ lat: 26.91, lon: 75.79 })).toBe("https://www.openstreetmap.org/edit#map=15/26.91/75.79");
   });
 });
 

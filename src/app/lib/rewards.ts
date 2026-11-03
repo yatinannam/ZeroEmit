@@ -16,6 +16,11 @@ export const GREEN_CHARGE_BONUS = 5;
 // typo like 1800 would otherwise inflate every total and become the next
 // form's "typical" default.
 export const MAX_CHARGE_KWH = 150;
+// Below this a charge earns no points or timing bonus and counts toward no
+// badge or leaderboard score: a 0.1 kWh "charge" logged for points is easy to
+// repeat. It still counts in energy totals and streaks.
+export const MIN_POINTS_KWH = 2;
+export const earnsPoints = (charge: Pick<Charge, "energyKwh">) => charge.energyKwh >= MIN_POINTS_KWH;
 
 // The grid's absolute rating, which is how charges were judged before their
 // timing was recorded.
@@ -32,7 +37,9 @@ export function isGreenCharge(charge: Charge): boolean {
 }
 
 // 10 for logging, plus the timing bonus (+10 best window, +5 cleaner hour).
+// Nothing under MIN_POINTS_KWH.
 export function pointsForCharge(charge: Charge): number {
+  if (!earnsPoints(charge)) return 0;
   return POINTS_PER_CHARGE + (charge.timing ? TIMING_BONUS[charge.timing] : legacyGreen(charge) ? GREEN_CHARGE_BONUS : 0);
 }
 
@@ -54,6 +61,20 @@ export function currentStreakDays(charges: Charge[]): number {
     cursor.setDate(cursor.getDate() - 1);
   }
   return streak;
+}
+
+// The longest run of consecutive IST days with at least one charge anywhere in
+// the history (same rule as currentStreakDays, without the walk back from
+// today). Streak badges unlock from it, so they stay earned after a break.
+export function longestStreakDays(charges: Charge[]): number {
+  const days = [...new Set(charges.map((charge) => Math.floor((Date.parse(charge.loggedAt) + IST_OFFSET_MS) / DAY_MS)).filter(Number.isFinite))].sort((a, b) => a - b);
+  let longest = 0;
+  let run = 0;
+  days.forEach((day, index) => {
+    run = index > 0 && day === days[index - 1] + 1 ? run + 1 : 1;
+    longest = Math.max(longest, run);
+  });
+  return longest;
 }
 
 // Charges in the calendar month containing `date` (device-local, like the
@@ -82,13 +103,24 @@ export function impactSummary(charges: Charge[]) {
 // taken at its low end so this only ever *under*-claims savings.
 export const UNTIMED_CHARGE_BASELINE = 650; // gCO2/kWh
 
+// What an untimed charge would have averaged: the mean of the region's
+// day by IST hour (the same average lib/timing.ts judges "cleaner" against),
+// or null with no data. Some regions' grids run above 650 all day, where the
+// fixed baseline would show nothing avoided however well a charge was timed.
+export function baselineFromPattern(pattern: (number | null)[] | null): number | null {
+  const known = pattern?.filter((value): value is number => value !== null && Number.isFinite(value)) ?? [];
+  return known.length ? known.reduce((sum, value) => sum + value, 0) / known.length : null;
+}
+
 // Grams of CO2 avoided vs. the untimed baseline, for charges that captured a
 // carbonIntensity at log time. Charges without one (older entries, or a
 // provider outage) are skipped rather than guessed at.
+// The baseline is the region's average that day (`baselineIntensity`, saved
+// at log time); older charges without it use UNTIMED_CHARGE_BASELINE.
 export function estimatedCarbonSavedGrams(charges: Charge[]): number {
   return charges.reduce((sum, charge) => {
     if (charge.carbonIntensity === null) return sum;
-    return sum + Math.max(0, UNTIMED_CHARGE_BASELINE - charge.carbonIntensity) * charge.energyKwh;
+    return sum + Math.max(0, (charge.baselineIntensity ?? UNTIMED_CHARGE_BASELINE) - charge.carbonIntensity) * charge.energyKwh;
   }, 0);
 }
 
@@ -108,23 +140,32 @@ const isPeakCharge = (charge: Charge) => {
 
 export type Achievement = { key: string; title: string; description: string; current: number; target: number; unit: string; unlocked: boolean };
 
-// Every badge with its progress; `current` is capped at `target`.
-export function achievements(charges: Charge[], streak: number): Achievement[] {
+// Every badge with its progress; `current` is capped at `target`. `streak` is
+// the current streak: a locked streak badge shows progress from it, but it
+// unlocks from the best streak ever, so a broken streak doesn't re-lock it.
+export function achievements(all: Charge[], streak: number): Achievement[] {
+  // Charges under MIN_POINTS_KWH count toward no badge; the streak badges go
+  // by the streak, which they do count toward.
+  const charges = all.filter(earnsPoints);
   const green = charges.filter(isGreenCharge).length;
   const savedKg = estimatedCarbonSavedGrams(charges) / 1000;
   const kwh = charges.reduce((sum, charge) => sum + charge.energyKwh, 0);
   const offPeak = charges.filter((charge) => !isPeakCharge(charge)).length;
-  const rows: Omit<Achievement, "unlocked">[] = [
+  const bestStreak = Math.max(streak, longestStreakDays(all));
+  const rows: (Omit<Achievement, "unlocked"> & { best?: number })[] = [
     { key: "first-green", title: "First Green Charge", description: "Charge in one of the day's best windows", current: green, target: 1, unit: "" },
     { key: "green-10", title: "Green Regular", description: "10 charges in best windows", current: green, target: 10, unit: "" },
-    { key: "streak-7", title: "7-Day Streak", description: "Charge 7 days in a row", current: streak, target: 7, unit: " days" },
-    { key: "streak-30", title: "30-Day Streak", description: "Charge 30 days in a row", current: streak, target: 30, unit: " days" },
+    { key: "streak-7", title: "7-Day Streak", description: "Charge 7 days in a row", current: streak, best: bestStreak, target: 7, unit: " days" },
+    { key: "streak-30", title: "30-Day Streak", description: "Charge 30 days in a row", current: streak, best: bestStreak, target: 30, unit: " days" },
     { key: "peak-dodger", title: "Peak Dodger", description: "5 charges outside the 6–10 pm peak", current: offPeak, target: 5, unit: "" },
     { key: "co2-10", title: "Carbon Cutter", description: "Avoid 10 kg of CO₂", current: savedKg, target: 10, unit: " kg" },
     { key: "co2-50", title: "Climate Champion", description: "Avoid 50 kg of CO₂", current: savedKg, target: 50, unit: " kg" },
     { key: "kwh-100", title: "100 kWh Club", description: "Charge 100 kWh in total", current: kwh, target: 100, unit: " kWh" },
   ];
-  return rows.map((row) => ({ ...row, current: Math.min(row.current, row.target), unlocked: row.current >= row.target }));
+  return rows.map(({ best, ...row }) => {
+    const unlocked = (best ?? row.current) >= row.target;
+    return { ...row, current: unlocked ? row.target : Math.min(row.current, row.target), unlocked };
+  });
 }
 
 // How each badge's remaining amount reads in a sentence ("2 more green

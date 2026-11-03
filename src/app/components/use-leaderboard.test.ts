@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, test } from "bun:test";
 const storage = new Map<string, string>();
 Object.assign(globalThis, {
   window: {
-    localStorage: { getItem: (key: string) => storage.get(key) ?? null, setItem: (key: string, value: string) => { storage.set(key, String(value)); } },
+    localStorage: { getItem: (key: string) => storage.get(key) ?? null, setItem: (key: string, value: string) => { storage.set(key, String(value)); }, removeItem: (key: string) => { storage.delete(key); } },
     addEventListener() {},
     removeEventListener() {},
   },
@@ -21,7 +21,7 @@ globalThis.fetch = (async (_url: string | URL | Request, init?: RequestInit) => 
   return new Response(JSON.stringify({ rank: 1 }), { status });
 }) as typeof fetch;
 
-const { getLeaderboardVersion, joinLeaderboard, leaveLeaderboard, retryPendingLeave, syncLeaderboard } = await import("./use-leaderboard");
+const { getLeaderboardVersion, joinedMessage, joinLeaderboard, leaveLeaderboard, retryPendingLeave, syncLeaderboard } = await import("./use-leaderboard");
 const PENDING = "zeroemit-leaderboard-pending-leave";
 const joined = () => JSON.parse(storage.get("zeroemit-leaderboard") ?? "null");
 
@@ -93,7 +93,78 @@ describe("joinLeaderboard errors", () => {
     statuses = [{ status: 400, body: { error: "Invalid request" } }];
     expect(await joinLeaderboard("Asha", "western", [])).toEqual({ ok: false, error: "Couldn't join the leaderboard. Try again." });
     statuses = [{ status: 409, body: { error: "Name taken", code: "name-taken" } }];
-    expect(await joinLeaderboard("Asha", "western", [])).toEqual({ ok: false, error: "That name is already on this month's leaderboard. Try adding an initial, like \"Asha R\"." });
+    expect(await joinLeaderboard("Asha", "western", [])).toEqual({ ok: false, error: "That name is already on this month's leaderboard. Try another, like \"Asha 2\"." });
+  });
+
+  test("the suggestion for a taken name is never the taken name", async () => {
+    await leaveLeaderboard();
+    statuses = [{ status: 409, body: { error: "Name taken", code: "name-taken" } }];
+    const result = await joinLeaderboard("Asha R", "western", []);
+    expect(result).toEqual({ ok: false, error: "That name is already on this month's leaderboard. Try another, like \"Asha R 2\"." });
+  });
+});
+
+describe("joinedMessage", () => {
+  test("a rank only once there are points; before that, how to appear", () => {
+    expect(joinedMessage({ rank: 3, points: 40 })).toBe("You're #3 on the leaderboard this month");
+    expect(joinedMessage({ rank: 13, points: 0 })).toBe("You're in. Log a charge this month to appear on the board.");
+  });
+});
+
+describe("renaming", () => {
+  test("a member joining again with a new name keeps the same id and key, and the new name is kept", async () => {
+    const before = joined();
+    statuses = [{ status: 200, body: { rank: 2, points: 30, co2Kg: 1 } }];
+    expect(await joinLeaderboard("Asha Rao", "western", [])).toEqual({ ok: true, rank: 2, points: 30 });
+    const [sent] = requests.map((request) => JSON.parse(request.body));
+    expect(sent).toMatchObject({ id: before.id, key: before.key, name: "Asha Rao" });
+    expect(joined()).toEqual({ id: before.id, key: before.key, name: "Asha Rao" });
+  });
+
+  test("a refused rename keeps the old name", async () => {
+    statuses = [{ status: 409, body: { error: "Name taken", code: "name-taken" } }];
+    await joinLeaderboard("Meera", "western", []);
+    expect(joined().name).toBe("Asha");
+  });
+});
+
+describe("an entry gone from the server", () => {
+  test("a 409 or 404 on sync forgets the membership, says so, and removes any leftover", async () => {
+    const { id, key } = joined();
+    statuses = [{ status: 409, body: { error: "Name taken", code: "name-taken" } }, 200];
+    expect(await syncLeaderboard("western", [])).toBe("gone");
+    expect(joined()).toBeNull();
+    await Promise.resolve();
+    expect(requests.map((request) => [request.method, JSON.parse(request.body)]).at(-1)).toEqual(["DELETE", { id, key }]);
+
+    statuses = [200];
+    await joinLeaderboard("Asha", "western", []);
+    storage.delete("zeroemit-leaderboard-synced");
+    statuses = [404, 200];
+    expect(await syncLeaderboard("western", [])).toBe("gone");
+    expect(joined()).toBeNull();
+  });
+});
+
+describe("leaving with only a pending join", () => {
+  test("a join whose answer was lost is removed too, and the pending join forgotten", async () => {
+    await leaveLeaderboard();
+    statuses = ["offline"];
+    await joinLeaderboard("Asha", "western", []); // the server may have saved it
+    const pending = JSON.parse(storage.get("zeroemit-leaderboard-pending-join") ?? "null");
+    expect(joined()).toBeNull();
+    requests.length = 0;
+    statuses = [200];
+    expect(await leaveLeaderboard()).toBe(true);
+    expect(requests.map((request) => [request.method, JSON.parse(request.body)])).toEqual([["DELETE", pending]]);
+    expect(storage.has("zeroemit-leaderboard-pending-join")).toBe(false);
+  });
+
+  test("nothing joined and nothing pending sends nothing", async () => {
+    await leaveLeaderboard();
+    requests.length = 0;
+    expect(await leaveLeaderboard()).toBe(true);
+    expect(requests).toHaveLength(0);
   });
 });
 

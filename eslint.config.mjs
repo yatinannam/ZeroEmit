@@ -6,8 +6,9 @@ const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
   {
-    // Node build scripts (not app code) — CommonJS require() is expected here.
-    files: ["*.cjs"],
+    // Node build scripts (not app code) — CommonJS require() is expected here,
+    // including the poster renderer under docs/.
+    files: ["**/*.cjs"],
     rules: { "@typescript-eslint/no-require-imports": "off" },
   },
   // Override default ignores of eslint-config-next.

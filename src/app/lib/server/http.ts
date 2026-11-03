@@ -1,12 +1,25 @@
 // A JSON request body, or null if it's invalid or larger than `maxBytes`.
 // A declared Content-Length over the limit is refused before reading; the
 // body itself is measured in UTF-8 bytes, not characters.
+// Read as a stream and abandoned as soon as it passes the limit, so a body
+// sent without a length (or with a false one) is never held in full.
 export async function readLimitedJson(request: Request, maxBytes: number): Promise<unknown> {
   const declared = Number(request.headers.get("content-length"));
   if (Number.isFinite(declared) && declared > maxBytes) return null;
-  const text = await request.text();
-  if (new TextEncoder().encode(text).length > maxBytes) return null;
-  try { return JSON.parse(text); } catch { return null; }
+  if (!request.body) return null;
+  const reader = request.body.getReader();
+  const bytes = new Uint8Array(maxBytes);
+  let size = 0;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (size + value.byteLength > maxBytes) { await reader.cancel().catch(() => undefined); return null; }
+      bytes.set(value, size);
+      size += value.byteLength;
+    }
+  } catch { return null; }
+  try { return JSON.parse(new TextDecoder().decode(bytes.subarray(0, size))); } catch { return null; }
 }
 
 // Whether a state-changing request came from the app itself. A text/plain or

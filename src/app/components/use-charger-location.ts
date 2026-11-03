@@ -13,13 +13,20 @@ export type ChargerLocation =
   | { status: "off" }
   | { status: "locating" }
   | { status: "on"; lat: number; lon: number }
-  | { status: "denied" }
+  | { status: "denied"; again?: boolean } // `again`: still blocked when asked once more
   | { status: "outside" } // a position outside India, which the server can't search
   | { status: "unavailable" };
 
 const PREF_KEY = "zeroemit-chargers-near-me";
+// The browser's own timeout only starts once the permission prompt is
+// answered, so a prompt that's ignored would leave "Finding your location…"
+// up for good; after this long the city centre is used instead.
+const GIVE_UP_MS = 15_000;
 const listeners = new Set<() => void>();
 let state: ChargerLocation = { status: "off" };
+// Bumped by each request and by switching back to the city centre, so an
+// answer that arrives after that is ignored.
+let request = 0;
 
 function set(next: ChargerLocation) { state = next; listeners.forEach((listener) => listener()); }
 function subscribe(listener: () => void) { listeners.add(listener); return () => { listeners.delete(listener); }; }
@@ -29,19 +36,29 @@ function readPref() { try { return window.localStorage.getItem(PREF_KEY) === "1"
 function writePref(on: boolean) { try { if (on) window.localStorage.setItem(PREF_KEY, "1"); else window.localStorage.removeItem(PREF_KEY); } catch { /* storage unavailable */ } }
 
 // "Delete my data": stop using (and asking for) the device's position.
-export function forgetChargerLocation() { writePref(false); set(OFF); }
+export function forgetChargerLocation() { switchToCityCentre(); }
+
+// Back to the city centre; an answer still on its way is ignored.
+function switchToCityCentre() { request += 1; writePref(false); set(OFF); }
 
 function locate() {
   if (!("geolocation" in navigator)) { set({ status: "unavailable" }); return; }
+  const id = ++request;
+  const wasDenied = state.status === "denied";
   set({ status: "locating" });
+  // Still waiting (an unanswered prompt): fall back to the city centre. A
+  // late answer still counts, as nothing else has been chosen since.
+  setTimeout(() => { if (id === request && state.status === "locating") set({ status: "unavailable" }); }, GIVE_UP_MS);
   navigator.geolocation.getCurrentPosition(
     (position) => {
+      if (id !== request) return;
       const { latitude, longitude } = position.coords;
       set(isInIndia(latitude, longitude) ? { status: "on", lat: roundCoordinate(latitude), lon: roundCoordinate(longitude) } : { status: "outside" });
     },
     (error) => {
+      if (id !== request) return;
       // Blocked: stop asking until they tap the button again.
-      if (error.code === error.PERMISSION_DENIED) { writePref(false); set({ status: "denied" }); } else set({ status: "unavailable" });
+      if (error.code === error.PERMISSION_DENIED) { writePref(false); set({ status: "denied", again: wasDenied }); } else set({ status: "unavailable" });
     },
     { enableHighAccuracy: false, timeout: 10_000, maximumAge: 10 * 60_000 },
   );
@@ -60,6 +77,6 @@ export function useChargerLocation() {
   return {
     location: resuming ? LOCATING : location,
     chooseMyLocation: () => { writePref(true); locate(); },
-    chooseCityCentre: () => { writePref(false); set({ status: "off" }); },
+    chooseCityCentre: switchToCityCentre,
   };
 }

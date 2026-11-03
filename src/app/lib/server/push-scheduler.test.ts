@@ -70,7 +70,7 @@ describe("leaderboard: month-end result", () => {
   test("on the 1st, 9 am to noon, once", () => {
     const now = ist("2026-11-01T09:30:00");
     const result = plan(sub(), undefined, now, { current: null, lastMonth: standing(2, { total: 14, co2Kg: 61 }) });
-    expect(result.planned[0].payload).toMatchObject({ title: "October's leaderboard is final", body: "You finished #2 of 14, with 61.0 kg CO₂ avoided. Share your result.", url: "/profile?share=last-month" });
+    expect(result.planned[0].payload).toMatchObject({ title: "October's leaderboard is final", body: "You finished #2 of 14, with 61.0 kg CO₂ avoided. Share your month's impact.", url: "/profile?share=last-month" });
     expect(result.planned[0].marks).toEqual(["monthEnd"]);
     expect(bodies(plan(sub({ sent: { monthEnd: "2026-11" } }), undefined, now, { current: null, lastMonth: standing(2) }))).toEqual([]);
     expect(bodies(plan(sub(), undefined, ist("2026-11-01T12:00:00"), { current: null, lastMonth: standing(2) }))).toEqual([]);
@@ -79,7 +79,7 @@ describe("leaderboard: month-end result", () => {
 
   test("leaves out CO2 when it isn't known", () => {
     const result = plan(sub(), undefined, ist("2026-11-01T10:00:00"), { current: null, lastMonth: standing(1, { total: 3, co2Kg: null }) });
-    expect(bodies(result)).toEqual(["You finished #1 of 3. Share your result."]);
+    expect(bodies(result)).toEqual(["You finished #1 of 3. Share your month's impact."]);
   });
 });
 
@@ -162,5 +162,22 @@ describe("review fixes", () => {
     const badge = { key: "green-10", hint: "1 more green charge to unlock Green Regular." };
     const result = plan(sub({ badge, week: { weekStart: "2026-10-12", charges: 2, co2Kg: 1, greenPercent: 50 }, sent: { weekly: "2026-10-18" } }), undefined, ist("2026-10-18T18:15:00"));
     expect(result.planned).toEqual([]);
+  });
+});
+
+describe("leaderboard: no points, no news", () => {
+  test("no #1, overtake or month-end push for a member without points", () => {
+    const now = ist("2026-10-14T15:00:00");
+    expect(bodies(plan(sub({ lb: { month: "2026-10", rank: 2, aboveId: null, leaderboardId: LB_ID } }), undefined, now, { current: standing(1, { points: 0 }), lastMonth: null }))).toEqual([]);
+    expect(bodies(plan(sub({ lb: { month: "2026-10", rank: 2, aboveId: null, leaderboardId: LB_ID } }), undefined, now, { current: standing(5, { points: 0 }), lastMonth: null }))).toEqual([]);
+    expect(bodies(plan(sub(), undefined, ist("2026-11-01T09:30:00"), { current: null, lastMonth: standing(12, { total: 12, points: 0 }) }))).toEqual([]);
+  });
+});
+
+describe("streak reminder", () => {
+  test("opens the quick-log form and carries a Log a charge action", () => {
+    const result = plan(sub({ prefs: { ...sub().prefs, streakReminders: true }, streak: 4, lastChargeDay: "2026-10-13" }), undefined, ist("2026-10-14T20:15:00"));
+    const streak = result.planned.find((item) => item.payload.tag === "zeroemit-streak");
+    expect(streak?.payload).toMatchObject({ title: "Keep your 4-day streak", url: "/log?quick=1", actions: [{ action: "log", title: "Log a charge" }] });
   });
 });

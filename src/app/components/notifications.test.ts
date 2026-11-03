@@ -15,3 +15,11 @@ describe("parsePrefs", () => {
     expect(parsePrefs(JSON.stringify({ bestTime: false, dailyDigest: false, streakReminders: false, leaderboard: true, progress: false }))).toMatchObject({ leaderboard: true, progress: false });
   });
 });
+
+describe("resetNotificationPrefs", () => {
+  test("leaves every kind off, so a device whose permission outlives \"Delete my data\" isn't quietly subscribed again", async () => {
+    const { NOTIFICATION_KINDS, notificationPrefEnabled, resetNotificationPrefs } = await import("./notifications");
+    resetNotificationPrefs();
+    expect(NOTIFICATION_KINDS.filter((kind) => notificationPrefEnabled(kind.key))).toEqual([]);
+  });
+});

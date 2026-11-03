@@ -144,9 +144,45 @@ export const POPULAR_PLACES: Place[] = ["Mumbai", "New Delhi", "Bengaluru", "Che
   return { name: place.name, state: place.state };
 });
 
-// Rough mainland-India bounds — enough to tell "outside India" from "inside".
+// India's outline as India maps it (all of Jammu & Kashmir and Ladakh), as
+// [lat, lon] clockwise from the sea off Kutch. The land borders are traced
+// to within a few km, so Lahore, Kathmandu, Dhaka and Thimphu fall outside
+// while Amritsar, Siliguri and Agartala fall inside; the coasts are drawn out
+// at sea. The island UTs get boxes of their own (ISLANDS, below).
+const OUTLINE: [number, number][] = [
+  // Pakistan, up to the Karakoram
+  [23.3, 67.9], [23.95, 68.2], [24.25, 68.75], [24.3, 69.6], [24.2, 70.3], [24.25, 71.05], [24.65, 71.1], [25.72, 70.24], [26.25, 69.85], [26.6, 69.45], [27.1, 69.6], [27.45, 69.95], [27.85, 70.2], [28.38, 71.25], [28.9, 72.25], [29.2, 73.05], [29.55, 73.3], [30.1, 73.55], [30.4, 73.85], [30.7, 74.25], [30.99, 74.52], [31.2, 74.53], [31.6, 74.57], [31.95, 74.85], [32.06, 75.0], [32.15, 75.3], [32.32, 75.42], [32.48, 75.15], [32.55, 74.62], [32.9, 74.35], [33.0, 73.65], [34.1, 73.42], [34.45, 73.4], [35.15, 74.05], [35.4, 73.4], [36.0, 72.5], [36.9, 73.4], [37.05, 74.5],
+  // China, to Nepal
+  [36.85, 75.4], [36.3, 76.1], [35.9, 76.8], [35.55, 77.8], [36.0, 78.5], [35.6, 80.25], [34.4, 79.55], [33.65, 79.45], [32.7, 79.5], [32.4, 78.75], [31.85, 78.75], [31.3, 79.05], [30.95, 79.45], [30.45, 80.25], [30.2, 81.0],
+  // Nepal
+  [29.85, 80.57], [29.56, 80.4], [29.43, 80.25], [29.05, 80.11], [28.97, 80.12], [28.8, 80.15], [28.65, 80.6], [28.35, 81.15], [28.04, 81.62], [27.52, 82.78], [27.48, 83.45], [27.48, 84.05], [27.3, 84.3], [26.995, 84.86], [26.76, 85.28], [26.63, 86.1], [26.5, 86.7], [26.42, 87.27], [26.35, 88.02], [26.65, 88.165], [26.9, 88.14], [27.1, 88.02], [27.75, 88.12],
+  // China (Sikkim), Bhutan, China (Arunachal)
+  [28.13, 88.6], [28.0, 88.85], [27.6, 88.85], [27.2, 88.85], [26.95, 88.92], [26.852, 89.38], [26.82, 89.9], [26.84, 90.48], [26.79, 91.5], [26.82, 92.1], [27.25, 91.95], [27.6, 91.65], [27.95, 91.65], [27.75, 92.0], [27.85, 92.4], [28.05, 92.8], [28.2, 93.3], [28.6, 94.0], [29.05, 94.45], [29.3, 95.2], [29.4, 95.5], [29.2, 96.05], [28.6, 96.5], [28.3, 97.15], [28.15, 97.35],
+  // Myanmar
+  [27.25, 97.25], [26.95, 96.95], [27.2, 96.55], [27.25, 96.17], [26.95, 95.7], [26.64, 95.05], [26.2, 95.15], [25.7, 95.1], [25.3, 94.75], [25.0, 94.6], [24.6, 94.6], [24.2, 94.29], [23.95, 93.8], [23.7, 93.45], [23.36, 93.4], [22.9, 93.25], [22.4, 93.2], [22.0, 93.05], [21.95, 92.7],
+  // Bangladesh, round from Mizoram to the Sundarbans
+  [22.9, 92.44], [23.5, 92.25], [23.15, 91.95], [22.95, 91.73], [23.2, 91.4], [23.85, 91.24], [24.15, 91.55], [24.3, 91.93], [24.42, 92.17], [24.75, 92.28], [24.88, 92.33], [24.9, 92.48], [25.15, 92.45], [25.18, 92.02], [25.17, 91.4], [25.17, 90.65], [25.17, 90.2], [25.17, 89.87], [25.55, 89.87], [25.97, 89.85], [26.2, 89.75], [26.05, 89.5], [26.3, 89.1], [26.42, 89.05], [26.3, 88.95], [26.3, 88.8], [26.63, 88.42], [26.45, 88.33], [26.2, 88.28], [25.95, 88.2], [25.6, 88.45], [25.28, 89.02], [25.1, 88.85], [25.05, 88.45], [24.84, 88.15], [24.5, 88.3], [24.3, 88.6], [24.1, 88.75], [23.85, 88.6], [23.5, 88.65], [23.2, 88.75], [23.04, 88.87], [22.7, 88.97], [22.2, 89.05], [21.6, 89.1],
+  // The coast, offshore, round past Sri Lanka
+  [21.2, 89.15], [20.6, 88.0], [19.5, 86.5], [17.6, 84.0], [16.0, 82.4], [15.0, 80.6], [12.5, 80.5], [10.35, 80.1], [9.15, 79.5], [8.3, 78.4], [7.8, 77.6], [8.1, 76.7], [9.5, 76.0], [11.0, 75.6], [12.5, 74.6], [14.5, 73.9], [16.0, 73.2], [18.0, 72.6], [19.5, 72.5], [20.5, 71.0], [20.6, 70.6], [21.4, 69.4], [22.4, 68.7], [23.0, 68.3],
+];
+
+// Andaman & Nicobar and Lakshadweep, as [minLat, maxLat, minLon, maxLon].
+// They aren't offered as places, but a driver there isn't "outside India":
+// detection still picks the nearest listed city for them to confirm.
+const ISLANDS: [number, number, number, number][] = [[6.7, 13.8, 92.1, 94.0], [8.0, 12.5, 71.5, 74.1]];
+
+// Inside that outline (or an island box): a ray from the point crosses its
+// edge an odd number of times. A position in a neighbouring country is
+// "outside India".
 export function isInIndia(lat: number, lon: number) {
-  return lat >= 6.5 && lat <= 37.5 && lon >= 68 && lon <= 97.5;
+  if (!(lat >= 6.5 && lat <= 37.5 && lon >= 67.5 && lon <= 97.5)) return false;
+  if (ISLANDS.some(([minLat, maxLat, minLon, maxLon]) => lat >= minLat && lat <= maxLat && lon >= minLon && lon <= maxLon)) return true;
+  let inside = false;
+  for (let i = 0, j = OUTLINE.length - 1; i < OUTLINE.length; j = i++) {
+    const [latA, lonA] = OUTLINE[i], [latB, lonB] = OUTLINE[j];
+    if (latA > lat !== latB > lat && lon < lonA + ((lat - latA) / (latB - latA)) * (lonB - lonA)) inside = !inside;
+  }
+  return inside;
 }
 
 // Nearest listed city by great-circle distance. Near a state border this can

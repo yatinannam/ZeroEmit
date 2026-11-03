@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { istDayKey, planByDay, type GridData } from "../lib/grid";
+import { istDayKey, liveReading, planByDay, type GridData } from "../lib/grid";
 import { GREEN_CHARGE_FALLBACK_THRESHOLD } from "../lib/rewards";
 import { useStoredLocation } from "./use-location";
 import { notificationPrefEnabled, sendNotification } from "./notifications";
@@ -44,14 +44,20 @@ export function CleanGridWatcher() {
       if (!response?.ok || cancelled) return;
       const data = await response.json() as GridData;
       const best = planByDay(data).today.windows[0];
-      const current = data.current;
+      const current = liveReading(data);
       if (!best?.start.isNow || !current || cancelled) return;
       if (!(current.intensityClass ? current.intensityClass === "green" : current.carbonIntensity <= GREEN_CHARGE_FALLBACK_THRESHOLD)) return;
-      try { window.localStorage.setItem(ALERTED_KEY, key); } catch { /* storage unavailable */ }
       const intensity = Math.round(current.carbonIntensity);
-      if (document.visibilityState !== "visible" && isPushActive()) return;
+      // Today only counts as alerted once something was actually shown: in
+      // the background with nothing to show it through (server pushes cover
+      // it, or notifications aren't allowed), a later check can still toast
+      // when the user comes back.
       if (document.visibilityState === "visible") showToast(`Good time to charge: ${intensity} gCO₂/kWh right now, the cleanest for the rest of today`);
-      else void sendNotification("bestTime", "Good time to charge", `The grid near ${name} is at ${intensity} gCO₂/kWh, the cleanest it will be for the rest of today.`, "/");
+      else {
+        if (isPushActive() || !("Notification" in window) || Notification.permission !== "granted") return;
+        await sendNotification("bestTime", "Good time to charge", `The grid near ${name} is at ${intensity} gCO₂/kWh, the cleanest it will be for the rest of today.`, "/");
+      }
+      try { window.localStorage.setItem(ALERTED_KEY, key); } catch { /* storage unavailable */ }
     }
 
     // A short delay so the first check doesn't talk over whatever the user just did.

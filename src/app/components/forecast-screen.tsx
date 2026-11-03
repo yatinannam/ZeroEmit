@@ -3,7 +3,7 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import gsap from "gsap";
-import { formatWindow, planByDay } from "../lib/grid";
+import { formatWindow, liveReading, planByDay } from "../lib/grid";
 import { useGridData } from "./use-grid-data";
 import { useLocationPicker } from "./use-location-picker";
 import { requestNotificationPermission, useNotificationsEnabled } from "./notifications";
@@ -12,7 +12,7 @@ import { BottomNav, TopBar } from "./app-shell";
 import { LocationModal } from "./location-modal";
 import { PageHeader } from "./page-header";
 import { ForecastChart } from "./forecast-chart";
-import { AddToCalendarButton } from "./add-to-calendar";
+import { AddToCalendarButton, addWindowToCalendar } from "./add-to-calendar";
 import { reducedMotion } from "./motion";
 
 type Day = "today" | "tomorrow";
@@ -25,10 +25,11 @@ export function ForecastScreen() {
   const day: Day = useSearchParams().get("day") === "tomorrow" ? "tomorrow" : "today";
   const [notice, setNotice] = useState<{ text: string; ok: boolean } | null>(null);
   const notifsOn = useNotificationsEnabled();
-  const { data, loading, error } = useGridData(ready ? place.state : null);
+  const { data, loading, error, refresh } = useGridData(ready ? place.state : null);
   const plan = planByDay(data)[day];
   const best = plan.windows[0] ?? null;
-  const current = data?.available ? data.current : undefined;
+  const current = liveReading(data);
+  const retry = <button type="button" className="text-button" onClick={refresh}>Try again</button>;
 
   // Switching day deals the new windows in, one after another.
   const windowsRef = useRef<HTMLElement>(null);
@@ -68,25 +69,31 @@ export function ForecastScreen() {
         </div>
 
         {loading && !data ? <div className="chart-skeleton" role="status" aria-label="Loading forecast"/>
-          : !data?.available ? <p className="personal-note">{error || "Live forecast data is unavailable right now."}</p>
+          : !data?.available ? <p className="personal-note">{error || "Live forecast data is unavailable right now."} {retry}</p>
           : plan.points.length >= 2 ? <>
             <ForecastChart points={plan.points} highlight={best}/>
             {best && <p className="chip-caption"><span className="chip">Best window</span> {formatWindow(best)}</p>}
             {best && !best.start.isNow && <AddToCalendarButton window={best} place={place}/>}
           </>
-          : <p className="personal-note">{day === "today" ? "Today is nearly over — switch to Tomorrow to see the next clean windows." : "Tomorrow's forecast isn't out yet. Check back later today."}</p>}
+          : <p className="personal-note">{day === "today" ? <>Today is nearly over — <button type="button" className="text-button" onClick={() => chooseDay("tomorrow")}>switch to Tomorrow</button> to see the next clean windows.</> : "Tomorrow's forecast isn't out yet. Check back later today."}</p>}
+        {/* A failed update keeps the last good forecast on screen; say so. */}
+        {error && data?.available && <p className="personal-note" role="status">{error.replace(/\.?$/, ".")} Showing the last forecast loaded. {retry}</p>}
       </section>
 
       <section className="activity" ref={windowsRef}>
         <h2>Top charging windows {day === "today" ? "today" : "tomorrow"}</h2>
-        {plan.windows.length ? plan.windows.map((slot, index) => (
-          <div key={slot.start.datetime} className={`card activity-item${index === 0 ? " activity-item-best" : ""}`}>
-            <span className="round-icon"><Icon name={index === 0 ? "bolt" : "clock"} size={18}/></span>
-            <div><strong>{formatWindow(slot)}</strong><span>{Math.round(slot.average)} gCO₂/kWh average</span></div>
-            <b className={index === 0 ? "tag-best" : "tag-good"}>{index === 0 ? "Best" : "Good"}</b>
-          </div>
-        )) : loading && !data ? [0, 1, 2].map((index) => <div key={index} className="card activity-item skeleton-item" aria-hidden="true"/>)
-        : <p className="personal-note">No forecast windows available yet.</p>}
+        {plan.windows.length ? <>
+          {plan.windows.map((slot, index) => {
+            const className = `card activity-item${index === 0 ? " activity-item-best" : ""}`;
+            const row = <><span className="round-icon"><Icon name={index === 0 ? "bolt" : "clock"} size={18}/></span><span className="activity-text"><strong>{formatWindow(slot)}</strong><span>{Math.round(slot.average)} gCO₂/kWh average</span></span><b className={index === 0 ? "tag-best" : "tag-good"}>{index === 0 ? "Best" : "Good"}</b></>;
+            // Tapping a window adds it to the calendar — except one already
+            // under way, which (like the hero's) has nothing left to remind about.
+            return slot.start.isNow ? <div key={slot.start.datetime} className={className}>{row}</div>
+              : <button key={slot.start.datetime} type="button" className={className} onClick={() => addWindowToCalendar(slot, place)} aria-label={`Add ${formatWindow(slot)} to your calendar, ${Math.round(slot.average)} gCO₂/kWh average${index === 0 ? ", best window" : ""}`}>{row}</button>;
+          })}
+          {plan.windows.some((slot) => !slot.start.isNow) && <p className="personal-note">Tap a window to add it to your calendar.</p>}
+        </> : loading && !data ? [0, 1, 2].map((index) => <div key={index} className="card activity-item skeleton-item" aria-hidden="true"/>)
+        : <p className="personal-note">No forecast windows available yet.{data?.available && <> {retry}</>}</p>}
       </section>
 
       {notifsOn ? <p className="success-message" role="status"><Icon name="bell" size={16}/> Notifications are on for this device.</p> : <>

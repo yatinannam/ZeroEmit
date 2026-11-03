@@ -1,12 +1,14 @@
 "use client";
 
 import { FormEvent, useEffect, useEffectEvent, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { chargesInMonth, currentStreakDays, estimatedCarbonSavedGrams, impactSummary, totalPoints } from "../lib/rewards";
 import { LEGACY_LOGGED_AT, useCharges } from "./use-charges";
 import { useProfile } from "./use-profile";
 import { useLocationPicker } from "./use-location-picker";
-import { clearNotificationFlag, resetNotificationPrefs, useNotificationPermission } from "./notifications";
+import { clearNotificationFlag, NOTIFICATION_KINDS, resetNotificationPrefs, serverPushAvailable, useNotificationPermission, useNotificationPrefs } from "./notifications";
+import { useHydrated } from "./use-hydrated";
 import { NotificationSettings } from "./notification-settings";
 import { removePushSubscription } from "./push-client";
 import { showToast } from "./toast";
@@ -23,6 +25,9 @@ import { leaveLeaderboard, useLeaderboardMembership } from "./use-leaderboard";
 import { LEAVE_PENDING_MESSAGE, LEFT_MESSAGE } from "./leaderboard";
 import { CountUp } from "./motion";
 import { forgetChargerLocation } from "./use-charger-location";
+
+// The Profile & vehicle field to focus: the one the user tapped to fill in.
+type EditField = "name" | "vehicle" | "price";
 
 const THEME_OPTIONS: { key: ThemeChoice; label: string }[] = [{ key: "system", label: "System" }, { key: "light", label: "Light" }, { key: "dark", label: "Dark" }];
 
@@ -42,7 +47,8 @@ const PRIVACY_TEXT = "Your vehicle and charge history stay on this device. ZeroE
 export function ProfileScreen({ shareLastMonth = false }: { shareLastMonth?: boolean }) {
   const router = useRouter();
   const { place, ready, location, setPlace, locationOpen, openLocation, closeLocation, chooseLocation } = useLocationPicker();
-  const [editOpen, setEditOpen] = useState(false);
+  // null: closed. `focus`: the field to put the cursor in, if the user tapped one.
+  const [editing, setEditing] = useState<{ focus?: EditField } | null>(null);
   const [infoModal, setInfoModal] = useState<"about" | "privacy" | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
@@ -51,6 +57,9 @@ export function ProfileScreen({ shareLastMonth = false }: { shareLastMonth?: boo
   const [appearanceOpen, setAppearanceOpen] = useState(false);
   const [theme, setTheme] = useThemeChoice();
   const permission = useNotificationPermission();
+  const { prefs } = useNotificationPrefs();
+  const hydrated = useHydrated();
+  const [leaveOpen, setLeaveOpen] = useState(false);
   const leaderboardMember = useLeaderboardMembership();
   const { charges, ready: chargesReady, clearCharges } = useCharges();
   const { profile, updateProfile, resetProfile } = useProfile();
@@ -80,7 +89,7 @@ export function ProfileScreen({ shareLastMonth = false }: { shareLastMonth?: boo
     const form = new FormData(event.currentTarget);
     // A blank or out-of-range price clears it (back to the typical tariff).
     updateProfile({ ...profile, name: String(form.get("name") || "").trim(), vehicle: String(form.get("vehicle") || "").trim(), pricePerKwh: parsePricePerKwh(form.get("price")) ?? undefined });
-    setEditOpen(false);
+    setEditing(null);
     showToast("Profile updated");
   }
 
@@ -98,14 +107,32 @@ export function ProfileScreen({ shareLastMonth = false }: { shareLastMonth?: boo
     for (const key of ["zeroemit-clean-alert", "zeroemit-leaderboard-synced"]) { try { window.localStorage.removeItem(key); } catch { /* storage unavailable */ } }
     setPlace(null);
     setDeleteOpen(false);
+    // Setup starts again over Home, not over this page scrolled to the bottom.
+    router.replace("/");
     showToast("Your data has been deleted from this device");
   }
 
+  // "On" only if some notification the user can see is switched on, not just
+  // because the browser allows them.
+  const notificationsOn = NOTIFICATION_KINDS.some((kind) => (serverPushAvailable || !kind.serverOnly) && prefs[kind.key]);
+  const notificationsLabel = permission === "denied" ? "Blocked" : permission === "granted" && notificationsOn ? "On" : "Off";
+
+  // Arrow keys move between the theme options, as in any radio group.
+  function onThemeKey(event: React.KeyboardEvent<HTMLDivElement>) {
+    const step = event.key === "ArrowRight" || event.key === "ArrowDown" ? 1 : event.key === "ArrowLeft" || event.key === "ArrowUp" ? -1 : 0;
+    if (!step) return;
+    event.preventDefault();
+    const index = THEME_OPTIONS.findIndex((option) => option.key === theme);
+    const next = THEME_OPTIONS[(index + step + THEME_OPTIONS.length) % THEME_OPTIONS.length];
+    setTheme(next.key);
+    event.currentTarget.querySelector<HTMLElement>(`[data-theme-option="${next.key}"]`)?.focus();
+  }
+
   const settingsRows: { icon: IconName; label: string; trailing?: string; onClick: () => void }[] = [
-    { icon: "user", label: "Profile & vehicle", onClick: () => setEditOpen(true) },
+    { icon: "user", label: "Profile & vehicle", onClick: () => setEditing({}) },
     { icon: "pin", label: "Location", onClick: openLocation },
-    { icon: "bell", label: "Notifications", trailing: permission === "granted" ? "On" : permission === "denied" ? "Blocked" : "Off", onClick: () => setNotificationsOpen(true) },
-    { icon: "moon", label: "Appearance", trailing: THEME_OPTIONS.find((option) => option.key === theme)?.label, onClick: () => setAppearanceOpen(true) },
+    { icon: "bell", label: "Notifications", trailing: hydrated ? notificationsLabel : undefined, onClick: () => setNotificationsOpen(true) },
+    { icon: "moon", label: "Appearance", trailing: hydrated ? THEME_OPTIONS.find((option) => option.key === theme)?.label : undefined, onClick: () => setAppearanceOpen(true) },
     { icon: "shield", label: "Privacy", onClick: () => setInfoModal("privacy") },
     { icon: "info", label: "About", onClick: () => setInfoModal("about") },
   ];
@@ -114,17 +141,20 @@ export function ProfileScreen({ shareLastMonth = false }: { shareLastMonth?: boo
     <TopBar onChooseLocation={openLocation}/>
     <main className="dashboard-content">
       <section className="profile-avatar-block">
-        <span className="avatar">{initials}</span>
-        <h1>{profile.name || (chargesReady ? "Add your name" : "\u00a0")}</h1>
-        <p className="profile-vehicle">{profile.vehicle || (chargesReady ? "Add your EV in Profile & vehicle" : "\u00a0")}</p>
+        {/* The avatar, name and EV all open Profile & vehicle: that's where a new
+            user looks to fill them in. The avatar is a tap target only; the name
+            and EV buttons are the keyboard and screen-reader route. */}
+        <button type="button" className="avatar avatar-button" tabIndex={-1} aria-hidden="true" onClick={() => setEditing({ focus: profile.name ? undefined : "name" })}>{initials === "?" ? <Icon name="user" size={40}/> : initials}<span className="avatar-edit"><Icon name="pencil" size={14}/></span></button>
+        <h1><button type="button" className={profile.name ? "profile-edit" : "profile-edit profile-edit-empty"} onClick={() => setEditing({ focus: "name" })}>{chargesReady ? <>{profile.name || "Add your name"}{profile.name && <span className="sr-only">, edit</span>}<Icon name="pencil" size={16}/></> : "\u00a0"}</button></h1>
+        <p className="profile-vehicle"><button type="button" className={profile.vehicle ? "profile-edit" : "profile-edit profile-edit-empty"} onClick={() => setEditing({ focus: "vehicle" })}>{chargesReady ? (profile.vehicle ? <>{profile.vehicle}<span className="sr-only">, edit vehicle</span></> : "Add your EV") : "\u00a0"}</button></p>
         <button className="location-label location-button" aria-label={ready ? `Change location, ${location}` : "Change location"} onClick={openLocation}><Icon name="pin" size={14}/> {ready ? location : ""}</button>
         {sinceLabel && <p className="profile-since">Charging with ZeroEmit since {sinceLabel}</p>}
       </section>
 
       <section className="metrics-grid">
-        <div className="card saved-card"><div><h2>Total carbon avoided</h2><strong><CountUp value={savedGrams / 1000} decimals={1}/> <small>kg</small></strong></div><span className="metric-icon"><Icon name="leaf"/></span></div>
-        <div className="card metric"><h2>Eco points</h2><strong><CountUp value={points}/></strong></div>
-        <div className="card metric"><h2>Streak</h2><strong><CountUp value={streak}/> <small>day{streak === 1 ? "" : "s"}</small></strong></div>
+        <Link href="/rewards" className="card saved-card"><div><h2>Total carbon avoided</h2><strong><CountUp value={savedGrams / 1000} decimals={1}/> <small>kg</small></strong></div><span className="metric-icon"><Icon name="leaf"/></span></Link>
+        <Link href="/rewards" className="card metric"><h2>Eco points</h2><strong><CountUp value={points}/></strong></Link>
+        <Link href="/rewards" className="card metric"><h2>Streak</h2><strong><CountUp value={streak}/> <small>day{streak === 1 ? "" : "s"}</small></strong></Link>
       </section>
 
       <section className="card stat-card impact-card">
@@ -133,9 +163,9 @@ export function ProfileScreen({ shareLastMonth = false }: { shareLastMonth?: boo
           <thead><tr><td/><th scope="col">This month</th><th scope="col">Last month</th></tr></thead>
           <tbody>{IMPACT_ROWS.map((row) => <tr key={row.label}><th scope="row">{row.label}</th><td>{row.value(thisMonth, price)}</td><td>{row.value(lastMonth, price)}</td></tr>)}</tbody>
         </table>
-        <p className="personal-note">Cost at {formatRupees(price)} per kWh{profile.pricePerKwh ? "" : ", a typical home tariff. Set yours in Profile & vehicle"}.</p>
+        <p className="personal-note">Cost at {formatRupees(price)} per kWh{profile.pricePerKwh ? "." : ", a typical home tariff."} <button type="button" className="text-button" onClick={() => setEditing({ focus: "price" })}>{profile.pricePerKwh ? "Change price" : "Set your price"}</button></p>
         {equivalentsSentence(savedGrams / 1000) && <p className="equivalents">In total: {equivalentsSentence(savedGrams / 1000)!.replace(/^Like/, "like")}</p>}
-        {charges.length ? <button className="forecast-button action-button" onClick={() => setShareOpen(true)}><Icon name="share" size={18}/> Share my impact</button> : <p className="personal-note">Log a charge to start tracking your impact.</p>}
+        {!chargesReady ? null : charges.length ? <button className="forecast-button action-button" onClick={() => setShareOpen(true)}><Icon name="share" size={18}/> Share my impact</button> : <p className="personal-note">No charges yet. <Link className="text-button" href="/log?quick=1">Log your first charge</Link></p>}
       </section>
 
       <section className="card settings-list">
@@ -148,7 +178,7 @@ export function ProfileScreen({ shareLastMonth = false }: { shareLastMonth?: boo
 
     {locationOpen && <LocationModal current={place} onClose={closeLocation} onChoose={chooseLocation}/>}
 
-    {editOpen && <Modal title="Profile & vehicle" onClose={() => setEditOpen(false)} onSubmit={submitProfile}>
+    {editing && <Modal title="Profile & vehicle" onClose={() => setEditing(null)} onSubmit={submitProfile} initialFocus={editing.focus && `input[name="${editing.focus}"]`}>
       <label>Name<input name="name" type="text" defaultValue={profile.name} placeholder="Your name" maxLength={60} autoComplete="name"/></label>
       <label>Vehicle<input name="vehicle" type="text" defaultValue={profile.vehicle} placeholder="e.g. Tata Nexon EV" maxLength={60}/></label>
       <label>Electricity price (₹ per kWh)<input name="price" type="number" inputMode="decimal" step="0.01" min="1" max="60" defaultValue={profile.pricePerKwh ?? ""} placeholder={String(DEFAULT_PRICE_PER_KWH)}/></label>
@@ -161,14 +191,19 @@ export function ProfileScreen({ shareLastMonth = false }: { shareLastMonth?: boo
 
     {appearanceOpen && <Modal title="Appearance" onClose={() => setAppearanceOpen(false)}>
       <p>System follows your phone&apos;s light or dark setting.</p>
-      <div className="segmented" role="radiogroup" aria-label="Theme">
-        {THEME_OPTIONS.map((option) => <button key={option.key} role="radio" aria-checked={theme === option.key} className={theme === option.key ? "active" : ""} onClick={() => setTheme(option.key)}>{option.label}</button>)}
+      <div className="segmented" role="radiogroup" aria-label="Theme" onKeyDown={onThemeKey}>
+        {THEME_OPTIONS.map((option) => <button key={option.key} role="radio" aria-checked={theme === option.key} tabIndex={theme === option.key ? 0 : -1} data-theme-option={option.key} className={theme === option.key ? "active" : ""} onClick={() => setTheme(option.key)}>{option.label}</button>)}
       </div>
     </Modal>}
 
     {infoModal && <Modal title={infoModal === "about" ? "About ZeroEmit" : "Privacy"} onClose={() => setInfoModal(null)}>
       <p>{infoModal === "about" ? ABOUT_TEXT : PRIVACY_TEXT}</p>
-      {infoModal === "privacy" && leaderboardMember && <button className="forecast-button action-button" onClick={() => { void leaveLeaderboard().then((done) => showToast(done ? LEFT_MESSAGE : LEAVE_PENDING_MESSAGE)); }}>Leave the leaderboard</button>}
+      {infoModal === "privacy" && leaderboardMember && <button className="forecast-button action-button" onClick={() => { setInfoModal(null); setLeaveOpen(true); }}>Leave the leaderboard</button>}
+    </Modal>}
+
+    {leaveOpen && <Modal title="Leave the leaderboard?" onClose={() => setLeaveOpen(false)}>
+      <p>Your name and this month&apos;s points come off the public board. You can join again later.</p>
+      <button className="forecast-button action-button destructive-button" onClick={() => { setLeaveOpen(false); void leaveLeaderboard().then((done) => showToast(done ? LEFT_MESSAGE : LEAVE_PENDING_MESSAGE)); }}>Leave the leaderboard</button>
     </Modal>}
 
     {deleteOpen && <Modal title="Delete your data?" onClose={() => setDeleteOpen(false)}>

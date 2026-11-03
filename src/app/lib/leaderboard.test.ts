@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { Charge } from "../components/use-charges";
-import { istMonthKey, scoreMonth, toLeaderboardCharges, validateDisplayName, type LeaderboardCharge } from "./leaderboard";
+import { alternativeName, displayNameFrom, istMonthKey, scoreMonth, toLeaderboardCharges, validateDisplayName, type LeaderboardCharge } from "./leaderboard";
 
 const entry = (date: string, kwh = 20, intensity: number | null = 600, green = false): LeaderboardCharge => ({ date, kwh, intensity, green });
 const MONTH = "2026-10";
@@ -165,13 +165,69 @@ describe("CO2 plausibility", () => {
   const pattern = Array.from({ length: 24 }, (_, hour) => (hour >= 11 && hour <= 14 ? 450 : 600) as number | null);
 
   test("a claimed intensity is kept within 80%-120% of the region's typical day", () => {
-    // Claims 0 gCO2/kWh; the cleanest typical hour is 450, so 360 is the floor: (650-360) x 20 = 5.8 kg.
-    expect(scoreMonth([{ date: "2026-10-01", kwh: 20, intensity: 0, green: false, hour: 12, timing: "best" }], MONTH, TODAY, pattern).co2Kg).toBe(5.8);
-    // A believable claim is used as it is: (650-480) x 20 = 3.4 kg.
-    expect(scoreMonth([{ date: "2026-10-01", kwh: 20, intensity: 480, green: false, hour: 12, timing: "best" }], MONTH, TODAY, pattern).co2Kg).toBe(3.4);
+    // The baseline is the typical day's average, (4 x 450 + 20 x 600) / 24 = 575.
+    // Claims 0 gCO2/kWh; the cleanest typical hour is 450, so 360 is the floor: (575-360) x 20 = 4.3 kg.
+    expect(scoreMonth([{ date: "2026-10-01", kwh: 20, intensity: 0, green: false, hour: 12, timing: "best" }], MONTH, TODAY, pattern).co2Kg).toBe(4.3);
+    // A believable claim is used as it is: (575-480) x 20 = 1.9 kg.
+    expect(scoreMonth([{ date: "2026-10-01", kwh: 20, intensity: 480, green: false, hour: 12, timing: "best" }], MONTH, TODAY, pattern).co2Kg).toBe(1.9);
   });
 
   test("without the server's pattern, the old 0-2000 clamp applies", () => {
     expect(scoreMonth([{ date: "2026-10-01", kwh: 20, intensity: 0, green: false }], MONTH, TODAY, null).co2Kg).toBe(13);
+  });
+});
+
+describe("displayNameFrom", () => {
+  test("keeps the full name, with punctuation turned into spaces", () => {
+    expect(displayNameFrom("K. Ramesh")).toBe("K Ramesh");
+    expect(displayNameFrom("  Asha   Rao ")).toBe("Asha Rao");
+    expect(displayNameFrom("Mary-Jane O'Neil")).toBe("Mary Jane O Neil");
+    expect(displayNameFrom("अनन्या शर्मा")).toBe("अनन्या शर्मा");
+  });
+
+  test("keeps whole words within 20 characters", () => {
+    expect(displayNameFrom("Venkata Subramanian Iyer")).toBe("Venkata Subramanian");
+    expect(displayNameFrom("Supercalifragilisticexpialidocious")).toBe("Supercalifragilistic");
+  });
+
+  test("nothing usable gives an empty name", () => {
+    expect(displayNameFrom("")).toBe("");
+    expect(displayNameFrom("K.")).toBe("");
+    expect(displayNameFrom("!!!")).toBe("");
+  });
+});
+
+describe("alternativeName", () => {
+  test("adds a number, or raises the one the name ends with, so it never repeats the taken name", () => {
+    expect(alternativeName("Asha")).toBe("Asha 2");
+    expect(alternativeName("Asha R")).toBe("Asha R 2");
+    expect(alternativeName("Asha 2")).toBe("Asha 3");
+    expect(alternativeName("Asha 9")).toBe("Asha 10");
+  });
+
+  test("stays within 20 characters", () => {
+    const suggestion = alternativeName("Venkata Subramaniam");
+    expect(suggestion).not.toBeNull();
+    expect(suggestion!.length).toBeLessThanOrEqual(20);
+    expect(suggestion!.endsWith(" 2")).toBe(true);
+    expect(validateDisplayName(suggestion)).toBe(suggestion);
+  });
+});
+
+describe("scoreMonth minimum charge", () => {
+  test("a charge under 2 kWh scores no points and no CO2, and takes no daily slot", () => {
+    expect(scoreMonth([entry("2026-10-01", 0.1, 300, true), entry("2026-10-01", 1.9, 300, true)], MONTH, TODAY)).toEqual({ points: 0, co2Kg: 0 });
+    // Two tiny charges and one real one on a day: the real one still counts.
+    expect(scoreMonth([entry("2026-10-02", 0.5), entry("2026-10-02", 0.5), entry("2026-10-02", 20)], MONTH, TODAY).points).toBe(10);
+    expect(scoreMonth([entry("2026-10-03", 2)], MONTH, TODAY).points).toBe(10);
+  });
+});
+
+describe("scoreMonth CO2 baseline", () => {
+  test("is the region's average day when the server has it, so a grid above 650 still shows savings", () => {
+    // A Southern-style day averaging 677: a 620 charge avoids (677 - 620) x 20 = 1.1 kg (0 against 650).
+    const pattern = Array.from({ length: 24 }, (_, hour) => (hour === 12 ? 653 : hour === 13 ? 653 : 679.18) as number | null);
+    expect(scoreMonth([entry("2026-10-01", 20, 620)], MONTH, TODAY, pattern).co2Kg).toBe(1.1);
+    expect(scoreMonth([entry("2026-10-01", 20, 620)], MONTH, TODAY, null).co2Kg).toBe(0.6);
   });
 });

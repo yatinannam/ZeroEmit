@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState, type FormEvent } from "react";
-import { validateDisplayName, type LeaderboardResponse, type LeaderboardRow, type LeaderboardScope } from "../lib/leaderboard";
+import { displayNameFrom, validateDisplayName, type LeaderboardResponse, type LeaderboardRow, type LeaderboardScope } from "../lib/leaderboard";
 import { ZONE_LABELS, zoneOf } from "../lib/places";
 import { BottomNav, TopBar } from "./app-shell";
 import { Icon } from "./icon-set";
@@ -14,7 +14,7 @@ import { useCharges } from "./use-charges";
 import { useStoredLocation } from "./use-location";
 import { useLocationPicker } from "./use-location-picker";
 import { useProfile } from "./use-profile";
-import { joinLeaderboard, leaveLeaderboard, useLeaderboardMembership, useLeaderboardVersion } from "./use-leaderboard";
+import { joinedMessage, joinLeaderboard, leaveLeaderboard, useLeaderboardMembership, useLeaderboardVersion } from "./use-leaderboard";
 
 // Shared by the leaderboard page and Profile → Privacy.
 export const LEFT_MESSAGE = "You've left the leaderboard";
@@ -85,38 +85,50 @@ function BoardBody({ state, limit, retry }: { state: BoardState; limit: number; 
   </>;
 }
 
-function JoinModal({ onClose, onJoined }: { onClose: () => void; onJoined: () => void }) {
-  const { profile } = useProfile();
+// Joining, or with `currentName` renaming an entry this device already has
+// (the same member route: a new name under the same id and key).
+function NameModal({ currentName, onClose, onDone }: { currentName?: string; onClose: () => void; onDone: () => void }) {
+  const { profile, updateProfile } = useProfile();
   const { charges } = useCharges();
   const [place] = useStoredLocation();
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const renaming = currentName !== undefined;
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const name = validateDisplayName(new FormData(event.currentTarget).get("name"));
     if (!name) { setError("Use 2 to 20 letters or numbers, with single spaces."); return; }
     if (!place) return;
+    if (renaming && name === currentName) { onClose(); return; }
     setBusy(true);
     const result = await joinLeaderboard(name, zoneOf(place), charges);
     setBusy(false);
     if (!result.ok) { setError(result.error); return; }
-    showToast(`You're #${result.rank} on the leaderboard this month`);
-    onJoined();
+    // No name on the profile yet: the one just chosen is the best guess.
+    if (!profile.name.trim()) updateProfile({ ...profile, name });
+    showToast(renaming ? `You're now on the board as ${name}` : joinedMessage(result));
+    onDone();
   }
 
-  return <Modal title="Join the leaderboard" onClose={onClose} onSubmit={submit}>
-    <p>Other ZeroEmit users will see your display name, your grid region, and this month&apos;s Eco points and CO₂ avoided. Nothing else leaves this device.</p>
-    <label>Display name<input name="name" type="text" defaultValue={profile.name.trim().split(/\s+/)[0] ?? ""} placeholder="e.g. Asha" minLength={2} maxLength={20} autoComplete="nickname" required/></label>
+  return <Modal title={renaming ? "Change your display name" : "Join the leaderboard"} onClose={onClose} onSubmit={submit}>
+    {!renaming && <p>Other ZeroEmit users will see your display name, your grid region, and this month&apos;s Eco points and CO₂ avoided. Nothing else is shown to anyone. If scheduled notifications are on, the server also links your entry to them (your city, streak and weekly totals) to tell you about your rank.</p>}
+    <label>Display name<input name="name" type="text" defaultValue={renaming ? currentName : displayNameFrom(profile.name)} placeholder="e.g. Asha" minLength={2} maxLength={20} autoComplete="nickname" required/></label>
     {error && <p className="form-error" role="alert">{error}</p>}
-    <button className="primary-button" type="submit" disabled={busy}>{busy ? "Joining…" : "Join"}</button>
+    <button className="primary-button" type="submit" disabled={busy}>{busy ? (renaming ? "Saving…" : "Joining…") : renaming ? "Save name" : "Join"}</button>
   </Modal>;
+}
+
+// "On the board as Asha · Change", for a device that has joined.
+function BoardName({ name, onChange }: { name: string; onChange: () => void }) {
+  return <p className="personal-note">On the board as <b>{name}</b> · <button type="button" className="text-button" onClick={onChange}>Change<span className="sr-only"> display name</span></button></p>;
 }
 
 // Rewards page: the user's rank and the top 5 for All India.
 export function LeaderboardCard() {
   const membership = useLeaderboardMembership();
   const [joinOpen, setJoinOpen] = useState(false);
+  const [renameOpen, setRenameOpen] = useState(false);
   const [refresh, setRefresh] = useState(0);
   const state = useBoard("all", membership?.id ?? null, refresh);
   if (state.status === "unavailable") return null;
@@ -127,10 +139,11 @@ export function LeaderboardCard() {
     <section className="card stat-card leaderboard-card">
       <div className="recommendation-head"><h2>Leaderboard</h2><span className="chip">This month</span></div>
       <BoardBody state={state} limit={5} retry={() => setRefresh((n) => n + 1)}/>
-      {!membership && <button className="primary-button" onClick={() => setJoinOpen(true)}>Join the leaderboard</button>}
+      {membership ? <BoardName name={membership.name} onChange={() => setRenameOpen(true)}/> : <button className="primary-button" onClick={() => setJoinOpen(true)}>Join the leaderboard</button>}
       <Link className="forecast-button" href="/rewards/leaderboard">See full leaderboard <Icon name="arrow" size={18}/></Link>
     </section>
-    {joinOpen && <JoinModal onClose={() => setJoinOpen(false)} onJoined={() => { setJoinOpen(false); setRefresh((n) => n + 1); }}/>}
+    {joinOpen && <NameModal onClose={() => setJoinOpen(false)} onDone={() => { setJoinOpen(false); setRefresh((n) => n + 1); }}/>}
+    {renameOpen && membership && <NameModal currentName={membership.name} onClose={() => setRenameOpen(false)} onDone={() => { setRenameOpen(false); setRefresh((n) => n + 1); }}/>}
   </>;
 }
 
@@ -141,10 +154,13 @@ export function LeaderboardScreen() {
   const zone = place ? zoneOf(place) : null;
   const [regional, setRegional] = useState(false);
   const [joinOpen, setJoinOpen] = useState(false);
+  const [renameOpen, setRenameOpen] = useState(false);
+  const [leaveOpen, setLeaveOpen] = useState(false);
   const [refresh, setRefresh] = useState(0);
   const state = useBoard(regional && zone ? zone : "all", membership?.id ?? null, refresh);
 
   async function leave() {
+    setLeaveOpen(false);
     showToast(await leaveLeaderboard() ? LEFT_MESSAGE : LEAVE_PENDING_MESSAGE);
     setRefresh((n) => n + 1);
   }
@@ -160,14 +176,20 @@ export function LeaderboardScreen() {
           <button aria-pressed={regional} className={regional ? "active" : ""} onClick={() => setRegional(true)}>{zone ? ZONE_LABELS[zone] : "My region"}</button>
         </div>
         <section className="card stat-card leaderboard-card"><BoardBody state={state} limit={50} retry={() => setRefresh((n) => n + 1)}/></section>
+        {membership && <BoardName name={membership.name} onChange={() => setRenameOpen(true)}/>}
         {membership
-          ? <button className="forecast-button action-button" onClick={leave}>Leave the leaderboard</button>
+          ? <button className="forecast-button action-button" onClick={() => setLeaveOpen(true)}>Leave the leaderboard</button>
           : <button className="primary-button" onClick={() => setJoinOpen(true)}>Join the leaderboard</button>}
         <p className="personal-note">Rankings use Eco points from the charges people log, counting up to 2 charges a day.</p>
       </>}
     </main>
     <BottomNav/>
     {locationOpen && <LocationModal current={place} onClose={closeLocation} onChoose={chooseLocation}/>}
-    {joinOpen && <JoinModal onClose={() => setJoinOpen(false)} onJoined={() => { setJoinOpen(false); setRefresh((n) => n + 1); }}/>}
+    {joinOpen && <NameModal onClose={() => setJoinOpen(false)} onDone={() => { setJoinOpen(false); setRefresh((n) => n + 1); }}/>}
+    {renameOpen && membership && <NameModal currentName={membership.name} onClose={() => setRenameOpen(false)} onDone={() => { setRenameOpen(false); setRefresh((n) => n + 1); }}/>}
+    {leaveOpen && <Modal title="Leave the leaderboard?" onClose={() => setLeaveOpen(false)}>
+      <p>Your name and this month&apos;s points come off the public board. You can join again later.</p>
+      <button className="forecast-button action-button destructive-button" onClick={leave}>Leave the leaderboard</button>
+    </Modal>}
   </div>;
 }

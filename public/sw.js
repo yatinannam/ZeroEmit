@@ -2,9 +2,45 @@
 // every cache that doesn't match, so stale entries from old builds go away.
 const CACHE_NAME = "zeroemit-v3";
 const APP_SHELL = ["/", "/manifest.webmanifest", "/icons/zeroemit.svg", "/icons/icon-192.png"];
+// Build assets (/_next/static) get their own cache. Their names change with
+// every deploy while sw.js doesn't, so old builds' files would pile up
+// forever: only the newest MAX_STATIC_ENTRIES are kept (a build has a few
+// dozen, so the current one and the last couple stay available offline).
+const STATIC_CACHE = "zeroemit-static-v1";
+const MAX_STATIC_ENTRIES = 150;
+
+// Oldest first: Cache Storage lists entries in the order they were added.
+async function trimStaticCache() {
+  const cache = await caches.open(STATIC_CACHE);
+  const keys = await cache.keys();
+  await Promise.all(keys.slice(0, Math.max(0, keys.length - MAX_STATIC_ENTRIES)).map((key) => cache.delete(key)));
+}
+
+// Build assets cached by earlier versions alongside the pages move to their
+// own cache (in their original order) rather than being lost, so offline
+// loads keep working through this update.
+async function moveStaticAssets() {
+  const target = await caches.open(STATIC_CACHE);
+  for (const name of await caches.keys()) {
+    if (name === STATIC_CACHE) continue;
+    const cache = await caches.open(name);
+    for (const request of await cache.keys()) {
+      if (!new URL(request.url).pathname.startsWith("/_next/static/")) continue;
+      const response = await cache.match(request);
+      if (response && !(await target.match(request))) await target.put(request, response);
+      await cache.delete(request);
+    }
+  }
+}
 
 self.addEventListener("install", (event) => { event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL))); self.skipWaiting(); });
-self.addEventListener("activate", (event) => { event.waitUntil(caches.keys().then((keys) => Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))))); self.clients.claim(); });
+self.addEventListener("activate", (event) => {
+  event.waitUntil(moveStaticAssets()
+    .then(() => caches.keys())
+    .then((keys) => Promise.all(keys.filter((key) => key !== CACHE_NAME && key !== STATIC_CACHE).map((key) => caches.delete(key))))
+    .then(trimStaticCache));
+  self.clients.claim();
+});
 
 // How long a page load waits on a stalled connection before a cached copy
 // (if there is one) is shown instead.
@@ -22,16 +58,19 @@ self.addEventListener("fetch", (event) => {
   const url = new URL(request.url);
   if (request.method !== "GET" || url.origin !== self.location.origin || url.pathname.startsWith("/api/")) return;
   const store = !url.searchParams.has("_rsc") && !request.headers.has("RSC");
+  const isStatic = url.pathname.startsWith("/_next/static/");
   const network = () => fetch(request).then((response) => {
     if (store && response.ok && response.type === "basic") {
       const copy = response.clone();
-      const write = caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
+      const write = isStatic
+        ? caches.open(STATIC_CACHE).then((cache) => cache.put(request, copy)).then(trimStaticCache)
+        : caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
       // Too late to extend the event once a cached page already answered; the write still finishes.
       try { event.waitUntil(write); } catch { /* event already settled */ }
     }
     return response;
   });
-  if (url.pathname.startsWith("/_next/static/")) {
+  if (isStatic) {
     event.respondWith(caches.match(request).then((hit) => hit || network()));
     return;
   }

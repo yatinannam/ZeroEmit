@@ -13,10 +13,13 @@ const FOCUSABLE = "button:not([disabled]), [href], input:not([disabled]), select
 // it, Escape closes it, and focus returns to whatever opened it. A tap on the
 // backdrop closes it too, except for a form: a stray tap there would throw
 // away what was typed (the close button and Escape still work).
-export function Modal({ title, onClose, onSubmit, children }: { title: string; onClose: () => void; onSubmit?: (event: FormEvent<HTMLFormElement>) => void; children: ReactNode }) {
+// `initialFocus` is a selector for a field inside the dialog to focus instead,
+// for when the user opened it to type into that field (e.g. "Add your name").
+export function Modal({ title, onClose, onSubmit, initialFocus, children }: { title: string; onClose: () => void; onSubmit?: (event: FormEvent<HTMLFormElement>) => void; initialFocus?: string; children: ReactNode }) {
   const backdropRef = useRef<HTMLDivElement>(null);
   const titleId = useId();
   const close = useEffectEvent(onClose);
+  const focusTarget = useEffectEvent(() => initialFocus);
 
   // The sheet rises from the bottom over a fading backdrop. Opacity, not
   // visibility: the dialog takes focus right after mounting, and a hidden
@@ -34,7 +37,9 @@ export function Modal({ title, onClose, onSubmit, children }: { title: string; o
   useEffect(() => {
     const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const box = backdropRef.current?.querySelector<HTMLElement>(".modal");
-    box?.focus();
+    const selector = focusTarget();
+    const field = selector ? box?.querySelector<HTMLElement>(selector) : null;
+    (field ?? box)?.focus();
     function onKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") { event.preventDefault(); close(); return; }
       if (event.key !== "Tab" || !box) return;

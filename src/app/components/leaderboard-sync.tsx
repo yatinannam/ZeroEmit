@@ -4,7 +4,8 @@ import { useEffect } from "react";
 import { zoneOf } from "../lib/places";
 import { useCharges } from "./use-charges";
 import { useStoredLocation } from "./use-location";
-import { retryPendingLeave, syncLeaderboard, useLeaderboardMembership } from "./use-leaderboard";
+import { showToast } from "./toast";
+import { ENTRY_GONE_MESSAGE, retryPendingLeave, syncLeaderboard, useLeaderboardMembership } from "./use-leaderboard";
 
 // While this device is on the leaderboard, re-sends this month's charges when
 // they change (or the user's grid region does) so the server can rescore.
@@ -31,7 +32,11 @@ export function LeaderboardSync() {
     const run = async () => {
       if (synced || cancelled) return;
       clearTimeout(timer);
-      synced = await syncLeaderboard(currentZone, charges);
+      const result = await syncLeaderboard(currentZone, charges);
+      synced = result !== false;
+      // The entry vanished from the server (expired, its name taken): say so
+      // once, rather than showing a membership that isn't on the board.
+      if (result === "gone") showToast(ENTRY_GONE_MESSAGE);
       if (cancelled || synced || attempts >= 3) return;
       attempts += 1;
       timer = setTimeout(run, attempts * 60_000);

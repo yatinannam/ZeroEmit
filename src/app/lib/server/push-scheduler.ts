@@ -4,7 +4,7 @@ import { STATES, type Zone } from "../places";
 import { GREEN_CHARGE_FALLBACK_THRESHOLD } from "../rewards";
 import { getZoneSnapshot, isFresh, projectTypicalForecast } from "./grid-source";
 import { boardStandings, type Standing } from "./leaderboard";
-import { listSubscriptions, sendPush, updateSubscriptionState, type PushPayload, type SentMarkers, type StoredSubscription } from "./push";
+import { listSubscriptions, pruneStaleSubscriptions, sendPush, updateSubscriptionState, type PushPayload, type SentMarkers, type StoredSubscription } from "./push";
 import { forEachLimited } from "./pool";
 import { redis } from "./redis";
 
@@ -77,12 +77,15 @@ function planLeaderboard(sub: StoredSubscription, standings: Standings, now: num
   const month = istMonthKey(now);
   const today = istDayKey(now);
   const hour = istHourOfDay(now);
-  const { current, lastMonth } = standings;
+  // Without a point a member isn't on the board, so has no rank to report
+  // (boardStandings already leaves them out; this keeps plan() honest too).
+  const current = standings.current && standings.current.points > 0 ? standings.current : null;
+  const lastMonth = standings.lastMonth && standings.lastMonth.points > 0 ? standings.lastMonth : null;
 
   if (lastMonth && today.endsWith("-01") && hour >= 9 && hour < 12 && sub.sent.monthEnd !== month) {
     const monthName = new Intl.DateTimeFormat("en-IN", { month: "long", timeZone: IST_TIME_ZONE }).format(new Date(now - 24 * HOUR_MS));
     const co2 = lastMonth.co2Kg === null ? "" : `, with ${lastMonth.co2Kg.toFixed(1)} kg CO₂ avoided`;
-    planned.push({ payload: { title: `${monthName}'s leaderboard is final`, body: `You finished #${lastMonth.rank} of ${lastMonth.total}${co2}. Share your result.`, url: "/profile?share=last-month", tag: "zeroemit-month-end" }, marks: ["monthEnd"] });
+    planned.push({ payload: { title: `${monthName}'s leaderboard is final`, body: `You finished #${lastMonth.rank} of ${lastMonth.total}${co2}. Share your month's impact.`, url: "/profile?share=last-month", tag: "zeroemit-month-end" }, marks: ["monthEnd"] });
   }
 
   if (current) {
@@ -203,7 +206,7 @@ function planGrid(sub: StoredSubscription, zonePlan: ZonePlan | undefined, now: 
   // Only when the streak is still alive (last charge yesterday) and today's
   // charge hasn't been logged yet.
   if (sub.prefs.streakReminders && hour >= 20 && hour < 22 && sent.streak !== today && sub.streak >= 2 && sub.lastChargeDay === yesterday) {
-    planned.push({ payload: { title: `Keep your ${sub.streak}-day streak`, body: "Log today's charge before midnight to keep it going.", url: "/log", tag: "zeroemit-streak" }, marks: ["streak"] });
+    planned.push({ payload: { title: `Keep your ${sub.streak}-day streak`, body: "Log today's charge before midnight to keep it going.", url: "/log?quick=1", tag: "zeroemit-streak", actions: LOG_ACTION }, marks: ["streak"] });
   }
 
   return planned;
@@ -236,7 +239,8 @@ export async function runPushSchedule(now = Date.now()) {
   const lock = await redis<string | null>("SET", "push:run-lock", String(now), "NX", "EX", 110);
   if (lock === null) return { skipped: "Another run is in progress" };
   try {
-    const subs = await listSubscriptions();
+    // Devices not heard from in months are dropped rather than pushed to.
+    const subs = await pruneStaleSubscriptions(await listSubscriptions(), now);
     if (!subs.length) return { subscriptions: 0, sent: 0 };
     const zones = [...new Set(subs.map((sub) => STATES[sub.state]?.zone).filter(Boolean))] as Zone[];
     const plansByZone = await loadZones(zones);

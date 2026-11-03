@@ -2,7 +2,7 @@ import { createHash, timingSafeEqual } from "node:crypto";
 import webpush from "web-push";
 import { STATES } from "../places";
 import { achievements } from "../rewards";
-import { isUuid } from "./leaderboard";
+import { isUuid, withinHourlyLimit } from "./leaderboard";
 import { redis, redisConfigured, redisTransaction } from "./redis";
 
 const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
@@ -127,10 +127,40 @@ export function parseSubscriptionBody(body: unknown): Omit<StoredSubscription, "
 
 const idFor = (endpoint: string) => createHash("sha256").update(endpoint).digest("hex");
 
+// Every subscription is read on each scheduler run (one HGETALL) and pushed
+// to within the function's time limit, so the total is capped. New ones are
+// also capped per address, as new leaderboard members are, and each device's
+// updates per hour, so a script can't fill the cap or the Redis quota.
+export const MAX_SUBSCRIPTIONS = 2000;
+const NEW_SUBSCRIPTIONS_PER_ADDRESS_PER_HOUR = 20;
+const UPDATES_PER_HOUR = 60;
+// A device refreshes its subscription whenever the app is opened; one not
+// heard from in this long is dropped by the scheduler (opening the app again
+// re-registers it).
+export const STALE_SUBSCRIPTION_MS = 90 * 24 * 60 * 60_000;
+
 // Only the device's settings: the scheduler's state is kept separately, so
 // the "already sent today" markers survive a mid-day settings change.
-export async function saveSubscription(value: Omit<StoredSubscription, "sent" | "updatedAt" | "lb">) {
-  await redis("HSET", SUBS_KEY, idFor(value.subscription.endpoint), JSON.stringify({ ...value, updatedAt: Date.now() }));
+// "full": a new subscription past MAX_SUBSCRIPTIONS (updates still go through).
+export async function saveSubscription(value: Omit<StoredSubscription, "sent" | "updatedAt" | "lb">, ip: string | null = null, now = Date.now()): Promise<"ok" | "rate-limited" | "full"> {
+  const id = idFor(value.subscription.endpoint);
+  const [exists, count] = await redisTransaction([["HEXISTS", SUBS_KEY, id], ["HLEN", SUBS_KEY]]) as [number, number];
+  if (!exists) {
+    if (count >= MAX_SUBSCRIPTIONS) return "full";
+    if (ip && !(await withinHourlyLimit(`push:new:${ip}`, NEW_SUBSCRIPTIONS_PER_ADDRESS_PER_HOUR, now))) return "rate-limited";
+  }
+  if (!(await withinHourlyLimit(`push:rate:${id}`, UPDATES_PER_HOUR, now))) return "rate-limited";
+  await redis("HSET", SUBS_KEY, id, JSON.stringify({ ...value, updatedAt: now }));
+  return "ok";
+}
+
+// Drops subscriptions not refreshed within STALE_SUBSCRIPTION_MS (state and
+// all) in one round trip; returns the ones still current.
+export async function pruneStaleSubscriptions(subs: StoredSubscription[], now = Date.now()): Promise<StoredSubscription[]> {
+  const isStale = (sub: StoredSubscription) => typeof sub.updatedAt === "number" && now - sub.updatedAt > STALE_SUBSCRIPTION_MS;
+  const stale = subs.filter(isStale).map((sub) => idFor(sub.subscription.endpoint));
+  if (stale.length) await redisTransaction([["HDEL", SUBS_KEY, ...stale], ["HDEL", STATE_KEY, ...stale]]);
+  return subs.filter((sub) => !isStale(sub));
 }
 
 export async function removeSubscription(endpoint: string) {

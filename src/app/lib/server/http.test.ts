@@ -20,6 +20,22 @@ describe("readLimitedJson", () => {
   test("returns null for invalid JSON", async () => {
     expect(await readLimitedJson(post("{nope"), 100)).toBeNull();
   });
+
+  test("a body sent without a length is cut off once it passes the limit, not read to the end", async () => {
+    let pulls = 0;
+    // An endless body: 10 bytes per pull.
+    const endless = new ReadableStream<Uint8Array>({ pull(controller) { pulls += 1; controller.enqueue(new TextEncoder().encode("aaaaaaaaaa")); } });
+    const request = new Request("http://x/api", { method: "POST", body: endless, duplex: "half" } as RequestInit);
+    expect(request.headers.get("content-length")).toBeNull();
+    expect(await readLimitedJson(request, 100)).toBeNull();
+    expect(pulls).toBeLessThan(20);
+  });
+
+  test("a streamed body within the limit is parsed", async () => {
+    const chunks = [`{"a":`, `[1,2]}`];
+    const stream = new ReadableStream<Uint8Array>({ pull(controller) { const next = chunks.shift(); if (next) controller.enqueue(new TextEncoder().encode(next)); else controller.close(); } });
+    expect(await readLimitedJson(new Request("http://x/api", { method: "POST", body: stream, duplex: "half" } as RequestInit), 100)).toEqual({ a: [1, 2] });
+  });
 });
 
 describe("fromOwnSite", () => {
