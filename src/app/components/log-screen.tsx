@@ -20,12 +20,17 @@ import { LocationModal } from "./location-modal";
 import { Modal } from "./modal";
 import { PageHeader } from "./page-header";
 import { kwhForPercent, parsePercent } from "../lib/vehicles";
+import { istMonthKey } from "../lib/leaderboard";
+import { periodLabel } from "../lib/recap";
+import { impactSummary } from "../lib/rewards";
 
 // How far back a charge can be logged: enough to catch up on a missed month,
 // while a mistyped year (1999 for 2026) is caught instead of saved.
 const MAX_BACKDATE_DAYS = 30;
 // The list shows this many charges at first, then more on request.
 const PAGE_SIZE = 50;
+// What each charge's chip says next to its points: how it was timed.
+const TIMING_TAGS: Record<string, string> = { best: "Best", cleaner: "Cleaner", other: "", untimed: "", small: "" };
 
 // `quick`: opened from a notification's "Log a charge" button, so open the
 // form straight away, set to right now.
@@ -63,12 +68,15 @@ export function LogScreen({ quick = false }: { quick?: boolean }) {
   const percentKwh = form && battery ? kwhForPercent(battery, parsePercent(form.from) ?? NaN, parsePercent(form.to) ?? NaN) : null;
   const typicalTime = typicalChargeTime(cityCharges);
 
-  const groups: { heading: string; items: Charge[] }[] = [];
+  // A section per month (IST, as the recap and leaderboard count them),
+  // with the whole month's totals even when only part of it is shown yet.
+  const groups: { month: string; items: Charge[] }[] = [];
   for (const charge of charges.slice(0, shown)) {
-    const heading = dayHeading(charge.loggedAt);
+    const month = istMonthKey(charge.loggedAt);
     const last = groups.at(-1);
-    if (last?.heading === heading) last.items.push(charge); else groups.push({ heading, items: [charge] });
+    if (last?.month === month) last.items.push(charge); else groups.push({ month, items: [charge] });
   }
+  const monthTotals = (month: string) => impactSummary(charges.filter((charge) => istMonthKey(charge.loggedAt) === month));
 
   function openForm(atNow = false) {
     const now = new Date();
@@ -158,14 +166,20 @@ export function LogScreen({ quick = false }: { quick?: boolean }) {
 
       <section className="activity">
         <h2>All charges</h2>
-        {!chargesReady ? [0, 1, 2].map((index) => <div key={index} className="card activity-item skeleton-item" aria-hidden="true"/>) : groups.length ? groups.map((group) => <div key={group.heading} className="log-group">
-          <h3>{group.heading}</h3>
-          {group.items.map((charge) => <button key={charge.id} className="card activity-item" onClick={() => setSelected(charge)}>
-            <span className="round-icon"><Icon name="bolt" size={19}/></span>
-            <span className="activity-text"><strong>{charge.energyKwh} kWh{charge.percentTo !== undefined && <small> · {charge.percentFrom}% → {charge.percentTo}%</small>}</strong><span>{formatTimeOfDay(charge.chargedAt)}{charge.city !== city ? ` · ${charge.city}` : ""}</span></span>
-            <b>+{pointsForCharge(charge)} pts</b>
-          </button>)}
-        </div>) : null}
+        {!chargesReady ? [0, 1, 2].map((index) => <div key={index} className="card activity-item skeleton-item" aria-hidden="true"/>) : groups.length ? groups.map((group) => {
+          const totals = monthTotals(group.month);
+          return <div key={group.month} className="log-group">
+            <h3>{group.month.startsWith("1970") ? "Earlier" : periodLabel(group.month)}<small>{totals.count} {totals.count === 1 ? "charge" : "charges"} · {totals.kwh.toFixed(1)} kWh · {totals.co2Kg.toFixed(1)} kg CO₂ avoided</small></h3>
+            {group.items.map((charge) => {
+              const timing = earnsPoints(charge) ? charge.timing ?? "untimed" : "small";
+              return <button key={charge.id} className={`card activity-item log-item log-${timing}`} onClick={() => setSelected(charge)}>
+                <span className="round-icon"><Icon name="bolt" size={19}/></span>
+                <span className="activity-text"><strong>{charge.energyKwh} kWh{charge.percentTo !== undefined && <small> · {charge.percentFrom}% → {charge.percentTo}%</small>}</strong><span>{dayHeading(charge.loggedAt)}, {formatTimeOfDay(charge.chargedAt)}{charge.city !== city ? ` · ${charge.city}` : ""}</span></span>
+                <b>+{pointsForCharge(charge)}{TIMING_TAGS[timing] && <small> {TIMING_TAGS[timing]}</small>}</b>
+              </button>;
+            })}
+          </div>;
+        }) : null}
         {charges.length > shown && <button className="forecast-button" onClick={() => setShown((n) => n + PAGE_SIZE)}>Show older charges</button>}
         {chargesReady && !charges.length && <section className="card empty-state"><span className="round-icon"><Icon name="bolt" size={22}/></span><strong>No charges yet</strong><p>Log each charge to earn Eco points and see the CO₂ you avoid.</p><button className="primary-button" onClick={() => openForm()}>Log your first charge</button></section>}
       </section>

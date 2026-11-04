@@ -132,7 +132,6 @@ export function StationsScreen() {
   return <div className="mobile-app">
     <TopBar onChooseLocation={openLocation}/>
     <main className="dashboard-content">
-      <Link className="back-link" href="/"><Icon name="arrow-left" size={18}/> Home</Link>
       <PageHeader eyebrow="EV chargers" title={nearYou ? "Chargers near you" : ready ? `Chargers near ${place.name}` : "Chargers nearby"} intro={`Public EV chargers within ${RADIUS_KM} km, nearest first${nearYou || !ready ? "" : `, measured from the centre of ${placeLabel(place)}`}.`}/>
       <OriginControl place={place} ready={ready} {...charger}/>
       {/* The map's space is held while loading, so the list below doesn't jump. With none in range it shows the nearest farther away. */}

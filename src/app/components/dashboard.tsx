@@ -2,13 +2,13 @@
 
 import Link from "next/link";
 import { useSyncExternalStore } from "react";
-import { formatHourParts, formatUpdatedAt, formatWindow, liveReading, planByDay, planNext24, relativeDay } from "../lib/grid";
+import { formatHourParts, formatUpdatedAt, liveReading, planNext24, relativeDay } from "../lib/grid";
 import { useGridData } from "./use-grid-data";
 import { useCharges } from "./use-charges";
 import { useProfile } from "./use-profile";
 import { useLocationPicker } from "./use-location-picker";
 import { currentStreakDays, estimatedCarbonSavedGrams, totalPoints } from "../lib/rewards";
-import { averageChargeIntensity, dayHeading, formatTimeOfDay, typicalChargeTime } from "../lib/personalization";
+import { averageChargeIntensity } from "../lib/personalization";
 import { Icon } from "./icon-set";
 import { BottomNav, TopBar } from "./app-shell";
 import { LocationModal } from "./location-modal";
@@ -17,7 +17,6 @@ import { AddToCalendarButton } from "./add-to-calendar";
 import { StationsCard } from "./stations";
 import { forgetChargerLocation } from "./use-charger-location";
 import { CountUp } from "./motion";
-import { PlanChargeLink } from "./planner-screen";
 import { RecapBanner } from "./recap-banner";
 
 // The page is prerendered at build time, so the greeting can't be computed
@@ -36,20 +35,20 @@ function HeroTime({ datetime, isNow }: { datetime: string; isNow?: boolean }) {
   return <strong>{time}<b>{period}</b></strong>;
 }
 
+// Home, in four blocks: the next clean window (with what to do about it),
+// one strip of progress, logging, and the nearest chargers. Details live on
+// their own tabs.
 export function Dashboard() {
   const { place, ready, location, locationOpen, openLocation, closeLocation, chooseLocation } = useLocationPicker();
   const { data, loading, error, refresh } = useGridData(ready ? place.state : null);
-  const { charges, ready: chargesReady } = useCharges();
+  const { charges } = useCharges();
   const { profile } = useProfile();
   const greeting = useSyncExternalStore(noopSubscribe, greetingForNow, () => null);
   const firstName = profile.name.trim().split(/\s+/)[0];
-  const energyLogged = charges.reduce((total, charge) => total + charge.energyKwh, 0);
   const points = totalPoints(charges);
   const streak = currentStreakDays(charges);
   const savedKg = estimatedCarbonSavedGrams(charges) / 1000;
   const current = liveReading(data);
-  const { tomorrow } = planByDay(data);
-  const tomorrowBest = tomorrow.windows[0] ?? null;
   // The hero looks 24 hours ahead from now, not just at what's left of
   // today: at 10 pm the useful answer is tomorrow's dip, not 11 pm.
   const nextBest = planNext24(data).windows[0] ?? null;
@@ -57,9 +56,7 @@ export function Dashboard() {
   // Different cities sit on different regional grids with very different
   // baselines, so "usual" personalization is scoped to the selected city
   // rather than blended across everywhere the user has ever charged.
-  const cityCharges = charges.filter((charge) => charge.city === location);
-  const avgChargeIntensity = averageChargeIntensity(cityCharges);
-  const typicalTime = typicalChargeTime(cityCharges);
+  const avgChargeIntensity = averageChargeIntensity(charges.filter((charge) => charge.city === location));
   const updatedAt = data?.updatedAt ? formatUpdatedAt(data.updatedAt) : "";
   const intensityDiff = current && avgChargeIntensity !== null ? Math.round(current.carbonIntensity - avgChargeIntensity) : null;
   const heroPill = nextBest?.start.isNow ? "Charge now" : nextDay || "Recommended";
@@ -68,7 +65,7 @@ export function Dashboard() {
   return <div className="mobile-app">
     <TopBar onChooseLocation={openLocation}/>
     <main className="dashboard-content">
-      <section className="greeting"><button className="location-label location-button" aria-label={ready ? `Change location, ${location}` : "Change location"} onClick={openLocation}><Icon name="pin" size={16}/> {ready ? location : ""}</button><h1>{greeting ? `${greeting}${firstName ? `, ${firstName}` : ""}` : " "}</h1></section>
+      <section className="greeting"><button className="location-label location-button" aria-label={ready ? `Change location, ${location}` : "Change location"} onClick={openLocation}><Icon name="pin" size={16}/> {ready ? location : ""}</button><h1>{greeting ? `${greeting}${firstName ? `, ${firstName}` : ""}` : " "}</h1></section>
 
       <RecapBanner/>
 
@@ -79,31 +76,26 @@ export function Dashboard() {
         {nextBest && !nextBest.start.isNow && <AddToCalendarButton window={nextBest} place={place}/>}
         <div className="intensity"><span className="co2">CO₂</span> Right now <strong>{current ? `${Math.round(current.carbonIntensity)} gCO₂/kWh` : "Unavailable"}</strong></div>
         {intensityDiff !== null && <p className="personal-note">{intensityDiff === 0 ? "About the same as your usual charging window." : `${Math.abs(intensityDiff)} gCO₂/kWh ${intensityDiff < 0 ? "lower" : "higher"} than your usual charging window.`}</p>}
-        <Link className="forecast-button" href="/forecast">See full forecast <Icon name="arrow" size={18}/></Link>
+        <div className="hero-actions">
+          <Link className="forecast-button" href="/forecast/plan"><Icon name="plug" size={18}/> Plan a charge</Link>
+          <Link className="forecast-button" href="/forecast">Forecast <Icon name="arrow" size={18}/></Link>
+        </div>
       </section>
 
-      <PlanChargeLink/>
+      {/* Only when something's wrong: a quiet "updated 10 pm" lives on Forecast. */}
+      {error && <section className="data-status" role="alert"><span>{data?.available && updatedAt ? `${error.replace(/\.?$/, ".")} Showing data from ${updatedAt}.` : error}</span><button onClick={refresh} disabled={loading}>{loading ? "Refreshing…" : "Try again"}</button></section>}
 
-      <InstallPrompt/>
-
-      <section className="data-status" role={error ? "alert" : "status"}><span>{error ? (data?.available && updatedAt ? `${error.replace(/\.?$/, ".")} Showing data from ${updatedAt}.` : error) : (data?.available ? `Grid data from ${data.source}${updatedAt ? ` · updated ${updatedAt}` : ""}` : "Waiting for grid data…")}</span><button onClick={refresh} disabled={loading}>{loading ? "Refreshing…" : "Refresh"}</button></section>
-
-      <section className="metrics-grid">
-        <Link href="/log" className="card saved-card"><div><h2>Energy logged</h2><strong><CountUp value={energyLogged} decimals={1}/> <small>kWh</small></strong></div><span className="metric-icon"><Icon name="bolt"/></span></Link>
-        <Link href="/rewards" className="card metric"><h2>Eco points</h2><strong><CountUp value={points}/></strong></Link>
-        <Link href="/rewards" className="card metric"><h2>CO₂ avoided</h2><strong><CountUp value={savedKg} decimals={1}/> <small>kg</small></strong></Link>
-      </section>
-
-      <section className="timeline-row">
-        <Link href="/rewards" className="streak-card"><h2>Current streak</h2><div><strong><CountUp value={streak}/></strong><span>{streak ? `day${streak === 1 ? "" : "s"} in a row` : "Start today"}</span></div><Icon name="fire" size={104}/></Link>
-        <Link href="/forecast?day=tomorrow" className="card next-window"><h2>Tomorrow&apos;s best</h2><div><span className="round-icon"><Icon name="clock" size={18}/></span><p>{tomorrowBest ? <><strong>{formatWindow(tomorrowBest)}</strong><span>{Math.round(tomorrowBest.average)} gCO₂/kWh avg{data?.forecastIsTypical ? " · typical" : ""}</span></> : typicalTime ? <><strong>Not available yet</strong><span>You usually charge around {formatTimeOfDay(typicalTime)}</span></> : <><strong>Not available yet</strong><span>Check back when the forecast loads</span></>}</p></div></Link>
-      </section>
+      <Link href="/rewards" className="card stat-strip" aria-label={`Rewards: ${points} Eco points, ${savedKg.toFixed(1)} kilograms of CO₂ avoided, ${streak}-day streak`}>
+        <span><small>Eco points</small><strong><CountUp value={points}/></strong></span>
+        <span><small>CO₂ avoided</small><strong><CountUp value={savedKg} decimals={1}/><em> kg</em></strong></span>
+        <span><small>Streak</small><strong><Icon name="fire" size={18}/><CountUp value={streak}/><em> {streak === 1 ? "day" : "days"}</em></strong></span>
+      </Link>
 
       <Link className="primary-button" href="/log?quick=1"><Icon name="bolt" size={18}/> Log a charge</Link>
 
-      <StationsCard place={place} ready={ready}/>
+      <InstallPrompt/>
 
-      <section className="activity"><h2>Recent activity</h2>{!chargesReady ? <div className="card activity-item skeleton-item" aria-hidden="true"/> : <Link href={charges[0] ? "/log" : "/log?quick=1"} className="card activity-item"><span className="round-icon"><Icon name="bolt" size={19}/></span><div>{charges[0] ? <><strong>{charges[0].energyKwh} kWh logged</strong><span>{dayHeading(charges[0].loggedAt)}, {formatTimeOfDay(charges[0].chargedAt)}{charges[0].city !== location ? ` · ${charges[0].city}` : ""}</span></> : <><strong>No charges logged yet</strong><span>Log your first charge to see your impact.</span></>}</div><b>{charges[0] ? "View history" : "Log a charge"}</b></Link>}</section>
+      <StationsCard place={place} ready={ready}/>
     </main><BottomNav/>
     {/* Picking a city also points the chargers card back at its centre, so
         it doesn't keep showing "Chargers near you" for the old spot. */}

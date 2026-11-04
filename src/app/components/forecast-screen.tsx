@@ -3,7 +3,7 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import gsap from "gsap";
-import { formatWindow, liveReading, planByDay, planNext24, relativeDay, type ChargeWindow } from "../lib/grid";
+import { formatUpdatedAt, formatWindow, liveReading, planByDay, planNext24, relativeDay, type ChargeWindow } from "../lib/grid";
 import { useGridData } from "./use-grid-data";
 import { useLocationPicker } from "./use-location-picker";
 import { requestNotificationPermission, useNotificationsEnabled } from "./notifications";
@@ -108,8 +108,14 @@ export function ForecastScreen() {
         : <p className="personal-note">No forecast windows available yet.{data?.available && <> {retry}</>}</p>}
       </section>
 
+      {data?.available && <p className="data-status forecast-source"><span>Grid data from {data.source}{data.updatedAt ? ` · updated ${formatUpdatedAt(data.updatedAt)}` : ""}</span><button onClick={refresh} disabled={loading}>{loading ? "Refreshing…" : "Refresh"}</button></p>}
+
       {notifsOn ? <p className="success-message" role="status"><Icon name="bell" size={16}/> Notifications are on for this device.</p> : <>
-        <button className="forecast-button action-button" onClick={enableNotifications}>Enable notifications <Icon name="bell" size={18}/></button>
+        <section className="card notify-card">
+          <span className="round-icon"><Icon name="bell" size={18}/></span>
+          <span><strong>Get a heads-up</strong><small>A notification before each clean window, so you don&apos;t have to check.</small></span>
+          <button type="button" className="text-button" onClick={enableNotifications}>Turn on</button>
+        </section>
         {notice && <p className={notice.ok ? "success-message" : "success-message warning-message"} role="status">{notice.text}</p>}
       </>}
     </main>

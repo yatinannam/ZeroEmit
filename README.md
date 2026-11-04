@@ -73,16 +73,22 @@ Tests sit next to the code as `*.test.ts` and run under `bun test`. `tsconfig.js
 
 | Path | Screen | Notes |
 | --- | --- | --- |
-| `/` | Dashboard | The next clean 2-hour window in the coming 24 hours, live intensity, metrics, streak, tomorrow's best, nearest chargers; in a month's first week, a link to last month's recap |
+| `/` | Dashboard | Four blocks: the next clean 2-hour window in the coming 24 hours (with Plan a charge and Forecast), one strip of Eco points / CO₂ avoided / streak, Log a charge, and the nearest chargers; in a month's first week, a link to last month's recap. The grid data's age shows here only when an update failed |
 | `/forecast` | Forecast | Hourly chart and top windows for the next 24 hours (default), today (`?day=today`) or tomorrow (`?day=tomorrow`); tap a window to add it to the calendar |
 | `/forecast/plan` | Charge planner | Energy to add, charger speed and a ready-by time give the cleanest start; add it to the calendar (see [Charge planner](#charge-planner-libplannerts)) |
-| `/log` | Charge log | History, add/delete with undo; charges logged as kWh or, once Profile knows the EV, as battery % (see [Vehicles](#vehicles-libvehiclests)); `?quick=1` opens the form (used by notification actions) |
-| `/stations` | Chargers | Leaflet map and up to 20 nearest chargers within 30 km |
+| `/log` | Charge log | History in month sections with each month's totals, each charge's chip coloured by its timing (best window, cleaner hour, other); add/delete with undo; charges logged as kWh or, once Profile knows the EV, as battery % (see [Vehicles](#vehicles-libvehiclests)); `?quick=1` opens the form (used by notification actions) |
+| `/stations` | Chargers | A tab of its own: Leaflet map and up to 20 nearest chargers within 30 km |
 | `/rewards` | Rewards | Points, levels, badges, how to earn |
 | `/rewards/leaderboard` | Leaderboard | Join/rename/leave, all-India or per-zone board |
 | `/rewards/groups` | Groups | `?code=` a group's board with its invite code, share and leave; `?join=` (an invite link) also opens the join sheet; no query lists the device's groups |
-| `/profile` | Profile | Name/EV/price, impact table, monthly recap link, share card (`?share=last-month`), settings, back up and restore, delete data |
+| `/profile` | Profile (the avatar in the top bar) | Name/EV/price, impact table, monthly recap link, share card (`?share=last-month`), settings, back up and restore, delete data |
 | `/recap` | Recap | Full-screen story of a month (`?period=2026-10`) or a year (`?period=2026`), ending with a 9:16 share image (see [Recap](#recap-librecapts)) |
+
+### Navigation and look
+
+- The tab bar is Home, Forecast, Log, Chargers and Rewards; Profile is the top bar's avatar (the driver's initials once they've given a name). On desktop the tabs become a sidebar.
+- On phones the tab bar floats as frosted glass: a translucent background with `backdrop-filter: blur(22px) saturate(180%)`, a hairline border and an inner highlight, in light and dark. Browsers without `backdrop-filter` get the solid bar.
+- Card titles are sentence case; the page eyebrow is the only small-caps label left on a screen.
 
 ### Local state
 

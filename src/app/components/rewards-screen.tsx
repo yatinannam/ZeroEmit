@@ -1,9 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { achievements, currentRewardTier, currentStreakDays, estimatedCarbonSavedGrams, POINTS_PER_CHARGE, REWARD_TIERS, totalPoints } from "../lib/rewards";
+import { achievements, currentRewardTier, currentStreakDays, POINTS_PER_CHARGE, REWARD_TIERS, totalPoints } from "../lib/rewards";
 import { TIMING_BONUS } from "../lib/timing";
-import { EQUIVALENTS_NOTE, equivalentsSentence } from "../lib/equivalents";
 import { useCharges } from "./use-charges";
 import { useLocationPicker } from "./use-location-picker";
 import { Icon, type IconName } from "./icon-set";
@@ -34,7 +33,6 @@ export function RewardsScreen() {
   const streak = currentStreakDays(charges);
   const { current: tier, next: nextTier } = currentRewardTier(points);
   const progressToNext = nextTier ? Math.min(1, (points - tier.threshold) / (nextTier.threshold - tier.threshold)) : 1;
-  const savedGrams = estimatedCarbonSavedGrams(charges);
   const badges = achievements(charges, streak);
   const unlockedCount = badges.filter((badge) => badge.unlocked).length;
 
@@ -85,13 +83,6 @@ export function RewardsScreen() {
         </ol>
       </section>
 
-      <section className="card stat-card">
-        <h2>Estimated CO₂ avoided</h2>
-        <strong className="stat-figure"><CountUp value={savedGrams / 1000} decimals={1}/> <small>kg</small></strong>
-        <p className="personal-note">Vs. charging without timing it around the grid</p>
-        {equivalentsSentence(savedGrams / 1000) && <p className="equivalents">{equivalentsSentence(savedGrams / 1000)}</p>}
-        {equivalentsSentence(savedGrams / 1000) && <p className="personal-note equivalents-note">{EQUIVALENTS_NOTE}</p>}
-      </section>
     </main>
     <BottomNav/>
     {locationOpen && <LocationModal current={place} onClose={closeLocation} onChoose={chooseLocation}/>}
