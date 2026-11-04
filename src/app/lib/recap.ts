@@ -3,7 +3,6 @@ import { chargeCost, DEFAULT_PRICE_PER_KWH } from "./cost";
 import { impactEquivalents } from "./equivalents";
 import { IST_OFFSET_MS, IST_TIME_ZONE } from "./grid";
 import { istMonthKey } from "./leaderboard";
-import { typicalChargeTime } from "./personalization";
 import { achievements, currentRewardTier, estimatedCarbonSavedGrams, longestStreakDays, totalPoints } from "./rewards";
 
 // The monthly (or yearly) recap: a story of how a stretch of charging went,
@@ -78,6 +77,19 @@ export function previousPeriod(key: string) {
   return istMonthKey(Date.parse(`${key}-01T00:00:00+05:30`) - 1);
 }
 
+// The hour most charges started in ("23:00"), only when it holds at least
+// two charges and clearly beats every other hour: "usually" has to be true.
+function usualHour(charges: Charge[]) {
+  const counts = new Map<number, number>();
+  for (const charge of charges) {
+    const hour = Number(/^(\d{1,2}):/.exec(charge.chargedAt)?.[1]);
+    if (Number.isInteger(hour) && hour >= 0 && hour < 24) counts.set(hour, (counts.get(hour) ?? 0) + 1);
+  }
+  const ranked = [...counts.entries()].sort((a, b) => b[1] - a[1]);
+  if (!ranked.length || ranked[0][1] < 2 || (ranked[1] && ranked[1][1] === ranked[0][1])) return null;
+  return `${String(ranked[0][0]).padStart(2, "0")}:00`;
+}
+
 const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
 function busiestWeekday(charges: Charge[]) {
@@ -136,7 +148,7 @@ export function buildRecap(all: Charge[], key: string, pricePerKwh = DEFAULT_PRI
     previousBestShare: previous.length ? shareBest(timingCounts(previous)) : null,
     cleanest: cleanest ? { loggedAt: cleanest.loggedAt, chargedAt: cleanest.chargedAt, intensity: cleanest.carbonIntensity, city: cleanest.city } : null,
     averageIntensity: measured.length ? measured.reduce((sum, charge) => sum + charge.carbonIntensity, 0) / measured.length : null,
-    usualTime: charges.length >= 2 ? typicalChargeTime(charges) : null,
+    usualTime: usualHour(charges),
     busiestWeekday: busiestWeekday(charges),
     longestStreak: longestStreakDays(charges),
     cities: new Set(charges.map((charge) => charge.city)).size,

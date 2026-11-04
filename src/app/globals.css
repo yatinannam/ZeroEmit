@@ -227,7 +227,7 @@ a.station-row { border-radius:12px; color:inherit; text-decoration:none; }a.stat
 .recap-top { position:relative; z-index:3; display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top:8px; color:rgb(255 255 255 / 85%); font-size:13px; font-weight:600; }.recap-top span { display:flex; align-items:center; gap:6px; min-width:0; }
 .recap-close { display:grid; place-items:center; flex:none; width:44px; height:44px; margin-right:-10px; border:0; border-radius:50%; color:#fff; background:transparent; }
 .recap-tap { position:absolute; top:72px; bottom:76px; z-index:1; }.recap-tap-prev { left:0; width:34%; }.recap-tap-next { right:0; width:66%; }
-.recap-slide { position:relative; z-index:2; flex:1; display:flex; flex-direction:column; justify-content:center; gap:16px; min-height:0; padding:12px 0; pointer-events:none; }
+.recap-slide { position:relative; z-index:2; flex:1; display:flex; flex-direction:column; justify-content:safe center; overflow:hidden; gap:16px; min-height:0; padding:12px 0; pointer-events:none; }
 .recap-slide a, .recap-slide button, .recap-slide select, .recap-slide label { pointer-events:auto; }
 .recap-eyebrow { margin:0; color:#cbffc2; font-size:13px; font-weight:700; letter-spacing:.12em; text-transform:uppercase; }
 .recap-title { display:grid; gap:6px; margin:0; font-size:clamp(48px, 15vw, 72px); line-height:1; letter-spacing:-.04em; }.recap-title span { color:#cbffc2; font-size:20px; font-weight:600; letter-spacing:0; }
@@ -250,9 +250,14 @@ a.station-row { border-radius:12px; color:inherit; text-decoration:none; }a.stat
 .recap-nav button { display:grid; place-items:center; width:44px; height:44px; border:0; border-radius:50%; color:#fff; background:rgb(255 255 255 / 12%); }.recap-nav button:disabled { opacity:.3; }
 .recap-empty .recap-primary { align-self:flex-start; }
 .recap :focus-visible { outline:2px solid #cbffc2; outline-offset:2px; }
-@media (min-width:600px) { .recap-frame { height:min(880px, calc(100svh - 48px)); border-radius:28px; box-shadow:0 30px 80px rgb(0 0 0 / 45%); } }
+@media (min-width:600px) and (min-height:700px) { .recap-frame { height:min(880px, calc(100svh - 48px)); border-radius:28px; box-shadow:0 30px 80px rgb(0 0 0 / 45%); } }
 @media (max-height:640px) { .recap-big { font-size:clamp(56px, 18vw, 84px); } .recap-text { font-size:17px; } .recap-slide { gap:12px; } }
 @media (prefers-reduced-motion:reduce) { .recap-frame, .recap-progress span { transition:none; } }
 /* Recap entry points: the Home banner in a month's first week */
 .recap-banner { display:grid; grid-template-columns:44px minmax(0,1fr) 18px; align-items:center; gap:12px; padding:16px; border-radius:16px; color:#fff; background:linear-gradient(135deg, #0d631b, #063a10); text-decoration:none; }
 .recap-banner .round-icon { width:44px; height:44px; color:#0d631b; background:#cbffc2; }.recap-banner strong { display:block; font-size:16px; }.recap-banner small { display:block; margin-top:2px; color:#cbffc2; font-size:13px; line-height:1.35; }
+/* Recap fixes: the last page scrolls on short screens and takes its own taps; untimed charges in the legend; opening another period */
+.recap-slide-share { overflow-y:auto; overscroll-behavior:contain; pointer-events:auto; }
+.recap-legend .recap-bar-untimed { background:transparent; box-shadow:inset 0 0 0 1.5px rgb(255 255 255 / 60%); }
+.recap-period-row { display:flex; gap:8px; }.recap-period-row select { flex:1; min-width:0; }.recap-period-row button { flex:none; min-height:48px; padding:0 16px; border:0; border-radius:12px; color:#0d631b; background:#cbffc2; font-weight:700; }
+.recap-period-row button:disabled { opacity:.45; }

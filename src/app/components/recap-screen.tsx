@@ -6,6 +6,7 @@ import { useEffect, useEffectEvent, useLayoutEffect, useRef, useState, type Reac
 import gsap from "gsap";
 import { formatRupees, DEFAULT_PRICE_PER_KWH } from "../lib/cost";
 import { equivalentsSentence } from "../lib/equivalents";
+import { istMonthKey } from "../lib/leaderboard";
 import { dayHeading, formatTimeOfDay } from "../lib/personalization";
 import { buildRecap, defaultPeriod, isPeriodKey, periodLabel, previousPeriod, recapPeriods, shortPeriodLabel, type Recap, type RecapPeriod } from "../lib/recap";
 import { Icon } from "./icon-set";
@@ -16,96 +17,110 @@ import { useCharges } from "./use-charges";
 import { useMinute } from "./use-minute";
 import { useProfile } from "./use-profile";
 
-type Slide = { key: string; tone: "a" | "b" | "c" | "d"; body: ReactNode };
+// `summary` is what a screen reader hears when the page turns to it.
+type Slide = { key: string; tone: "a" | "b" | "c" | "d"; summary: string; body: ReactNode };
+type SlideContext = { name: string; periods: RecapPeriod[]; onPeriod: (key: string) => void; ownPrice: boolean; inProgress: boolean };
 const plural = (count: number, word: string, many = `${word}s`) => (count === 1 ? word : many);
 const percent = (share: number) => Math.round(share * 100);
 
 // The story's pages, leaving out any with nothing to say for this period.
-function slidesFor(recap: Recap, name: string, periods: RecapPeriod[], onPeriod: (key: string) => void): Slide[] {
+function slidesFor(recap: Recap, { name, periods, onPeriod, ownPrice, inProgress }: SlideContext): Slide[] {
   const period = shortPeriodLabel(recap.period);
   const previous = recap.period.kind === "year" ? previousPeriod(recap.period.key) : periodLabel(previousPeriod(recap.period.key)).replace(/ \d{4}$/, "");
   const timed = recap.timing.best + recap.timing.cleaner + recap.timing.other;
   const slides: Slide[] = [];
 
-  slides.push({ key: "cover", tone: "a", body: <>
-    <p className="recap-eyebrow">Your recap</p>
+  slides.push({ key: "cover", tone: "a", summary: `Your ${recap.period.label} recap.`, body: <>
+    <p className="recap-eyebrow">{inProgress ? "Your recap so far" : "Your recap"}</p>
     <h1 className="recap-title">{recap.period.kind === "year" ? `Your ${period}` : period}<span>{recap.period.kind === "year" ? "on ZeroEmit" : `${recap.period.key.slice(0, 4)} on ZeroEmit`}</span></h1>
-    <p className="recap-text">{name ? `${name}, here's` : "Here's"} how your charging went, and how much cleaner you made it.</p>
+    <p className="recap-text">{name ? `${name}, here's` : "Here's"} how your charging {inProgress ? "is going, and how much cleaner you're making it" : "went, and how much cleaner you made it"}.</p>
     <p className="recap-hint"><Icon name="arrow" size={16}/> Tap or swipe to start</p>
   </> });
 
-  slides.push({ key: "energy", tone: "b", body: <>
+  const kwh = recap.kwh.toFixed(1);
+  slides.push({ key: "energy", tone: "b", summary: `You charged ${recap.count} ${plural(recap.count, "time")}, ${kwh} kWh in total.`, body: <>
     <p className="recap-eyebrow">You charged</p>
     <p className="recap-big"><CountUp value={recap.count}/><small> {plural(recap.count, "time")}</small></p>
     <p className="recap-text"><b><CountUp value={recap.kwh} decimals={1}/> kWh</b> in total{recap.cities > 1 ? `, across ${recap.cities} cities` : ""}.</p>
-    <p className="recap-muted">About {formatRupees(recap.cost)} of electricity at your price.</p>
+    <p className="recap-muted">About {formatRupees(recap.cost)} of electricity {ownPrice ? "at your price" : `at a typical home tariff of ${formatRupees(DEFAULT_PRICE_PER_KWH)} per kWh`}.</p>
   </> });
 
   if (timed) {
-    const best = recap.bestShare ?? 0;
+    const best = percent(recap.bestShare ?? 0);
     const before = recap.previousBestShare === null ? null : percent(recap.previousBestShare);
-    slides.push({ key: "timing", tone: "c", body: <>
+    // Charges logged while grid data was out have no timing: the share is of the rest.
+    const of = recap.timing.untimed ? `of your ${timed} ${plural(timed, "charge")} with grid data` : "of your charges";
+    slides.push({ key: "timing", tone: "c", summary: `${best}% ${of} started in one of the day's cleanest windows.`, body: <>
       <p className="recap-eyebrow">Your timing</p>
-      <p className="recap-big"><CountUp value={percent(best)}/><small>%</small></p>
-      <p className="recap-text">of your charges started in one of the day&apos;s cleanest windows.</p>
-      <div className="recap-bar" role="img" aria-label={`${recap.timing.best} in a best window, ${recap.timing.cleaner} at a cleaner hour, ${recap.timing.other} at other times`}>
+      <p className="recap-big"><CountUp value={best}/><small>%</small></p>
+      <p className="recap-text">{of} started in one of the day&apos;s cleanest windows.</p>
+      <div className="recap-bar" aria-hidden="true">
         {(["best", "cleaner", "other"] as const).map((kind) => recap.timing[kind] > 0 && <span key={kind} className={`recap-bar-${kind}`} style={{ flexGrow: recap.timing[kind] }}/>)}
       </div>
       <ul className="recap-legend">
         <li><i className="recap-bar-best"/>Best window <b>{recap.timing.best}</b></li>
         <li><i className="recap-bar-cleaner"/>Cleaner hour <b>{recap.timing.cleaner}</b></li>
         <li><i className="recap-bar-other"/>Other times <b>{recap.timing.other}</b></li>
+        {recap.timing.untimed > 0 && <li><i className="recap-bar-untimed"/>No grid data <b>{recap.timing.untimed}</b></li>}
       </ul>
-      {before !== null && <p className="recap-muted">{percent(best) > before ? `Up from ${before}% in ${previous}.` : percent(best) < before ? `Down from ${before}% in ${previous}. The charge planner can help.` : `The same as in ${previous}.`}</p>}
+      {before !== null && <p className="recap-muted">{best > before ? `Up from ${before}% in ${previous}.` : best < before ? `Down from ${before}% in ${previous}. The charge planner can help.` : `The same as in ${previous}.`}</p>}
     </> });
   }
 
-  slides.push({ key: "impact", tone: "d", body: recap.co2Kg >= 0.05 ? <>
+  const measured = recap.averageIntensity !== null;
+  const co2 = recap.co2Kg.toFixed(recap.co2Kg < 1 ? 2 : 1);
+  slides.push(recap.co2Kg > 0 ? { key: "impact", tone: "d", summary: `You avoided ${co2} kg of CO₂.`, body: <>
     <p className="recap-eyebrow">You avoided</p>
-    <p className="recap-big"><CountUp value={recap.co2Kg} decimals={1}/><small> kg CO₂</small></p>
+    <p className="recap-big"><CountUp value={recap.co2Kg} decimals={recap.co2Kg < 1 ? 2 : 1}/><small> kg CO₂</small></p>
     <p className="recap-text">compared with charging at your region&apos;s average for each day.</p>
     {equivalentsSentence(recap.co2Kg) && <p className="recap-muted">{equivalentsSentence(recap.co2Kg)}</p>}
-  </> : <>
+  </> } : { key: "impact", tone: "d", summary: "Every charge counts.", body: <>
     <p className="recap-eyebrow">Your impact</p>
     <p className="recap-big recap-big-text">Every charge counts.</p>
-    <p className="recap-text">Your charges ran at or above the day&apos;s average this time. Starting in a best window is the quickest way to avoid CO₂.</p>
+    <p className="recap-text">{measured ? "Your charges ran at or above the day's average this time." : "These charges were logged without grid data, so there's no CO₂ figure for them."} Starting in a best window is the quickest way to avoid CO₂.</p>
   </> });
 
-  if (recap.cleanest) {
+  if (recap.cleanest && recap.count > 1) {
     const { intensity, loggedAt, chargedAt } = recap.cleanest;
-    slides.push({ key: "cleanest", tone: "a", body: <>
+    const when = `${dayHeading(loggedAt)}, ${formatTimeOfDay(chargedAt)}`;
+    slides.push({ key: "cleanest", tone: "a", summary: `Your cleanest charge: ${Math.round(intensity)} grams of CO₂ per kWh, ${when}.`, body: <>
       <p className="recap-eyebrow">Your cleanest charge</p>
       <p className="recap-big"><CountUp value={intensity}/><small> g/kWh</small></p>
-      <p className="recap-text">{dayHeading(loggedAt)}, {formatTimeOfDay(chargedAt)}.</p>
-      {recap.averageIntensity !== null && recap.count > 1 && <p className="recap-muted">Your charges averaged {Math.round(recap.averageIntensity)} gCO₂/kWh.</p>}
+      <p className="recap-text">{when}.</p>
+      {recap.averageIntensity !== null && <p className="recap-muted">Your charges averaged {Math.round(recap.averageIntensity)} gCO₂/kWh.</p>}
     </> });
   }
 
   if (recap.usualTime) {
-    slides.push({ key: "habits", tone: "b", body: <>
+    const time = formatTimeOfDay(recap.usualTime);
+    slides.push({ key: "habits", tone: "b", summary: `You usually plug in around ${time}.`, body: <>
       <p className="recap-eyebrow">You usually plug in around</p>
-      <p className="recap-big recap-big-time">{formatTimeOfDay(recap.usualTime)}</p>
+      <p className="recap-big recap-big-time">{time}</p>
       {recap.busiestWeekday && <p className="recap-text">{recap.busiestWeekday} was your busiest charging day.</p>}
       <p className="recap-muted">The charge planner can find a cleaner start that still has you ready on time.</p>
     </> });
   }
 
-  slides.push({ key: "points", tone: "c", body: <>
+  slides.push({ key: "points", tone: "c", summary: `You earned ${recap.points} Eco points.`, body: <>
     <p className="recap-eyebrow">You earned</p>
     <p className="recap-big"><CountUp value={recap.points}/><small> Eco points</small></p>
-    {recap.longestStreak > 1 && <p className="recap-text">Longest streak: <b>{recap.longestStreak} days</b> in a row.</p>}
+    {recap.longestStreak > 1 && <p className="recap-text">Longest streak {recap.period.kind === "year" ? "this year" : "this month"}: <b>{recap.longestStreak} days</b> in a row.</p>}
     <p className="recap-muted">{recap.levelUp ? `You reached ${recap.level}.` : `Level: ${recap.level}.`}</p>
     {recap.newBadges.length > 0 && <ul className="recap-badges" aria-label="New badges">{recap.newBadges.map((badge) => <li key={badge}><Icon name="award" size={16}/> {badge}</li>)}</ul>}
   </> });
 
-  slides.push({ key: "share", tone: "d", body: <ShareSlide recap={recap} name={name} periods={periods} onPeriod={onPeriod}/> });
+  const closing = inProgress ? `Your ${period} so far` : `That's your ${period}`;
+  slides.push({ key: "share", tone: "d", summary: `${closing}. Share your recap, or see another.`, body: <ShareSlide recap={recap} name={name} closing={closing} periods={periods} onPeriod={onPeriod}/> });
   return slides;
 }
 
 // The last page: the whole period at a glance, to share or move on from.
-function ShareSlide({ recap, name, periods, onPeriod }: { recap: Recap; name: string; periods: RecapPeriod[]; onPeriod: (key: string) => void }) {
+function ShareSlide({ recap, name, closing, periods, onPeriod }: { recap: Recap; name: string; closing: string; periods: RecapPeriod[]; onPeriod: (key: string) => void }) {
   const [image, setImage] = useState<{ key: string; file: File; url: string } | null>(null);
   const [failed, setFailed] = useState(false);
+  // Picking another period only opens it on "Open": arrow keys on a closed
+  // select change its value as they go.
+  const [choice, setChoice] = useState(recap.period.key);
   const imageKey = `${recap.period.key}|${name}`;
 
   // Made as soon as this page shows, so Share can call navigator.share
@@ -148,32 +163,41 @@ function ShareSlide({ recap, name, periods, onPeriod }: { recap: Recap; name: st
     ["Eco points", String(recap.points)],
   ];
   return <>
-    <p className="recap-eyebrow">That&apos;s your {period}</p>
+    <h2 className="recap-eyebrow" tabIndex={-1} data-recap-focus>{closing}</h2>
     <dl className="recap-summary">{tiles.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>
     <div className="recap-actions">
       {canShare && <button type="button" className="recap-primary" onClick={share}><Icon name="share" size={18}/> Share my recap</button>}
       <button type="button" className={canShare ? "recap-secondary" : "recap-primary"} onClick={download} disabled={!ready}><Icon name="download" size={18}/> {ready || failed ? "Save image" : "Making the image…"}</button>
       {failed && <p className="recap-muted">Couldn&apos;t make the image on this device.</p>}
     </div>
-    {periods.length > 1 && <label className="recap-period">See another recap
-      <select value={recap.period.key} onChange={(event) => onPeriod(event.target.value)}>
-        {periods.map((option) => <option key={option.key} value={option.key}>{option.kind === "year" ? `${option.key} (whole year)` : option.label}</option>)}
-      </select>
-    </label>}
+    {periods.length > 1 && <div className="recap-period">
+      <label htmlFor="recap-period">See another recap</label>
+      <div className="recap-period-row">
+        <select id="recap-period" value={choice} onChange={(event) => setChoice(event.target.value)}>
+          {periods.map((option) => <option key={option.key} value={option.key}>{option.kind === "year" ? `${option.key} (whole year)` : option.label}</option>)}
+        </select>
+        <button type="button" onClick={() => onPeriod(choice)} disabled={choice === recap.period.key}>Open</button>
+      </div>
+    </div>}
   </>;
 }
 
 // Taps on the left third go back, anywhere else forward; a swipe works too,
 // and so do the arrow keys. Escape closes.
 function Story({ slides, label, onClose }: { slides: Slide[]; label: string; onClose: () => void }) {
-  const [index, setIndex] = useState(0);
+  const [requested, setIndex] = useState(0);
   const slideRef = useRef<HTMLDivElement>(null);
+  const nextRef = useRef<HTMLButtonElement>(null);
+  const prevRef = useRef<HTMLButtonElement>(null);
   const swipe = useRef<{ x: number; y: number } | null>(null);
   const swiped = useRef(false);
   const last = slides.length - 1;
-  const go = (step: number) => setIndex((current) => Math.min(Math.max(current + step, 0), last));
+  // Pages can drop out while the story is open (charges changed in another tab).
+  const index = Math.min(requested, last);
+  const go = (step: number) => setIndex((current) => Math.min(Math.max(Math.min(current, last) + step, 0), last));
   const onKey = useEffectEvent((event: KeyboardEvent) => {
-    if (event.target instanceof HTMLSelectElement) return;
+    // Leave the browser's own shortcuts (Alt+← is Back) and form controls alone.
+    if (event.altKey || event.ctrlKey || event.metaKey || event.target instanceof HTMLSelectElement) return;
     if (event.key === "ArrowRight") { event.preventDefault(); go(1); }
     else if (event.key === "ArrowLeft") { event.preventDefault(); go(-1); }
     else if (event.key === "Escape") onClose();
@@ -194,9 +218,17 @@ function Story({ slides, label, onClose }: { slides: Slide[]; label: string; onC
     return () => ctx.revert();
   }, [index]);
 
+  // A nav button that just became disabled would drop keyboard focus to the
+  // page: move it to the last page's heading, or to Next on the first page.
+  useEffect(() => {
+    const active = document.activeElement;
+    if (index === last && active === nextRef.current) slideRef.current?.querySelector<HTMLElement>("[data-recap-focus]")?.focus();
+    else if (index === 0 && active === prevRef.current) nextRef.current?.focus();
+  }, [index, last]);
+
   const slide = slides[index];
   const tap = (step: number) => () => { if (swiped.current) { swiped.current = false; return; } go(step); };
-  return <div className={`recap-frame recap-tone-${slide.tone}`} aria-roledescription="story" aria-label={label}
+  return <section className={`recap-frame recap-tone-${slide.tone}`} aria-roledescription="story" aria-label={label}
     onPointerDown={(event) => { swipe.current = { x: event.clientX, y: event.clientY }; }}
     onPointerUp={(event) => {
       const start = swipe.current;
@@ -213,42 +245,53 @@ function Story({ slides, label, onClose }: { slides: Slide[]; label: string; onC
     {/* Tap zones for touch; keyboards and screen readers use the buttons below. */}
     <div className="recap-tap recap-tap-prev" aria-hidden="true" onClick={tap(-1)}/>
     <div className="recap-tap recap-tap-next" aria-hidden="true" onClick={tap(1)}/>
-    <div ref={slideRef} key={slide.key} className="recap-slide" aria-live="polite">{slide.body}</div>
+    <div ref={slideRef} key={slide.key} className={`recap-slide${slide.key === "share" ? " recap-slide-share" : ""}`} role="group" aria-roledescription="page" aria-label={`${index + 1} of ${slides.length}`}>{slide.body}</div>
+    {/* One steady live region, outside the page that's swapped out, says what the new page shows. */}
+    <p className="sr-only" aria-live="polite">{`Page ${index + 1} of ${slides.length}. ${slide.summary}`}</p>
     <div className="recap-nav">
-      <button type="button" aria-label="Previous page" onClick={() => go(-1)} disabled={index === 0}><Icon name="arrow-left" size={20}/></button>
-      <span>{index + 1} / {slides.length}</span>
-      <button type="button" aria-label="Next page" onClick={() => go(1)} disabled={index === last}><Icon name="arrow" size={20}/></button>
+      <button ref={prevRef} type="button" aria-label="Previous page" onClick={() => go(-1)} disabled={index === 0}><Icon name="arrow-left" size={20}/></button>
+      <span aria-hidden="true">{index + 1} / {slides.length}</span>
+      <button ref={nextRef} type="button" aria-label="Next page" onClick={() => go(1)} disabled={index === last}><Icon name="arrow" size={20}/></button>
     </div>
-  </div>;
+  </section>;
 }
 
 // /recap?period=2026-10 (or a year, "2026"). Without one, the recap people
-// most likely came for (see defaultPeriod).
-export function RecapScreen({ requested }: { requested: string | null }) {
+// most likely came for (see defaultPeriod). `closeTo`: where Close goes.
+export function RecapScreen({ requested, closeTo }: { requested: string | null; closeTo: string }) {
   const router = useRouter();
   const { charges, ready } = useCharges();
   const { profile } = useProfile();
   const now = useMinute();
   const periods = ready ? recapPeriods(charges) : [];
-  const period = isPeriodKey(requested) && periods.some((option) => option.key === requested) ? requested : now ? defaultPeriod(periods, now) : null;
+  const fallback = now ? defaultPeriod(periods, now) : null;
+  const asked = isPeriodKey(requested) ? requested : null;
+  // A period asked for by link (a notification, say) that has no charges any
+  // more says so, rather than quietly showing a different one.
+  const missing = asked !== null && ready && !periods.some((option) => option.key === asked);
+  const period = asked && !missing ? asked : missing ? null : fallback;
   const recap = period ? buildRecap(charges, period, profile.pricePerKwh ?? DEFAULT_PRICE_PER_KWH) : null;
   const name = profile.name.trim().split(/\s+/)[0] ?? "";
-  const close = () => router.push("/profile");
+  const close = () => router.push(closeTo);
+  const open = (key: string) => router.replace(`/recap?period=${key}${closeTo === "/" ? "&from=home" : ""}`, { scroll: false });
 
   let content: ReactNode;
   if (!ready || !now) content = <div className="recap-frame recap-tone-a"><div className="recap-slide"><p className="recap-eyebrow">Your recap</p><p className="recap-text">Loading…</p></div></div>;
   else if (!recap) {
+    const other = missing ? periods.find((option) => option.key === fallback) : undefined;
     content = <div className="recap-frame recap-tone-a">
       <div className="recap-top"><span><Icon name="sparkle" size={16}/> Recap</span><button type="button" className="recap-close" aria-label="Close recap" onClick={close}><Icon name="close" size={20}/></button></div>
-      <div className="recap-slide recap-empty">
+      <div className="recap-slide recap-empty recap-slide-share">
         <p className="recap-eyebrow">Your recap</p>
-        <h1 className="recap-title">Nothing to recap yet</h1>
-        <p className="recap-text">{requested && isPeriodKey(requested) ? `There are no charges logged for ${periodLabel(requested)}.` : "Log a charge and your monthly recap builds itself from your history."}</p>
-        <Link className="recap-primary" href="/log?quick=1"><Icon name="bolt" size={18}/> Log a charge</Link>
+        <h1 className="recap-title">{missing ? "Nothing logged then" : "Nothing to recap yet"}</h1>
+        <p className="recap-text">{missing ? `There are no charges logged for ${periodLabel(asked)}.` : "Log a charge and your monthly recap builds itself from your history."}</p>
+        {other ? <button type="button" className="recap-primary" onClick={() => open(other.key)}><Icon name="sparkle" size={18}/> See {other.label} instead</button>
+          : <Link className="recap-primary" href="/log?quick=1"><Icon name="bolt" size={18}/> Log a charge</Link>}
       </div>
     </div>;
   } else {
-    const slides = slidesFor(recap, name, periods, (key) => router.replace(`/recap?period=${key}`, { scroll: false }));
+    const thisPeriod = recap.period.kind === "year" ? istMonthKey(now).slice(0, 4) : istMonthKey(now);
+    const slides = slidesFor(recap, { name, periods, onPeriod: open, ownPrice: profile.pricePerKwh !== undefined, inProgress: recap.period.key === thisPeriod });
     // Keyed by period, so another month starts again from its first page.
     content = <Story key={recap.period.key} slides={slides} label={`${recap.period.label} recap`} onClose={close}/>;
   }

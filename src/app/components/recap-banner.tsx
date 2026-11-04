@@ -17,7 +17,7 @@ export function RecapBanner() {
   const lastMonth = istMonthKey(Date.parse(`${istMonthKey(now)}-01T00:00:00+05:30`) - 1);
   if (!charges.some((charge) => istMonthKey(charge.loggedAt) === lastMonth)) return null;
   const month = periodLabel(lastMonth).replace(/ \d{4}$/, "");
-  return <Link className="recap-banner" href={`/recap?period=${lastMonth}`}>
+  return <Link className="recap-banner" href={`/recap?period=${lastMonth}&from=home`}>
     <span className="round-icon"><Icon name="sparkle" size={20}/></span>
     <span><strong>Your {month} recap is ready</strong><small>Your charges, timing and CO₂ avoided, in one story.</small></span>
     <Icon name="chevron-right" size={18}/>

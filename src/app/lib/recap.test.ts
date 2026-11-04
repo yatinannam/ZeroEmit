@@ -88,6 +88,14 @@ describe("buildRecap", () => {
     expect(recap.levelUp).toBe(false);
   });
 
+  test("a usual time only when one hour clearly leads", () => {
+    const at = (time: string, day: number) => charge(`2026-10-${String(day).padStart(2, "0")}T08:00:00Z`, { chargedAt: time });
+    expect(buildRecap([at("07:00", 1), at("23:00", 2), at("13:00", 3)], "2026-10")!.usualTime).toBeNull();
+    expect(buildRecap([at("07:00", 1), at("23:15", 2)], "2026-10")!.usualTime).toBeNull();
+    expect(buildRecap([at("07:00", 1), at("07:00", 2), at("23:00", 3), at("23:30", 4)], "2026-10")!.usualTime).toBeNull();
+    expect(buildRecap([at("07:00", 1), at("23:00", 2), at("23:30", 3)], "2026-10")!.usualTime).toBe("23:00");
+  });
+
   test("a year covers its months; an empty period has no recap", () => {
     expect(buildRecap([...october, ...september], "2026")!.count).toBe(6);
     expect(buildRecap(october, "2026-08")).toBeNull();
