@@ -70,7 +70,7 @@ describe("leaderboard: month-end result", () => {
   test("on the 1st, 9 am to noon, once", () => {
     const now = ist("2026-11-01T09:30:00");
     const result = plan(sub(), undefined, now, { current: null, lastMonth: standing(2, { total: 14, co2Kg: 61 }) });
-    expect(result.planned[0].payload).toMatchObject({ title: "October's leaderboard is final", body: "You finished #2 of 14, with 61.0 kg CO₂ avoided. Share your month's impact.", url: "/profile?share=last-month" });
+    expect(result.planned[0].payload).toMatchObject({ title: "October's leaderboard is final", body: "You finished #2 of 14, with 61.0 kg CO₂ avoided. See your October recap.", url: "/recap?period=2026-10" });
     expect(result.planned[0].marks).toEqual(["monthEnd"]);
     expect(bodies(plan(sub({ sent: { monthEnd: "2026-11" } }), undefined, now, { current: null, lastMonth: standing(2) }))).toEqual([]);
     expect(bodies(plan(sub(), undefined, ist("2026-11-01T12:00:00"), { current: null, lastMonth: standing(2) }))).toEqual([]);
@@ -79,7 +79,7 @@ describe("leaderboard: month-end result", () => {
 
   test("leaves out CO2 when it isn't known", () => {
     const result = plan(sub(), undefined, ist("2026-11-01T10:00:00"), { current: null, lastMonth: standing(1, { total: 3, co2Kg: null }) });
-    expect(bodies(result)).toEqual(["You finished #1 of 3. Share your month's impact."]);
+    expect(bodies(result)).toEqual(["You finished #1 of 3. See your October recap."]);
   });
 });
 

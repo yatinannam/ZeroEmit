@@ -167,6 +167,7 @@ export function ProfileScreen({ shareLastMonth = false }: { shareLastMonth?: boo
         </table>
         <p className="personal-note">Cost at {formatRupees(price)} per kWh{profile.pricePerKwh ? "." : ", a typical home tariff."} <button type="button" className="text-button" onClick={() => setEditing({ focus: "price" })}>{profile.pricePerKwh ? "Change price" : "Set your price"}</button></p>
         {equivalentsSentence(savedGrams / 1000) && <p className="equivalents">In total: {equivalentsSentence(savedGrams / 1000)!.replace(/^Like/, "like")}</p>}
+        {chargesReady && charges.length > 0 && <Link className="forecast-button" href="/recap"><Icon name="sparkle" size={18}/> See your monthly recap</Link>}
         {!chargesReady ? null : charges.length ? <button className="forecast-button action-button" onClick={() => setShareOpen(true)}><Icon name="share" size={18}/> Share my impact</button> : <p className="personal-note">No charges yet. <Link className="text-button" href="/log?quick=1">Log your first charge</Link></p>}
       </section>
 

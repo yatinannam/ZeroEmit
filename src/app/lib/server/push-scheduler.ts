@@ -85,7 +85,8 @@ function planLeaderboard(sub: StoredSubscription, standings: Standings, now: num
   if (lastMonth && today.endsWith("-01") && hour >= 9 && hour < 12 && sub.sent.monthEnd !== month) {
     const monthName = new Intl.DateTimeFormat("en-IN", { month: "long", timeZone: IST_TIME_ZONE }).format(new Date(now - 24 * HOUR_MS));
     const co2 = lastMonth.co2Kg === null ? "" : `, with ${lastMonth.co2Kg.toFixed(1)} kg CO₂ avoided`;
-    planned.push({ payload: { title: `${monthName}'s leaderboard is final`, body: `You finished #${lastMonth.rank} of ${lastMonth.total}${co2}. Share your month's impact.`, url: "/profile?share=last-month", tag: "zeroemit-month-end" }, marks: ["monthEnd"] });
+    // Opens last month's recap story, which ends with a card to share.
+    planned.push({ payload: { title: `${monthName}'s leaderboard is final`, body: `You finished #${lastMonth.rank} of ${lastMonth.total}${co2}. See your ${monthName} recap.`, url: `/recap?period=${istMonthKey(now - 24 * HOUR_MS)}`, tag: "zeroemit-month-end" }, marks: ["monthEnd"] });
   }
 
   if (current) {

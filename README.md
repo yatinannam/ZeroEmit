@@ -1,6 +1,6 @@
 # ZeroEmit
 
-A mobile-first Next.js PWA that tells EV drivers in India when their regional grid is cleanest, plans a charge around it, scores charges by how well they were timed, and runs an opt-in monthly leaderboard (public, and private groups joined with a code) and scheduled Web Push reminders.
+A mobile-first Next.js PWA that tells EV drivers in India when their regional grid is cleanest, plans a charge around it, scores charges by how well they were timed, runs an opt-in monthly leaderboard (public, and private groups joined with a code), tells each month's story in a shareable recap, and sends scheduled Web Push reminders.
 
 Live at [zero-emit.vercel.app](https://zero-emit.vercel.app). The exhibition poster (PNG/PDF, with editable HTML source) is in [`docs/poster`](docs/poster).
 
@@ -73,7 +73,7 @@ Tests sit next to the code as `*.test.ts` and run under `bun test`. `tsconfig.js
 
 | Path | Screen | Notes |
 | --- | --- | --- |
-| `/` | Dashboard | Today's best 2-hour window, live intensity, metrics, streak, tomorrow's best, nearest chargers |
+| `/` | Dashboard | Today's best 2-hour window, live intensity, metrics, streak, tomorrow's best, nearest chargers; in a month's first week, a link to last month's recap |
 | `/forecast` | Forecast | Hourly chart and top windows for today/tomorrow (`?day=tomorrow`); tap a window to add it to the calendar |
 | `/forecast/plan` | Charge planner | Energy to add, charger speed and a ready-by time give the cleanest start; add it to the calendar (see [Charge planner](#charge-planner-libplannerts)) |
 | `/log` | Charge log | History, add/delete with undo; `?quick=1` opens the form (used by notification actions) |
@@ -81,7 +81,8 @@ Tests sit next to the code as `*.test.ts` and run under `bun test`. `tsconfig.js
 | `/rewards` | Rewards | Points, levels, badges, how to earn |
 | `/rewards/leaderboard` | Leaderboard | Join/rename/leave, all-India or per-zone board |
 | `/rewards/groups` | Groups | `?code=` a group's board with its invite code, share and leave; `?join=` (an invite link) also opens the join sheet; no query lists the device's groups |
-| `/profile` | Profile | Name/vehicle/price, impact table, share card (`?share=last-month`), settings, delete data |
+| `/profile` | Profile | Name/vehicle/price, impact table, monthly recap link, share card (`?share=last-month`), settings, delete data |
+| `/recap` | Recap | Full-screen story of a month (`?period=2026-10`) or a year (`?period=2026`), ending with a 9:16 share image (see [Recap](#recap-librecapts)) |
 
 ### Local state
 
@@ -130,9 +131,20 @@ The planner answers "I need this much charge by this time: when should I plug in
 - **Inputs.** Energy to add (0.5–150 kWh; defaults to the average charge in the chosen city, else 10 kWh), a charger (scooter 0.75 kW, home socket 3.3 kW, wallbox 7.2 kW, DC fast 30 kW) and a ready-by clock time. The deadline is the next time the clock reads that time in IST.
 - **Duration.** `kWh ÷ kW`, rounded up to 5 minutes. It assumes the charger's full speed; the page says to leave spare time because cars slow down near 100%.
 - **Curve.** The forecast with the live reading merged in as "now" (`mergeLiveReading`). Each point covers its whole hour, and a charge's average is weighted by the minutes it spends in each hour (`averageBetween`).
-- **Search.** On an hourly step curve, a fixed-length stretch averages lowest with its start or its end on an hour boundary, or at a limit (now, or the latest start that still finishes by the deadline). `planCharge` compares only those starts. Ties go to the earlier start.
+- **Search.** On an hourly step curve, a fixed-length stretch averages lowest with its start or its end on an hour boundary, or at a limit (now, or the latest start that still finishes by the deadline). `planCharge` compares only those starts. Ties go to the earlier start. Waiting must pay: a later start has to beat plugging in now by at least 10 gCO₂/kWh and 3%, or the plan is "now".
+- **Night starts.** A start from 10 pm to 6 am says to plug in before bed and set a timer, and its calendar reminder comes at 9:30 pm the evening before (`bedtimeBefore`) instead of waking the driver.
 - **Results.** `plan` (start, end, average, the average if plugged in now, grams saved, % cleaner), `short` (not enough time; how many kWh plugging in now adds by the deadline), `beyond` (the deadline is past the end of the forecast) or `no-data`.
-- **Extras.** The plan shows the timing bonus its start would earn when logged (same `chargeTiming` as the log form), a chart band for the charge, and an Add to calendar event with a 10-minute alarm (`chargingWindowIcs` with `kind: "plan"`, so its UID never clashes with a window's).
+- **Extras.** The plan shows the timing bonus its start would earn when logged (same `chargeTiming` as the log form; none under 2 kWh), a chart band for the charge, and an Add to calendar event with a 10-minute alarm (`chargingWindowIcs` with `kind: "plan"`, so its UID never clashes with a window's).
+
+## Recap (`lib/recap.ts`)
+
+A story of one month (or year) of charging, built on the device from its own history, so it needs no server.
+
+- **Periods.** IST months with a charge, newest first, plus each year with charges in more than one month. With no `?period=`, the page opens last month during the first week of a month, else this month, else the latest month.
+- **Pages.** Cover; charges, kWh and cost at the driver's price; timing split (best window / cleaner hour / other) against the month before; CO₂ avoided with everyday equivalents; the cleanest charge; the usual plug-in time and busiest weekday; Eco points, longest streak, level, and badges first unlocked in the period (achievements up to the period's end minus those before it). Pages with nothing to say are left out.
+- **Navigation.** Tap the right two-thirds to go on and the left third to go back, swipe, or use the arrow keys; Escape closes. Buttons at the bottom do the same for keyboards and screen readers, and each page is announced politely. Animations are skipped under `prefers-reduced-motion`.
+- **Sharing.** The last page draws a 1080 × 1920 story card on a canvas (`components/recap-card.ts`) as soon as it shows, so Share can call `navigator.share` straight from the tap; Save image downloads it.
+- **Ways in.** Profile → Your impact, a Home banner in each month's first week, and the month-end leaderboard notification, which now opens last month's recap.
 
 ## Scoring (`lib/rewards.ts`, `lib/timing.ts`)
 
@@ -205,7 +217,7 @@ GitHub Actions calls `/api/push/run` every 15 minutes from 06:30 to 22:15 IST; a
   - "best time" reminders, about 35 minutes before a clean window and at 9 pm for tonight's;
   - the morning digest;
   - streak reminders, which open `/log?quick=1` with a "Log a charge" action;
-  - leaderboard changes;
+  - leaderboard changes (the month-end result opens last month's recap);
   - badge nudges and the Sunday recap;
 - records sent "marks" per day or month in `push:state`, so nothing repeats;
 - sends with a concurrency of 20, never from 22:00 to 07:00 IST;

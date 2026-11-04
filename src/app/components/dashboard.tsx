@@ -19,6 +19,7 @@ import { StationsCard } from "./stations";
 import { forgetChargerLocation } from "./use-charger-location";
 import { CountUp } from "./motion";
 import { PlanChargeLink } from "./planner-screen";
+import { RecapBanner } from "./recap-banner";
 
 // The page is prerendered at build time, so the greeting can't be computed
 // during render — it would bake in the build machine's hour and mismatch on
@@ -73,6 +74,8 @@ export function Dashboard() {
     <TopBar onChooseLocation={openLocation}/>
     <main className="dashboard-content">
       <section className="greeting"><button className="location-label location-button" aria-label={ready ? `Change location, ${location}` : "Change location"} onClick={openLocation}><Icon name="pin" size={16}/> {ready ? location : ""}</button><h1>{greeting ? `${greeting}${firstName ? `, ${firstName}` : ""}` : " "}</h1></section>
+
+      <RecapBanner/>
 
       <section className="recommendation card">
         <div className="recommendation-head"><h2>Best time to charge today</h2>{todayBest && <span className="recommended"><Icon name="bolt" size={15}/> {heroPill}</span>}</div>
