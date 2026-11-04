@@ -153,7 +153,8 @@ The planner answers "I need this much charge by this time: when should I plug in
 
 Most drivers know their battery %, not kWh. Profile → Profile & vehicle offers about 35 popular Indian EVs (cars, scooters and bikes, three-wheelers) with approximate usable battery sizes, or "Other" with a name and battery size typed in. Picking a preset also sets the planner's usual charger (scooter charger for two-wheelers, home socket otherwise).
 
-- With a battery size known, the log form and the planner ask "battery before / after" by default (kWh stays one tap away).
+- With a battery size known, the log form asks "battery before / after" by default, and so does the planner unless a kWh figure was saved there before (kWh stays one tap away). A gain that works out under the minimum or over 150 kWh says which; an "Other" battery is capped at 135 kWh so 0→100% fits.
+- Picking a preset only changes the planner's charger when the one set can't be the EV's own (a scooter charger for a car, or a car charger for a scooter).
 - `kwhForPercent` converts a gain to energy from the grid: `(to − from)% × battery ÷ 0.9`, since about 10% is lost as heat on AC charging and the grid's carbon is in what the meter counts. The form shows the result live.
 - The % is saved on the charge (`percentFrom`, `percentTo`) and shown in the history; damaged values are dropped when charges are read.
 
@@ -167,7 +168,7 @@ With no accounts, the device holds the only copy of the charge history and of th
 
 ## Next 24 hours (`planNext24` in `lib/grid.ts`)
 
-Home and Forecast look ahead 24 hours from now instead of only at what's left of "today", which late in the evening has almost nothing to offer. The Home hero is "Next clean window" with Today / Tonight / Tomorrow on it (`relativeDay`), and Forecast opens on a "Next 24 h" tab, with Today and Tomorrow still a tap away.
+Home and Forecast look ahead 24 hours from now instead of only at what's left of "today", which late in the evening has almost nothing to offer. The Home hero is "Next clean window" with Today / Tonight / Tomorrow on it (`relativeDay`; the night runs 6 pm to 6 am, so a 2 am start is "Tonight" seen from 10 pm or from 12:10 am), and Forecast opens on a "Next 24 h" tab, with Today and Tomorrow still a tap away. When the hero says "Charge now" at an hour that isn't one of the region's usual cleanest, it adds that there's no best-window bonus.
 
 ## Recap (`lib/recap.ts`)
 
