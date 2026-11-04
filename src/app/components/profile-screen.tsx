@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useEffectEvent, useState } from "react";
+import { FormEvent, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { chargesInMonth, currentStreakDays, estimatedCarbonSavedGrams, impactSummary, totalPoints } from "../lib/rewards";
@@ -16,9 +16,7 @@ import { Icon, type IconName } from "./icon-set";
 import { BottomNav, TopBar } from "./app-shell";
 import { LocationModal } from "./location-modal";
 import { Modal } from "./modal";
-import { ShareImpactModal, type SharePeriod } from "./share-card";
 import { equivalentsSentence } from "../lib/equivalents";
-import { recapPeriods } from "../lib/recap";
 import { OTHER_VEHICLE, parseBatteryKwh, vehicleByKey, VEHICLE_GROUPS, VEHICLES } from "../lib/vehicles";
 import { usePlannerSettings } from "./use-planner-settings";
 import { BackupModal, useLastBackup } from "./backup";
@@ -67,8 +65,7 @@ const IMPACT_ROWS: { label: string; value: (summary: Summary, pricePerKwh: numbe
 const ABOUT_TEXT = "ZeroEmit helps you charge your EV when the grid is running on cleaner power. Best-time recommendations come from live regional grid data where available, or your own charging history otherwise.";
 const PRIVACY_TEXT = "Your vehicle and charge history stay on this device. ZeroEmit's server gets your state, to fetch grid data for its region, and your city, to find public chargers near the city centre in its copy of OpenStreetMap's charger map. Choosing your location during setup only picks the nearest city, on this device. If you tap \"Use my location\" for chargers, your position, rounded to about 1 km on this device, is sent to ZeroEmit's server to search that copy; it isn't stored or linked to you. If you turn on scheduled notifications, the server also keeps your city name, which notifications you want, your streak count and last charge date, this week's charge count, CO₂ avoided and green share, the badge you're closest to, and (if you've joined the leaderboard) your leaderboard entry's ID, which links these notifications to your public entry. It uses them only to send your reminders; turning notifications off or deleting your account removes them. If you join the leaderboard, your display name, grid region and this month's Eco points and CO₂ avoided are visible to other ZeroEmit users; leaving removes them. If you create or join a group, the same details appear on that group's board, which anyone with its code can see; leaving the group or the leaderboard takes them off.";
 
-// `shareLastMonth`: opened from the month-end leaderboard notification.
-export function ProfileScreen({ shareLastMonth = false }: { shareLastMonth?: boolean }) {
+export function ProfileScreen() {
   const router = useRouter();
   const { place, ready, location, setPlace, locationOpen, openLocation, closeLocation, chooseLocation } = useLocationPicker();
   // null: closed. `focus`: the field to put the cursor in, if the user tapped one.
@@ -76,8 +73,6 @@ export function ProfileScreen({ shareLastMonth = false }: { shareLastMonth?: boo
   const [infoModal, setInfoModal] = useState<"about" | "privacy" | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
-  const [shareOpen, setShareOpen] = useState(false);
-  const [sharePeriod, setSharePeriod] = useState<SharePeriod | undefined>(undefined);
   const [appearanceOpen, setAppearanceOpen] = useState(false);
   const [backupOpen, setBackupOpen] = useState(false);
   const lastBackup = useLastBackup();
@@ -102,14 +97,6 @@ export function ProfileScreen({ shareLastMonth = false }: { shareLastMonth?: boo
   const since = profile.joinedAt ?? (oldestCharge && oldestCharge.loggedAt !== LEGACY_LOGGED_AT ? oldestCharge.loggedAt : null);
   const sinceLabel = since ? new Intl.DateTimeFormat("en-IN", { month: "short", year: "numeric" }).format(new Date(since)) : null;
   const initials = profile.name.trim() ? profile.name.trim().split(/\s+/).slice(0, 2).map((part) => part[0].toUpperCase()).join("") : "?";
-
-  // Open once on last month, then drop ?share= so a refresh doesn't reopen it.
-  const openLastMonthShare = useEffectEvent(() => { setSharePeriod("lastMonth"); setShareOpen(true); router.replace("/profile", { scroll: false }); });
-  useEffect(() => {
-    if (!shareLastMonth) return;
-    const timer = setTimeout(openLastMonthShare, 0);
-    return () => clearTimeout(timer);
-  }, [shareLastMonth]);
 
   function submitProfile(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -205,8 +192,10 @@ export function ProfileScreen({ shareLastMonth = false }: { shareLastMonth?: boo
         </table>
         <p className="personal-note">Cost at {formatRupees(price)} per kWh{profile.pricePerKwh ? "." : ", a typical home tariff."} <button type="button" className="text-button" onClick={() => setEditing({ focus: "price" })}>{profile.pricePerKwh ? "Change price" : "Set your price"}</button></p>
         {equivalentsSentence(savedGrams / 1000) && <p className="equivalents">In total: {equivalentsSentence(savedGrams / 1000)!.replace(/^Like/, "like")}</p>}
-        {chargesReady && recapPeriods(charges).length > 0 && <Link className="forecast-button" href="/recap"><Icon name="sparkle" size={18}/> See your monthly recap</Link>}
-        {!chargesReady ? null : charges.length ? <button className="forecast-button action-button" onClick={() => setShareOpen(true)}><Icon name="share" size={18}/> Share my impact</button> : <p className="personal-note">No charges yet. <Link className="text-button" href="/log?quick=1">Log your first charge</Link></p>}
+        {!chargesReady ? null : charges.length ? <div className="hero-actions profile-recap-actions">
+          <Link className="forecast-button" href="/recap"><Icon name="sparkle" size={18}/> Monthly recap</Link>
+          <Link className="forecast-button" href="/recap?period=all"><Icon name="share" size={18}/> Share all-time</Link>
+        </div> : <p className="personal-note">No charges yet. <Link className="text-button" href="/log?quick=1">Log your first charge</Link></p>}
       </section>
 
       <section className="card settings-list">
@@ -230,7 +219,6 @@ export function ProfileScreen({ shareLastMonth = false }: { shareLastMonth?: boo
 
     {backupOpen && <BackupModal onClose={() => setBackupOpen(false)}/>}
 
-    {shareOpen && <ShareImpactModal charges={charges} name={profile.name.trim().split(/\s+/)[0] ?? ""} initialPeriod={sharePeriod} onClose={() => { setShareOpen(false); setSharePeriod(undefined); }}/>}
 
     {appearanceOpen && <Modal title="Appearance" onClose={() => setAppearanceOpen(false)}>
       <p>System follows your phone&apos;s light or dark setting.</p>

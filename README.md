@@ -81,7 +81,7 @@ Tests sit next to the code as `*.test.ts` and run under `bun test`. `tsconfig.js
 | `/rewards` | Rewards | Points, levels, badges, how to earn |
 | `/rewards/leaderboard` | Leaderboard | Join/rename/leave, all-India or per-zone board |
 | `/rewards/groups` | Groups | `?code=` a group's board with its invite code, share and leave; `?join=` (an invite link) also opens the join sheet; no query lists the device's groups |
-| `/profile` | Profile (the avatar in the top bar) | Name/EV/price, impact table, monthly recap link, share card (`?share=last-month`), settings, back up and restore, delete data |
+| `/profile` | Profile (the avatar in the top bar) | Name/EV/price, impact table, links to the monthly and all-time recaps (`?share=last-month` from old notifications redirects to last month's recap), settings, back up and restore, delete data |
 | `/recap` | Recap | Full-screen story of a month (`?period=2026-10`) or a year (`?period=2026`), ending with a 9:16 share image (see [Recap](#recap-librecapts)) |
 
 ### Navigation and look
@@ -174,7 +174,7 @@ Home and Forecast look ahead 24 hours from now instead of only at what's left of
 
 A story of one month (or year) of charging, built on the device from its own history, so it needs no server.
 
-- **Periods.** IST months with a charge, newest first, plus each year with charges in more than one month. With no `?period=`, the page opens last month during the first week of a month, else this month, else the latest month.
+- **Periods.** IST months with a charge, newest first, plus each year with charges in more than one month, plus All time (`?period=all`, which replaced the old share card and also covers charges with no real date). With no `?period=`, the page opens last month during the first week of a month, else this month, else the latest month.
 - **Pages.** Cover; charges, kWh and cost at the driver's price; timing split (best window / cleaner hour / other) against the month before; CO₂ avoided with everyday equivalents; the cleanest charge; the usual plug-in time and busiest weekday; Eco points, longest streak, level, and badges first unlocked in the period (achievements up to the period's end minus those before it). Pages with nothing to say are left out.
 - **Honest copy.** "You usually plug in around" needs one hour with at least two charges and more than any other; the timing share counts only charges logged with grid data (the rest are listed as "No grid data"); the month in progress reads "so far"; the cost names the tariff it used; a period with no charges says so instead of showing another one.
 - **Navigation.** Tap the right two-thirds to go on and the left third to go back, swipe, or use the arrow keys (Alt+← still goes Back); Escape closes, to Home when opened from the Home banner (`&from=home`) and to Profile otherwise. Buttons at the bottom do the same for keyboards and screen readers; one live region outside the page announces "Page 3 of 8" and what it shows, and focus moves to the last page's heading when Next runs out. Another period opens from a select plus an Open button, so arrow keys on the select can't jump away. Animations are skipped under `prefers-reduced-motion`.

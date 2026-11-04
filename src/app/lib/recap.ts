@@ -8,7 +8,9 @@ import { achievements, currentRewardTier, estimatedCarbonSavedGrams, longestStre
 // The monthly (or yearly) recap: a story of how a stretch of charging went,
 // built on the device from its own charge history. Periods are IST months
 // ("2026-10") or years ("2026"), like the leaderboard's.
-export type RecapPeriod = { key: string; label: string; kind: "month" | "year" };
+// "all" (key "all") is everything ever logged: the all-time story and share card.
+export type RecapPeriod = { key: string; label: string; kind: "month" | "year" | "all" };
+export const ALL_TIME = "all";
 export type TimingCounts = { best: number; cleaner: number; other: number; untimed: number };
 export type Recap = {
   period: RecapPeriod;
@@ -37,24 +39,31 @@ export type Recap = {
 
 const LEGACY_YEAR = "1970";
 const monthKeyOf = (charge: Charge) => istMonthKey(charge.loggedAt);
-const inPeriod = (key: string) => (charge: Charge) => (key.length === 4 ? monthKeyOf(charge).startsWith(`${key}-`) : monthKeyOf(charge) === key);
+const inPeriod = (key: string) => (charge: Charge) => (key === ALL_TIME ? true : key.length === 4 ? monthKeyOf(charge).startsWith(`${key}-`) : monthKeyOf(charge) === key);
+const kindOf = (key: string): RecapPeriod["kind"] => (key === ALL_TIME ? "all" : key.length === 4 ? "year" : "month");
 
 export function periodLabel(key: string) {
+  if (key === ALL_TIME) return "All time";
   if (key.length === 4) return key;
   return new Intl.DateTimeFormat("en-IN", { month: "long", year: "numeric", timeZone: IST_TIME_ZONE }).format(Date.parse(`${key}-15T12:00:00+05:30`));
 }
 
-// "October" or "2026": what the recap calls its period in sentences.
-export const shortPeriodLabel = (period: RecapPeriod) => (period.kind === "year" ? period.key : periodLabel(period.key).replace(/ \d{4}$/, ""));
+// "October", "2026" or "all-time": what the recap calls its period in sentences.
+export const shortPeriodLabel = (period: RecapPeriod) => (period.kind === "all" ? "all-time" : period.kind === "year" ? period.key : periodLabel(period.key).replace(/ \d{4}$/, ""));
 
-export const isPeriodKey = (value: unknown): value is string => typeof value === "string" && /^(\d{4})(-(0[1-9]|1[0-2]))?$/.test(value);
+export const isPeriodKey = (value: unknown): value is string => typeof value === "string" && (value === ALL_TIME || /^(\d{4})(-(0[1-9]|1[0-2]))?$/.test(value));
 
 // Every month with a charge, newest first, then every year with charges in
-// more than one month (a year of one month says nothing a month doesn't).
+// more than one month (a year of one month says nothing a month doesn't),
+// then all time (which also covers old charges with no real date).
 export function recapPeriods(charges: Charge[]): RecapPeriod[] {
   const months = [...new Set(charges.map(monthKeyOf))].filter((key) => !key.startsWith(LEGACY_YEAR)).sort().reverse();
   const years = [...new Set(months.map((key) => key.slice(0, 4)))].filter((year) => months.filter((key) => key.startsWith(year)).length > 1);
-  return [...months.map((key) => ({ key, label: periodLabel(key), kind: "month" as const })), ...years.map((key) => ({ key, label: key, kind: "year" as const }))];
+  return [
+    ...months.map((key) => ({ key, label: periodLabel(key), kind: "month" as const })),
+    ...years.map((key) => ({ key, label: key, kind: "year" as const })),
+    ...(charges.length ? [{ key: ALL_TIME, label: periodLabel(ALL_TIME), kind: "all" as const }] : []),
+  ];
 }
 
 // Which recap to open with no period asked for: last month in the first
@@ -62,7 +71,7 @@ export function recapPeriods(charges: Charge[]): RecapPeriod[] {
 // otherwise the latest month with charges.
 export function defaultPeriod(periods: RecapPeriod[], now: number): string | null {
   const months = periods.filter((period) => period.kind === "month").map((period) => period.key);
-  if (!months.length) return null;
+  if (!months.length) return periods.some((period) => period.kind === "all") ? ALL_TIME : null;
   const thisMonth = istMonthKey(now);
   const lastMonth = istMonthKey(Date.parse(`${thisMonth}-01T00:00:00+05:30`) - 1);
   const dayOfMonth = new Date(now + IST_OFFSET_MS).getUTCDate();
@@ -71,8 +80,12 @@ export function defaultPeriod(periods: RecapPeriod[], now: number): string | nul
   return months[0];
 }
 
-// The period before `key`: the month before, or the year before.
+// Last month's key ("2026-10"), IST.
+export const lastMonthKey = (now = Date.now()) => istMonthKey(Date.parse(`${istMonthKey(now)}-01T00:00:00+05:30`) - 1);
+
+// The period before `key`: the month before, or the year before (none for all time).
 export function previousPeriod(key: string) {
+  if (key === ALL_TIME) return null;
   if (key.length === 4) return String(Number(key) - 1);
   return istMonthKey(Date.parse(`${key}-01T00:00:00+05:30`) - 1);
 }
@@ -117,22 +130,23 @@ const shareBest = (counts: TimingCounts) => {
 export function buildRecap(all: Charge[], key: string, pricePerKwh = DEFAULT_PRICE_PER_KWH): Recap | null {
   const charges = all.filter(inPeriod(key));
   if (!charges.length) return null;
-  const period: RecapPeriod = { key, label: periodLabel(key), kind: key.length === 4 ? "year" : "month" };
+  const period: RecapPeriod = { key, label: periodLabel(key), kind: kindOf(key) };
   const kwh = charges.reduce((sum, charge) => sum + charge.energyKwh, 0);
   const co2Kg = estimatedCarbonSavedGrams(charges) / 1000;
   const timing = timingCounts(charges);
-  const previous = all.filter(inPeriod(previousPeriod(key)));
+  const before = previousPeriod(key);
+  const previous = before === null ? [] : all.filter(inPeriod(before));
   const measured = charges.filter((charge): charge is Charge & { carbonIntensity: number } => charge.carbonIntensity !== null);
   const cleanest = measured.reduce<(typeof measured)[number] | null>((best, charge) => (!best || charge.carbonIntensity < best.carbonIntensity ? charge : best), null);
 
   // Badges and level from everything up to the end of the period, against
   // everything before it began (the streak badges use the best streak).
-  const isBefore = (charge: Charge) => (key.length === 4 ? monthKeyOf(charge).slice(0, 4) < key : monthKeyOf(charge) < key);
-  const before = all.filter(isBefore);
+  const isBefore = (charge: Charge) => (key === ALL_TIME ? false : key.length === 4 ? monthKeyOf(charge).slice(0, 4) < key : monthKeyOf(charge) < key);
+  const earlier = all.filter(isBefore);
   const through = all.filter((charge) => isBefore(charge) || inPeriod(key)(charge));
-  const unlockedBefore = new Set(achievements(before, 0).filter((badge) => badge.unlocked).map((badge) => badge.key));
+  const unlockedBefore = new Set(achievements(earlier, 0).filter((badge) => badge.unlocked).map((badge) => badge.key));
   const newBadges = achievements(through, 0).filter((badge) => badge.unlocked && !unlockedBefore.has(badge.key)).map((badge) => badge.title);
-  const levelBefore = currentRewardTier(totalPoints(before)).current;
+  const levelBefore = currentRewardTier(totalPoints(earlier)).current;
   const levelAfter = currentRewardTier(totalPoints(through)).current;
 
   return {

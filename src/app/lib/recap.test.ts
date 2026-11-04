@@ -16,7 +16,7 @@ describe("periods", () => {
   ];
 
   test("months newest first (by IST), then years with more than one month", () => {
-    expect(recapPeriods(charges).map((period) => period.key)).toEqual(["2026-11", "2026-10", "2026-09", "2025-12", "2026"]);
+    expect(recapPeriods(charges).map((period) => period.key)).toEqual(["2026-11", "2026-10", "2026-09", "2025-12", "2026", "all"]);
     expect(recapPeriods([])).toEqual([]);
   });
 

@@ -26,13 +26,15 @@ const percent = (share: number) => Math.round(share * 100);
 // The story's pages, leaving out any with nothing to say for this period.
 function slidesFor(recap: Recap, { name, periods, onPeriod, ownPrice, inProgress }: SlideContext): Slide[] {
   const period = shortPeriodLabel(recap.period);
-  const previous = recap.period.kind === "year" ? previousPeriod(recap.period.key) : periodLabel(previousPeriod(recap.period.key)).replace(/ \d{4}$/, "");
+  const before = previousPeriod(recap.period.key);
+  const previous = before === null ? "" : recap.period.kind === "year" ? before : periodLabel(before).replace(/ \d{4}$/, "");
+  const allTime = recap.period.kind === "all";
   const timed = recap.timing.best + recap.timing.cleaner + recap.timing.other;
   const slides: Slide[] = [];
 
   slides.push({ key: "cover", tone: "a", summary: `Your ${recap.period.label} recap.`, body: <>
     <p className="recap-eyebrow">{inProgress ? "Your recap so far" : "Your recap"}</p>
-    <h1 className="recap-title">{recap.period.kind === "year" ? `Your ${period}` : period}<span>{recap.period.kind === "year" ? "on ZeroEmit" : `${recap.period.key.slice(0, 4)} on ZeroEmit`}</span></h1>
+    <h1 className="recap-title">{allTime ? "All time" : recap.period.kind === "year" ? `Your ${period}` : period}<span>{allTime || recap.period.kind === "year" ? "on ZeroEmit" : `${recap.period.key.slice(0, 4)} on ZeroEmit`}</span></h1>
     <p className="recap-text">{name ? `${name}, here's` : "Here's"} how your charging {inProgress ? "is going, and how much cleaner you're making it" : "went, and how much cleaner you made it"}.</p>
     <p className="recap-hint"><Icon name="arrow" size={16}/> Tap or swipe to start</p>
   </> });
@@ -104,12 +106,12 @@ function slidesFor(recap: Recap, { name, periods, onPeriod, ownPrice, inProgress
   slides.push({ key: "points", tone: "c", summary: `You earned ${recap.points} Eco points.`, body: <>
     <p className="recap-eyebrow">You earned</p>
     <p className="recap-big"><CountUp value={recap.points}/><small> Eco points</small></p>
-    {recap.longestStreak > 1 && <p className="recap-text">Longest streak {recap.period.kind === "year" ? "this year" : "this month"}: <b>{recap.longestStreak} days</b> in a row.</p>}
+    {recap.longestStreak > 1 && <p className="recap-text">Longest streak {allTime ? "ever" : recap.period.kind === "year" ? "this year" : "this month"}: <b>{recap.longestStreak} days</b> in a row.</p>}
     <p className="recap-muted">{recap.levelUp ? `You reached ${recap.level}.` : `Level: ${recap.level}.`}</p>
     {recap.newBadges.length > 0 && <ul className="recap-badges" aria-label="New badges">{recap.newBadges.map((badge) => <li key={badge}><Icon name="award" size={16}/> {badge}</li>)}</ul>}
   </> });
 
-  const closing = inProgress ? `Your ${period} so far` : `That's your ${period}`;
+  const closing = allTime ? "Your ZeroEmit so far" : inProgress ? `Your ${period} so far` : `That's your ${period}`;
   slides.push({ key: "share", tone: "d", summary: `${closing}. Share your recap, or see another.`, body: <ShareSlide recap={recap} name={name} closing={closing} periods={periods} onPeriod={onPeriod}/> });
   return slides;
 }
@@ -138,7 +140,7 @@ function ShareSlide({ recap, name, closing, periods, onPeriod }: { recap: Recap;
 
   const ready = image?.key === imageKey ? image : null;
   const canShare = Boolean(ready && typeof navigator !== "undefined" && navigator.canShare?.({ files: [ready.file] }));
-  const period = shortPeriodLabel(recap.period);
+  const period = recap.period.kind === "all" ? "time" : shortPeriodLabel(recap.period);
   const text = recap.co2Kg >= 0.05 ? `My ${period} on ZeroEmit: ${recap.co2Kg.toFixed(1)} kg of CO₂ avoided by charging my EV when the grid was cleaner. zero-emit.vercel.app` : `My ${period} on ZeroEmit: ${recap.count} EV charges, timed around India's grid. zero-emit.vercel.app`;
 
   async function share() {
@@ -291,7 +293,7 @@ export function RecapScreen({ requested, closeTo }: { requested: string | null; 
     </div>;
   } else {
     const thisPeriod = recap.period.kind === "year" ? istMonthKey(now).slice(0, 4) : istMonthKey(now);
-    const slides = slidesFor(recap, { name, periods, onPeriod: open, ownPrice: profile.pricePerKwh !== undefined, inProgress: recap.period.key === thisPeriod });
+    const slides = slidesFor(recap, { name, periods, onPeriod: open, ownPrice: profile.pricePerKwh !== undefined, inProgress: recap.period.kind === "all" || recap.period.key === thisPeriod });
     // Keyed by period, so another month starts again from its first page.
     content = <Story key={recap.period.key} slides={slides} label={`${recap.period.label} recap`} onClose={close}/>;
   }

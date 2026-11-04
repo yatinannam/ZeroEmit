@@ -53,12 +53,13 @@ export async function drawRecapCard(recap: Recap, name: string): Promise<Blob> {
 
   const period = shortPeriodLabel(recap.period);
   // A long name shrinks to fit, and past that the line drops the name.
-  let heading = name ? `${name}'s ${period}` : `My ${period}`;
+  const what = recap.period.kind === "all" ? "ZeroEmit so far" : period;
+  let heading = name ? `${name}'s ${what}` : `My ${what}`;
   let headingSize = 56;
   while (headingSize > 40 && width(heading, 600, headingSize) > W - PAD * 2) headingSize -= 2;
-  if (width(heading, 600, headingSize) > W - PAD * 2) { heading = `My ${period}`; headingSize = 56; }
+  if (width(heading, 600, headingSize) > W - PAD * 2) { heading = `My ${what}`; headingSize = 56; }
   text(heading, PAD, 400, 600, headingSize, C.mint);
-  text("on ZeroEmit", PAD, 470, 400, 44, C.mint);
+  if (recap.period.kind !== "all") text("on ZeroEmit", PAD, 470, 400, 44, C.mint);
 
   const co2Led = recap.co2Kg >= 0.05;
   const [figure, unit, caption] = co2Led ? [recap.co2Kg.toFixed(1), "kg", "of CO₂ avoided"] : [formatKwh(recap.kwh), "kWh", "of EV charging"];
