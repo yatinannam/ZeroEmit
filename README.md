@@ -81,7 +81,7 @@ Tests sit next to the code as `*.test.ts` and run under `bun test`. `tsconfig.js
 | `/rewards` | Rewards | Points, levels, badges, how to earn |
 | `/rewards/leaderboard` | Leaderboard | Join/rename/leave, all-India or per-zone board |
 | `/rewards/groups` | Groups | `?code=` a group's board with its invite code, share and leave; `?join=` (an invite link) also opens the join sheet; no query lists the device's groups |
-| `/profile` | Profile | Name/vehicle/price, impact table, monthly recap link, share card (`?share=last-month`), settings, delete data |
+| `/profile` | Profile | Name/EV/price, impact table, monthly recap link, share card (`?share=last-month`), settings, back up and restore, delete data |
 | `/recap` | Recap | Full-screen story of a month (`?period=2026-10`) or a year (`?period=2026`), ending with a 9:16 share image (see [Recap](#recap-librecapts)) |
 
 ### Local state
@@ -103,6 +103,7 @@ Main keys, all prefixed `zeroemit-`:
 | `theme` | `system`/`light`/`dark` |
 | `leaderboard`, `leaderboard-pending-join`, `leaderboard-pending-leave`, `leaderboard-synced` | Membership (`id`, `key`, name, zone) and retry queues |
 | `planner` | The planner's last `kwh` (null means "use my usual charge"), `byPercent` with `from`/`to` (battery %), `charger` and `readyBy` (`HH:MM`) |
+| `last-backup` | When this device last saved a backup (ISO) |
 | `intro-seen`, `install-dismissed`, `chargers-near-me`, `push-active`, `clean-alert` | UI flags |
 
 ### First load and hydration
@@ -143,6 +144,14 @@ Most drivers know their battery %, not kWh. Profile → Profile & vehicle offers
 - With a battery size known, the log form and the planner ask "battery before / after" by default (kWh stays one tap away).
 - `kwhForPercent` converts a gain to energy from the grid: `(to − from)% × battery ÷ 0.9`, since about 10% is lost as heat on AC charging and the grid's carbon is in what the meter counts. The form shows the result live.
 - The % is saved on the charge (`percentFrom`, `percentTo`) and shown in the history; damaged values are dropped when charges are read.
+
+## Backup and restore (`lib/backup.ts`, `components/backup.tsx`)
+
+With no accounts, the device holds the only copy of the charge history and of the leaderboard key (the only proof an entry, and its groups, belong to the driver). Profile → Back up & restore:
+
+- **Save backup file** downloads every `zeroemit-*` key as JSON (`{ app, version, exportedAt, data }`); **Send to another phone** offers the same file to the share sheet where files can be shared. Per-device keys (push subscription flag, clean-grid alert, last leaderboard sync, install prompt, last backup) are left out.
+- **Restore from a file** checks the file first (it is ZeroEmit's, at most 2 MB, not from a newer version), shows its date, charge count, name and EV, and only replaces the device's data after a confirmation. A leaderboard entry the device had that the backup doesn't is queued to leave, so it isn't left public with no key. The app then reloads from `/`.
+- The Profile row shows the last backup date, or "Never". The sheet warns that the file holds the leaderboard key.
 
 ## Next 24 hours (`planNext24` in `lib/grid.ts`)
 

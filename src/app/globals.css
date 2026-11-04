@@ -267,3 +267,6 @@ a.station-row { border-radius:12px; color:inherit; text-decoration:none; }a.stat
 .activity-text strong small { color:var(--muted); font-size:12px; font-weight:600; }
 .planner-percent { gap:8px; }.planner-percent .input-with-unit input { padding-right:84px; }.planner-field .segmented { margin-bottom:2px; }
 .activity > h2 { line-height:1.25; }
+/* Back up & restore */
+.modal .backup-warning { padding:10px 12px; border-radius:12px; color:var(--ink); background:var(--error-container); }
+.modal .backup-note { margin:14px 0 0; font-size:12px; line-height:1.45; }

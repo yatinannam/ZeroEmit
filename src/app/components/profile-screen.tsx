@@ -21,6 +21,7 @@ import { equivalentsSentence } from "../lib/equivalents";
 import { recapPeriods } from "../lib/recap";
 import { OTHER_VEHICLE, parseBatteryKwh, vehicleByKey, VEHICLE_GROUPS, VEHICLES } from "../lib/vehicles";
 import { usePlannerSettings } from "./use-planner-settings";
+import { BackupModal, useLastBackup } from "./backup";
 import { chargeCost, DEFAULT_PRICE_PER_KWH, formatRupees, parsePricePerKwh } from "../lib/cost";
 import { useThemeChoice, type ThemeChoice } from "./theme";
 import { resetIntroSeen } from "./location-gate";
@@ -78,6 +79,8 @@ export function ProfileScreen({ shareLastMonth = false }: { shareLastMonth?: boo
   const [shareOpen, setShareOpen] = useState(false);
   const [sharePeriod, setSharePeriod] = useState<SharePeriod | undefined>(undefined);
   const [appearanceOpen, setAppearanceOpen] = useState(false);
+  const [backupOpen, setBackupOpen] = useState(false);
+  const lastBackup = useLastBackup();
   const [theme, setTheme] = useThemeChoice();
   const permission = useNotificationPermission();
   const { prefs } = useNotificationPrefs();
@@ -135,7 +138,7 @@ export function ProfileScreen({ shareLastMonth = false }: { shareLastMonth?: boo
     resetPlannerSettings();
     // Small per-device records with no store of their own: today's clean-grid
     // alert and the last leaderboard score sent.
-    for (const key of ["zeroemit-clean-alert", "zeroemit-leaderboard-synced"]) { try { window.localStorage.removeItem(key); } catch { /* storage unavailable */ } }
+    for (const key of ["zeroemit-clean-alert", "zeroemit-leaderboard-synced", "zeroemit-last-backup"]) { try { window.localStorage.removeItem(key); } catch { /* storage unavailable */ } }
     setPlace(null);
     setDeleteOpen(false);
     // Setup starts again over Home, not over this page scrolled to the bottom.
@@ -163,6 +166,7 @@ export function ProfileScreen({ shareLastMonth = false }: { shareLastMonth?: boo
     { icon: "user", label: "Profile & vehicle", onClick: () => setEditing({}) },
     { icon: "pin", label: "Location", onClick: openLocation },
     { icon: "bell", label: "Notifications", trailing: hydrated ? notificationsLabel : undefined, onClick: () => setNotificationsOpen(true) },
+    { icon: "download", label: "Back up & restore", trailing: hydrated ? (lastBackup ? new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "short" }).format(new Date(lastBackup)) : "Never") : undefined, onClick: () => setBackupOpen(true) },
     { icon: "moon", label: "Appearance", trailing: hydrated ? THEME_OPTIONS.find((option) => option.key === theme)?.label : undefined, onClick: () => setAppearanceOpen(true) },
     { icon: "shield", label: "Privacy", onClick: () => setInfoModal("privacy") },
     { icon: "info", label: "About", onClick: () => setInfoModal("about") },
@@ -218,6 +222,8 @@ export function ProfileScreen({ shareLastMonth = false }: { shareLastMonth?: boo
     </Modal>}
 
     {notificationsOpen && <NotificationSettings onClose={() => setNotificationsOpen(false)}/>}
+
+    {backupOpen && <BackupModal onClose={() => setBackupOpen(false)}/>}
 
     {shareOpen && <ShareImpactModal charges={charges} name={profile.name.trim().split(/\s+/)[0] ?? ""} initialPeriod={sharePeriod} onClose={() => { setShareOpen(false); setSharePeriod(undefined); }}/>}
 
