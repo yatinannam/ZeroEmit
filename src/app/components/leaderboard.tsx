@@ -27,12 +27,14 @@ export type BoardState<T = LeaderboardResponse> = { status: "loading" } | { stat
 // and accepted syncs (a newly logged charge) reload it. The result is tagged
 // with its request so a response never shows under a different board; while
 // the same board reloads, the previous result stays up instead of "Loading".
-export function useBoardData<T>(url: string, refresh: number): BoardState<T> {
+// A null `url` fetches nothing (e.g. a group code that can't be valid).
+export function useBoardData<T>(url: string | null, refresh: number): BoardState<T> {
   const version = useLeaderboardVersion();
   const request = `${url}|${refresh}|${version}`;
   const [result, setResult] = useState<{ request: string; view: string; state: BoardState<T> } | null>(null);
 
   useEffect(() => {
+    if (url === null) return;
     let cancelled = false;
     fetch(url, { cache: "no-store" })
       .then(async (response): Promise<BoardState<T>> => {

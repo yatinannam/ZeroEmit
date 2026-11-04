@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useSyncExternalStore } from "react";
 import type { GroupInfo, MyGroup } from "../lib/groups";
+import { useHydrated } from "./use-hydrated";
 import { getLeaderboardMembership, useLeaderboardMembership, useLeaderboardVersion } from "./use-leaderboard";
 
 // Group challenges on the device: the calls behind Create, Join and Leave,
@@ -17,7 +18,8 @@ export function useGroupsVersion() {
 }
 
 const MESSAGES: Record<string, string> = {
-  "not-member": "Join the leaderboard first.",
+  "not-member": "Your leaderboard entry has expired. Join the leaderboard again from Rewards.",
+  forbidden: "This device's leaderboard entry doesn't match the server's. Leave the leaderboard and join again.",
   "no-group": "No group has that code. Check it and try again.",
   "too-many": "You're already in 5 groups. Leave one to join another.",
   full: "That group is full (50 people).",
@@ -25,14 +27,17 @@ const MESSAGES: Record<string, string> = {
   name: "Use 2 to 30 letters or numbers, with single spaces.",
 };
 
-async function post<T>(body: Record<string, unknown>): Promise<{ ok: true; value: T } | { ok: false; error: string }> {
+// `code` is the server's reason (see the groups route), for callers that can fix it.
+export type GroupCall<T> = { ok: true; value: T } | { ok: false; error: string; code?: string };
+
+async function post<T>(body: Record<string, unknown>, quiet = false): Promise<GroupCall<T>> {
   const membership = getLeaderboardMembership();
-  if (!membership) return { ok: false, error: MESSAGES["not-member"] };
+  if (!membership) return { ok: false, error: "Join the leaderboard first.", code: "not-member" };
   try {
     const response = await fetch("/api/leaderboard/groups", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...body, id: membership.id, key: membership.key }) });
     const result = await response.json().catch(() => ({})) as T & { code?: string };
-    if (!response.ok) return { ok: false, error: (result.code && MESSAGES[result.code]) || "Something went wrong. Try again." };
-    bump();
+    if (!response.ok) return { ok: false, error: (result.code && MESSAGES[result.code]) || (response.status === 503 ? "Groups aren't available right now." : "Something went wrong. Try again."), code: result.code };
+    if (!quiet) bump();
     return { ok: true, value: result };
   } catch {
     return { ok: false, error: "Couldn't reach the server. Check your connection." };
@@ -44,11 +49,13 @@ export const joinGroup = (code: string) => post<GroupInfo>({ action: "join", cod
 export const leaveGroup = (code: string) => post<{ ok: true }>({ action: "leave", code });
 
 type GroupsState = { status: "idle" | "loading" | "error" } | { status: "ready"; groups: MyGroup[] };
+const listGroups = () => post<{ groups: MyGroup[] }>({ action: "list" }, true);
 
 // This entry's groups; "idle" when the device hasn't joined the leaderboard.
 // Reloads after group changes and after each accepted sync (new points).
 export function useMyGroups(): GroupsState & { retry: () => void } {
   const membership = useLeaderboardMembership();
+  const hydrated = useHydrated();
   const groupsVersion = useGroupsVersion();
   const boardVersion = useLeaderboardVersion();
   const [attempt, setAttempt] = useState(0);
@@ -59,14 +66,15 @@ export function useMyGroups(): GroupsState & { retry: () => void } {
   useEffect(() => {
     if (!id) return;
     let cancelled = false;
-    fetch(`/api/leaderboard/groups?member=${id}`, { cache: "no-store" })
-      .then(async (response): Promise<GroupsState> => response.ok ? { status: "ready", groups: (await response.json() as { groups: MyGroup[] }).groups } : { status: "error" })
-      .catch((): GroupsState => ({ status: "error" }))
+    // The list needs the entry's key too, so it's a POST like the changes.
+    listGroups().then((result): GroupsState => result.ok ? { status: "ready", groups: result.value.groups } : { status: "error" })
       .then((state) => { if (!cancelled) setResult({ request, id, state }); });
     return () => { cancelled = true; };
   }, [id, request]);
 
   const retry = () => setAttempt((n) => n + 1);
+  // Before hydration the saved entry isn't read yet: "loading", not "no entry".
+  if (!hydrated) return { status: "loading", retry };
   if (!id) return { status: "idle", retry };
   if (result?.request === request) return { ...result.state, retry };
   // While the same entry's list reloads, keep showing the last one.

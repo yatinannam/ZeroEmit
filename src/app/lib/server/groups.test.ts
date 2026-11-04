@@ -21,6 +21,12 @@ async function newGroup(n = 1, name = "Pune Office") {
 }
 
 beforeEach(() => { resetFakeRedis(); });
+// The member's groups, as the list call returns them.
+async function mine(n: number) {
+  const result = await listMemberGroups(uuid(n), key(n), NOW);
+  if (!result.ok) throw new Error(result.error);
+  return result.value;
+}
 
 describe("createGroup", () => {
   test("needs a leaderboard entry and its key", async () => {
@@ -93,19 +99,19 @@ describe("syncs and leaving", () => {
     const code = await newGroup(1, "Zeta");
     const other = await newGroup(2, "Alpha");
     await joinGroup(uuid(2), key(2), code, NOW);
-    expect(await listMemberGroups(uuid(2), NOW)).toEqual([
+    expect((await mine(2))).toEqual([
       { code: other, name: "Alpha", members: 1, rank: 1, ranked: 1 },
       { code, name: "Zeta", members: 2, rank: 1, ranked: 2 },
     ]);
-    expect((await listMemberGroups(uuid(1), NOW))[0]).toMatchObject({ rank: 2, ranked: 2 });
+    expect(((await mine(1)))[0]).toMatchObject({ rank: 2, ranked: 2 });
   });
 
   test("no rank before a point this month, and expired groups drop off the list", async () => {
     await join(1, 0);
     const code = await newGroup();
-    expect(await listMemberGroups(uuid(1), NOW)).toEqual([{ code, name: "Pune Office", members: 1, rank: null, ranked: 0 }]);
+    expect((await mine(1))).toEqual([{ code, name: "Pune Office", members: 1, rank: null, ranked: 0 }]);
     fakeRedis.strings.delete(`lb:group:${code}`);
-    expect(await listMemberGroups(uuid(1), NOW)).toEqual([]);
+    expect((await mine(1))).toEqual([]);
     expect(fakeRedis.hashes.get(`lb:mgroups:${uuid(1)}`)?.size ?? 0).toBe(0);
     expect(await readGroupBoard(code, null, NOW)).toBeNull();
   });
@@ -119,7 +125,7 @@ describe("syncs and leaving", () => {
     const board = await readGroupBoard(code, null, NOW);
     expect(board?.group.members).toBe(1);
     expect(board?.rows.map((row) => row.name)).toEqual(["Player 1"]);
-    expect(await listMemberGroups(uuid(2), NOW)).toEqual([]);
+    expect((await mine(2))).toEqual([]);
     // A later sync doesn't put them back.
     await join(2, 6, NOW + 60_000);
     expect((await readGroupBoard(code, null, NOW + 60_000))?.rows.map((row) => row.name)).toEqual(["Player 1"]);
@@ -144,5 +150,41 @@ describe("syncs and leaving", () => {
     await joinGroup(uuid(2), key(2), code, NOW);
     expect(await removeMembersByName("Player 2", "western", NOW)).toBe(1);
     expect((await readGroupBoard(code, null, NOW))?.group.members).toBe(1);
+  });
+
+  test("a member who left while their sync was in flight comes off the board again", async () => {
+    await join(1, 3);
+    await join(2, 5);
+    const code = await newGroup();
+    await joinGroup(uuid(2), key(2), code, NOW);
+    // The leave reached the group's member list, but the sync had already read the member's own list.
+    fakeRedis.hashes.get(`lb:group:${code}:members`)!.delete(uuid(2));
+    await join(2, 6, NOW + 60_000);
+    expect((await readGroupBoard(code, null, NOW + 60_000))?.rows.map((row) => row.name)).toEqual(["Player 1"]);
+  });
+
+  test("joins sent at once can't pass the limits", async () => {
+    await join(1, 1);
+    const codes: string[] = [];
+    for (let i = 0; i < MAX_GROUPS_PER_MEMBER + 1; i += 1) { await join(10 + i, 1); codes.push(await newGroup(10 + i, `Group ${i}`)); }
+    const results = await Promise.all(codes.map((code) => joinGroup(uuid(1), key(1), code, NOW)));
+    expect(results.filter((result) => result.ok).length).toBeLessThanOrEqual(MAX_GROUPS_PER_MEMBER);
+    expect((await mine(1)).length).toBeLessThanOrEqual(MAX_GROUPS_PER_MEMBER);
+  });
+
+  test("members whose entry has expired stop counting towards the group", async () => {
+    await join(1, 3);
+    await join(2, 5);
+    const code = await newGroup();
+    await joinGroup(uuid(2), key(2), code, NOW);
+    fakeRedis.strings.delete(`lb:member:${uuid(2)}`);
+    expect((await readGroupBoard(code, null, NOW))?.group.members).toBe(1);
+    expect(fakeRedis.hashes.get(`lb:group:${code}:members`)?.has(uuid(2))).toBe(false);
+  });
+
+  test("listing a member's groups needs their key", async () => {
+    await join(1, 3);
+    expect(await listMemberGroups(uuid(1), key(2), NOW)).toEqual({ ok: false, error: "forbidden" });
+    expect(await listMemberGroups(uuid(3), key(3), NOW)).toEqual({ ok: false, error: "not-member" });
   });
 });

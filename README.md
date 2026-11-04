@@ -1,6 +1,6 @@
 # ZeroEmit
 
-A mobile-first Next.js PWA that tells EV drivers in India when their regional grid is cleanest, plans a charge around it, scores charges by how well they were timed, runs an opt-in monthly leaderboard (public, and private groups joined with a code), tells each month's story in a shareable recap, and sends scheduled Web Push reminders.
+A mobile-first Next.js PWA that tells EV drivers in India when their regional grid is cleanest, plans a charge around it, scores charges by how well they were timed, runs an opt-in monthly leaderboard (public, and invite-only groups joined with a code), tells each month's story in a shareable recap, and sends scheduled Web Push reminders.
 
 Live at [zero-emit.vercel.app](https://zero-emit.vercel.app). The exhibition poster (PNG/PDF, with editable HTML source) is in [`docs/poster`](docs/poster).
 
@@ -170,9 +170,8 @@ All day/week/month boundaries use IST (`istDayKey`, `istMonthKey`).
 | `GET /api/leaderboard?scope=all\|<zone>&me=` | none | Top 50 for the month, plus the caller's standing when `me` is given | `s-maxage=10, swr=30` without `me`, `no-store` with it |
 | `POST /api/leaderboard/member` | same-origin + `id`/`key` | Join, sync score or rename | 20 new members per IP per hour, 30 updates per member per hour; 409 `name-taken` |
 | `DELETE /api/leaderboard/member` | same-origin + `id`/`key` | Leave | |
-| `GET /api/leaderboard/groups?code=[&me=]` | none | A group's board this month, plus `group: { code, name, members }`; 404 `no-group` | `s-maxage=10, swr=30` without `me`, `no-store` with it |
-| `GET /api/leaderboard/groups?member=` | none | The groups a member is in, with size and their rank | `no-store` |
-| `POST /api/leaderboard/groups` | same-origin + `id`/`key` | `action: "create"` (with `name`), `"join"` or `"leave"` (with `code`) | 3 creates and 20 joins per member per hour; 404 `not-member`/`no-group`, 409 `too-many`/`full` |
+| `GET /api/leaderboard/groups?code=[&me=]` | none | A group's board this month, plus `group: { code, name, members }`; 404 `no-group` | `s-maxage=10, swr=30` without `me`, `no-store` with it; 30 unknown codes per IP per hour, then 429 |
+| `POST /api/leaderboard/groups` | same-origin + `id`/`key` | `action: "list"` (the member's groups, with size and rank), `"create"` (with `name`), `"join"` or `"leave"` (with `code`) | 3 creates and 20 joins per member per hour; 403 `forbidden`, 404 `not-member`/`no-group`, 409 `too-many`/`full` |
 | `POST /api/leaderboard/admin` | `Bearer CRON_SECRET` | Remove an entry by name and zone (moderation) | |
 | `POST /api/push/subscription` | same-origin | Save or update a push subscription with its prefs and summary | 20 new per IP per hour, 60 updates per device per hour, cap 2000 (503 `full`) |
 | `DELETE /api/push/subscription` | same-origin | Remove a subscription | |
@@ -199,11 +198,14 @@ Zone snapshots are cached in memory (60 s) and in Redis (`zone:<zone>`, 24 h TTL
 
 ### Groups (`lib/server/groups.ts`, `lib/groups.ts`)
 
-Private monthly boards for a class, an office or a housing society.
+Invite-only monthly boards for a class, an office or a housing society. Anyone with a group's code can read its board; only members appear on it.
 
 - A group is a name (2–30 characters, same rules as display names) and a 6-character code from an alphabet without 0/O or 1/I, shown as `ABC-234`. Codes are claimed with `SET NX`, so two groups never share one.
 - Only leaderboard members can create or join one, so a group ranks the same server-scored Eco points. Someone who isn't on the leaderboard yet picks a display name in the same sheet and joins both at once; the sheet says they'll appear on the public board too.
 - Each member sync (`submitMember`) writes the member's score to every group board they're in, in the same transaction as the public boards, and refreshes the group's expiry. A group closes 120 days after its last sync or join.
+- A leave can land while a sync is in flight (after it read the member's groups). The sync's transaction ends each group with `HEXISTS` on the member list; where the member is gone, a second round trip takes them back off that board.
+- Limits are checked before a join and again inside its transaction (`HLEN` of both lists after the `HSET`s), and a join that requests sent at the same moment pushed over a limit is undone.
+- Members whose leaderboard entry has expired (70 days without a sync: an uninstall or cleared data) are dropped from the group when it's read or joined, so they stop counting towards its size.
 - Limits: 50 members a group, 5 groups a member, 3 new groups and 20 join attempts per member per hour (a billion codes can't be guessed at that rate).
 - Leaving the leaderboard, Delete my data, and admin removal also take the entry off every group. Expired groups drop off a member's list the next time it's read.
 - Invites share `/rewards/groups?join=<code>` through the share sheet, or copy it where there is none.
@@ -241,7 +243,7 @@ The public Overpass API was too slow from India (up to 20 s, or rate-limited), s
 | `lb:group:<code>:members` | hash | Member id to join time |
 | `lb:<month>:g:<code>` | sorted set | The group's board that month |
 | `lb:mgroups:<id>` | hash | The groups a member is in (code to join time) |
-| `lb:gnew:<id>`, `lb:gjoin:<id>` | counters | Group create and join rate limits |
+| `lb:gnew:<id>`, `lb:gjoin:<id>`, `lb:gmiss:<ip>:<hour>` | counters | Group create and join rate limits; unknown codes looked up per address |
 | `lb:new:<ip>`, `lb:rate:<id>` | counters | Leaderboard rate limits |
 | `push:subs` | hash | Subscriptions, prefs and summaries, keyed by an endpoint hash |
 | `push:state` | hash | Scheduler marks, so pushes aren't repeated |

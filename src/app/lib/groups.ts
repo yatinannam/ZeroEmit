@@ -1,6 +1,6 @@
 import { validateDisplayName, type LeaderboardResponse } from "./leaderboard";
 
-// Group challenges: a private monthly board for a class, an office or a
+// Group challenges: an invite-only monthly board for a class, an office or a
 // housing society, joined with a short code. Built on leaderboard entries,
 // so a group board ranks the same Eco points as the public one. Rules shared
 // by the app and the server.

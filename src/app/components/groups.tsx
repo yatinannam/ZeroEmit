@@ -14,7 +14,7 @@ import { Modal } from "./modal";
 import { PageHeader } from "./page-header";
 import { showToast } from "./toast";
 import { useCharges } from "./use-charges";
-import { createGroup, joinGroup, leaveGroup, useGroupsVersion, useMyGroups } from "./use-groups";
+import { createGroup, joinGroup, leaveGroup, useGroupsVersion, useMyGroups, type GroupCall } from "./use-groups";
 import { joinLeaderboard, useLeaderboardMembership } from "./use-leaderboard";
 import { useStoredLocation } from "./use-location";
 import { useLocationPicker } from "./use-location-picker";
@@ -55,16 +55,27 @@ function GroupModal({ mode, code, groupName, onClose, onDone }: { mode: "create"
       if (!joined.ok) { setBusy(false); setError(joined.error); return; }
       if (!profile.name.trim()) updateProfile({ ...profile, name: displayName });
     }
-    const result = mode === "create" ? await createGroup(groupNameValue!) : await joinGroup(joinCode!);
+    const attempt = () => (mode === "create" ? createGroup(groupNameValue!) : joinGroup(joinCode!));
+    let result: GroupCall<{ code: string; name: string }> = await attempt();
+    // The server let this device's entry expire (70 days without a sync):
+    // send it again under the same id and key, then try once more.
+    if (!result.ok && result.code === "not-member" && membership) {
+      const rejoined = await joinLeaderboard(membership.name, zoneOf(place), charges);
+      if (rejoined.ok) result = await attempt();
+    }
     setBusy(false);
-    if (!result.ok) { setError(result.error); return; }
+    if (!result.ok) {
+      // A first join already put them on the public board; say so, so it's no surprise.
+      setError(displayName ? `${result.error} You're on the leaderboard now; you can leave it from Rewards.` : result.error);
+      return;
+    }
     showToast(mode === "create" ? `${result.value.name} is ready. Share its code to invite people.` : `You've joined ${result.value.name}`);
     onDone(result.value.code);
   }
 
   const title = mode === "create" ? "Create a group" : groupName ? `Join ${groupName}` : "Join a group";
   return <Modal title={title} onClose={onClose} onSubmit={submit}>
-    <p>{mode === "create" ? "A private board for your class, office or housing society. You'll get a code to share." : "Everyone in the group sees each other's display name, region, and this month's Eco points and CO₂ avoided."}</p>
+    <p>{mode === "create" ? "An invite-only board for your class, office or housing society. You'll get a code to share." : "Everyone in the group sees each other's display name, region, and this month's Eco points and CO₂ avoided."}</p>
     {!membership && <p className="group-note">Groups rank leaderboard entries, so you&apos;ll join the leaderboard too: your display name, region, Eco points and CO₂ avoided also appear on the public board. You can leave any time.</p>}
     {!membership && <label>Your display name<input name="displayName" type="text" defaultValue={displayNameFrom(profile.name)} placeholder="e.g. Asha" minLength={2} maxLength={20} autoComplete="nickname" required/></label>}
     {mode === "create" && <label>Group name<input name="groupName" type="text" placeholder="e.g. Pune Office EV Club" minLength={2} maxLength={30} required/></label>}
@@ -84,7 +95,7 @@ export function GroupsCard() {
 
   return <>
     <section className="card stat-card groups-card" aria-labelledby="groups-title">
-      <div className="recommendation-head"><h2 id="groups-title">Groups</h2><span className="chip">Private boards</span></div>
+      <div className="recommendation-head"><h2 id="groups-title">Groups</h2><span className="chip">Invite only</span></div>
       {groups.status === "loading" ? <div className="card activity-item skeleton-item" aria-hidden="true"/>
         : groups.status === "error" ? <p className="personal-note">Couldn&apos;t load your groups. <button type="button" className="text-button" onClick={groups.retry}>Try again</button></p>
         : list.length ? <ul className="group-list">{list.map((group) => <li key={group.code}>
@@ -125,7 +136,7 @@ async function copyCode(code: string) {
 // link, ?join=) opens the join sheet straight away for someone not in it.
 export function GroupScreen({ rawCode, joining }: { rawCode: string | null; joining: boolean }) {
   const router = useRouter();
-  const { place, locationOpen, openLocation, closeLocation, chooseLocation } = useLocationPicker();
+  const { place, ready, locationOpen, openLocation, closeLocation, chooseLocation } = useLocationPicker();
   const membership = useLeaderboardMembership();
   const myGroups = useMyGroups();
   const groupsVersion = useGroupsVersion();
@@ -133,20 +144,22 @@ export function GroupScreen({ rawCode, joining }: { rawCode: string | null; join
   const [joinOpen, setJoinOpen] = useState(false);
   const [leaveOpen, setLeaveOpen] = useState(false);
   const code = parseGroupCode(rawCode);
-  const url = `/api/leaderboard/groups?code=${code ?? ""}${membership ? `&me=${membership.id}` : ""}`;
+  const url = code ? `/api/leaderboard/groups?code=${code}${membership ? `&me=${membership.id}` : ""}` : null;
   const state = useBoardData<GroupBoardResponse>(url, refresh + groupsVersion);
   const group = state.status === "ready" ? state.data.group : null;
   // Known once this device's own list has loaded (or it has no entry at all).
   const isMember = myGroups.status === "ready" ? myGroups.groups.some((mine) => mine.code === code) : myGroups.status === "idle" ? false : null;
 
   // From an invite: open the join sheet once it's clear this device isn't in
-  // the group, then drop ?join= so a refresh or Back doesn't reopen it.
+  // the group, then drop ?join= so a refresh or Back doesn't reopen it. On a
+  // new device, only after first-run setup (`ready`): a sheet under the
+  // setup screen would trap the keyboard there.
   const openInvite = useEffectEvent(() => { setJoinOpen(true); router.replace(`/rewards/groups?code=${code}`, { scroll: false }); });
   useEffect(() => {
-    if (!joining || !group || isMember !== false) return;
+    if (!joining || !ready || !group || isMember !== false) return;
     const timer = setTimeout(openInvite, 0);
     return () => clearTimeout(timer);
-  }, [joining, group, isMember]);
+  }, [joining, ready, group, isMember]);
 
   async function leave() {
     if (!code) return;
@@ -179,6 +192,7 @@ export function GroupScreen({ rawCode, joining }: { rawCode: string | null; join
           <button type="button" className="primary-button" onClick={() => shareInvite(group.code, group.name)}><Icon name="share" size={18}/> Share invite</button>
         </section>}
         {group && isMember === false && <button type="button" className="primary-button" onClick={() => setJoinOpen(true)}><Icon name="users" size={18}/> Join this group</button>}
+        {group && myGroups.status === "error" && <p className="personal-note">Couldn&apos;t check whether you&apos;re in this group. <button type="button" className="text-button" onClick={myGroups.retry}>Try again</button></p>}
         {group && isMember && <button type="button" className="forecast-button action-button" onClick={() => setLeaveOpen(true)}>Leave group</button>}
       </>}
     </main>
@@ -199,7 +213,7 @@ export function GroupsHub() {
     <TopBar onChooseLocation={openLocation}/>
     <main className="dashboard-content">
       <Link className="back-link" href="/rewards"><Icon name="arrow-left" size={18}/> Rewards</Link>
-      <PageHeader eyebrow="Group challenges" title="Charge cleaner with your crew." intro="Private monthly boards for a class, an office or a housing society."/>
+      <PageHeader eyebrow="Group challenges" title="Charge cleaner with your crew." intro="Invite-only monthly boards for a class, an office or a housing society."/>
       <GroupsCard/>
     </main>
     <BottomNav/>

@@ -21,7 +21,7 @@ export type SubmitResult = { ok: true; rank: number; points: number; co2Kg: numb
 export const isUuid = (value: unknown): value is string => typeof value === "string" && UUID_PATTERN.test(value);
 export const isZone = (value: unknown): value is Zone => typeof value === "string" && (ZONES as string[]).includes(value);
 
-const memberKey = (id: string) => `lb:member:${id}`;
+export const memberKey = (id: string) => `lb:member:${id}`;
 const boardKey = (month: string, scope: LeaderboardScope) => `lb:${month}:${scope}`;
 // Group challenges (./groups): the group itself, who's in it, its board
 // each month, and the groups each member is in (the list syncs update).
@@ -137,7 +137,7 @@ export async function submitMember(input: MemberInput, now = Date.now(), ip: str
   const score = sortScore(points, scoredAt);
   // One atomic round trip, so concurrent syncs can't leave the member in two
   // region lists. Moved region this month: leave the old region's list.
-  const results = await redisTransaction([
+  const boardCommands = [
     ...(sameMonth && existing.zone !== input.zone ? [["ZREM", boardKey(month, existing.zone), input.id]] : []),
     ["ZADD", boardKey(month, "all"), score, input.id],
     ["EXPIRE", boardKey(month, "all"), RETENTION_S],
@@ -148,17 +148,27 @@ export async function submitMember(input: MemberInput, now = Date.now(), ip: str
     ...(oldClaim !== null && oldClaim !== claim ? [["HDEL", namesKey(month), oldClaim]] : []),
     ["HSETNX", namesKey(month), claim, input.id],
     ["EXPIRE", namesKey(month), RETENTION_S],
-    // The same score on each of the member's group boards; syncing also
-    // keeps a group alive while anyone in it is still charging.
-    ...groups.flatMap((code) => [
-      ["ZADD", groupBoardKey(month, code), score, input.id],
-      ["EXPIRE", groupBoardKey(month, code), RETENTION_S],
-      ["EXPIRE", groupKey(code), GROUP_RETENTION_S],
-      ["EXPIRE", groupMembersKey(code), GROUP_RETENTION_S],
-    ]),
+  ];
+  // The same score on each of the member's group boards; syncing also keeps
+  // a group alive while anyone in it is still charging. HEXISTS last: a
+  // leave that landed after the list was read means this ZADD put them back.
+  const GROUP_STEPS = 5;
+  const groupCommands = groups.flatMap((code) => [
+    ["ZADD", groupBoardKey(month, code), score, input.id],
+    ["EXPIRE", groupBoardKey(month, code), RETENTION_S],
+    ["EXPIRE", groupKey(code), GROUP_RETENTION_S],
+    ["EXPIRE", groupMembersKey(code), GROUP_RETENTION_S],
+    ["HEXISTS", groupMembersKey(code), input.id],
+  ]);
+  const results = await redisTransaction([
+    ...boardCommands,
+    ...groupCommands,
     ...(groups.length ? [["EXPIRE", memberGroupsKey(input.id), RETENTION_S]] : []),
     ["ZREVRANK", boardKey(month, "all"), input.id],
   ]);
+  // Rare, so a second round trip only then: off the boards of groups left mid-sync.
+  const left = groups.filter((_, index) => results[boardCommands.length + index * GROUP_STEPS + GROUP_STEPS - 1] === 0);
+  if (left.length) await redisTransaction(left.map((code) => ["ZREM", groupBoardKey(month, code), input.id]));
   const rank = results.at(-1) as number | null;
   return { ok: true, rank: (rank ?? 0) + 1, points, co2Kg };
 }

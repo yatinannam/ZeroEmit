@@ -3,10 +3,14 @@ import { parseGroupCode, validateGroupName } from "../../../lib/groups";
 import { fromOwnSite, readLimitedJson } from "../../../lib/server/http";
 import { createGroup, joinGroup, leaveGroup, listMemberGroups, readGroupBoard, type GroupError } from "../../../lib/server/groups";
 import { isUuid, leaderboardConfigured } from "../../../lib/server/leaderboard";
+import { redis } from "../../../lib/server/redis";
 
 const NOT_CONFIGURED = { error: "The leaderboard isn't set up on this server." };
 // Same short CDN cache as the public board for a board read without `me`.
 const PUBLIC_CACHE = "public, s-maxage=10, stale-while-revalidate=30";
+// Codes that match no group, per address per hour, before board reads are
+// refused: plenty for typos, far too few to find a group by guessing.
+const MISSES_PER_HOUR = 30;
 
 // `code` is what the app reads to say what went wrong.
 const ERRORS: Record<GroupError, { status: number; error: string }> = {
@@ -19,31 +23,35 @@ const ERRORS: Record<GroupError, { status: number; error: string }> = {
 };
 const failure = (error: GroupError) => NextResponse.json({ error: ERRORS[error].error, code: error }, { status: ERRORS[error].status });
 
+// On Vercel the first x-forwarded-for entry is the client's address.
+const clientIp = (request: NextRequest) => request.headers.get("x-forwarded-for")?.split(",")[0].trim() || request.headers.get("x-real-ip");
+
 // GET ?code=ABC234[&me=<id>]: the group's board this month.
-// GET ?member=<id>: the groups that member is in.
 export async function GET(request: NextRequest) {
   if (!leaderboardConfigured) return NextResponse.json(NOT_CONFIGURED, { status: 503 });
   const params = request.nextUrl.searchParams;
-  const member = params.get("member");
   const me = params.get("me");
+  const code = parseGroupCode(params.get("code"));
+  if (!code) return NextResponse.json({ error: "Invalid group code" }, { status: 400 });
+  if (me !== null && !isUuid(me)) return NextResponse.json({ error: "Invalid member" }, { status: 400 });
   try {
-    if (member !== null) {
-      if (!isUuid(member)) return NextResponse.json({ error: "Invalid member" }, { status: 400 });
-      return NextResponse.json({ groups: await listMemberGroups(member) }, { headers: { "Cache-Control": "no-store" } });
-    }
-    const code = parseGroupCode(params.get("code"));
-    if (!code) return NextResponse.json({ error: "Invalid group code" }, { status: 400 });
-    if (me !== null && !isUuid(me)) return NextResponse.json({ error: "Invalid member" }, { status: 400 });
+    const ip = clientIp(request);
+    const missKey = ip ? `lb:gmiss:${ip}:${Math.floor(Date.now() / 3_600_000)}` : null;
+    if (missKey && Number(await redis<string | null>("GET", missKey) ?? 0) >= MISSES_PER_HOUR) return failure("rate");
     const board = await readGroupBoard(code, me);
-    if (!board) return failure("no-group");
+    if (!board) {
+      if (missKey && (await redis<number>("INCR", missKey)) === 1) await redis("EXPIRE", missKey, 3600);
+      return failure("no-group");
+    }
     return NextResponse.json(board, { headers: { "Cache-Control": me === null ? PUBLIC_CACHE : "no-store" } });
   } catch {
     return NextResponse.json({ error: "Couldn't load the group" }, { status: 502 });
   }
 }
 
-// { action: "create", id, key, name } | { action: "join" | "leave", id, key, code }
-// `id` and `key` are the device's leaderboard entry (only its key proves it).
+// { action: "list" | "create" | "join" | "leave", id, key, name?, code? }.
+// `id` and `key` are the device's leaderboard entry (only its key proves it),
+// so even the list of a member's groups needs the key.
 export async function POST(request: NextRequest) {
   if (!fromOwnSite(request)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   if (!leaderboardConfigured) return NextResponse.json(NOT_CONFIGURED, { status: 503 });
@@ -51,6 +59,10 @@ export async function POST(request: NextRequest) {
   if (!body || !isUuid(body.id) || !isUuid(body.key)) return NextResponse.json({ error: "Invalid request" }, { status: 400 });
   const { id, key } = body;
   try {
+    if (body.action === "list") {
+      const result = await listMemberGroups(id, key);
+      return result.ok ? NextResponse.json({ groups: result.value }, { headers: { "Cache-Control": "no-store" } }) : failure(result.error);
+    }
     if (body.action === "create") {
       const name = validateGroupName(body.name);
       if (!name) return NextResponse.json({ error: "Invalid name", code: "name" }, { status: 400 });
