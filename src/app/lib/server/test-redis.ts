@@ -22,8 +22,8 @@ function run(command: (string | number)[]): unknown {
   const [name, key, ...args] = command.map(String);
   switch (name) {
     case "GET": return strings.get(key) ?? null;
-    case "SET": strings.set(key, args[0]); return "OK";
-    case "DEL": return strings.delete(key) || hashes.delete(key) ? 1 : 0;
+    case "SET": if (args.includes("NX") && strings.has(key)) return null; strings.set(key, args[0]); return "OK";
+    case "DEL": return strings.delete(key) || hashes.delete(key) || zsets.delete(key) ? 1 : 0;
     case "MGET": return [key, ...args].map((k) => strings.get(k) ?? null);
     case "INCR": { const next = Number(strings.get(key) ?? 0) + 1; strings.set(key, String(next)); return next; }
     case "EXPIRE": return 1;

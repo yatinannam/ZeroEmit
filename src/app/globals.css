@@ -205,3 +205,14 @@ a.station-row { border-radius:12px; color:inherit; text-decoration:none; }a.stat
 .plan-result .chart-skeleton { margin-bottom:0; }
 .planner-footnote { margin-top:-8px; }
 @media (min-width:1000px) { .planner-layout { grid-template-columns:minmax(0,1.15fr) minmax(0,1fr); align-items:start; } }
+/* Group challenges: the Rewards card, a group's invite card, and the create/join sheet */
+.groups-card { display:grid; gap:12px; }.groups-intro { margin:0; font-size:14px; line-height:1.45; }
+.group-list { display:grid; margin:0; padding:0; list-style:none; }.group-list li + li { border-top:1px solid var(--variant); }
+.group-row { display:grid; grid-template-columns:40px minmax(0,1fr) 18px; align-items:center; gap:12px; min-height:64px; padding:8px 0; color:inherit; text-decoration:none; }.group-row .round-icon { width:40px; height:40px; }.group-row > svg { color:var(--muted); }
+.group-text { display:grid; gap:2px; min-width:0; }.group-text strong { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:15px; }.group-text small { color:var(--muted); font-size:12px; line-height:1.35; }
+.group-actions { display:grid; gap:8px; }.group-actions .forecast-button { margin-top:0; }
+.invite-card { display:grid; gap:12px; }.invite-card .personal-note { margin:0; }
+.group-code { display:flex; align-items:center; justify-content:space-between; gap:12px; min-height:64px; padding:0 18px; border:1.5px dashed var(--primary); border-radius:14px; color:var(--primary); background:var(--accent-soft); font-size:30px; font-weight:700; letter-spacing:.12em; font-variant-numeric:tabular-nums; }.group-code svg { flex:none; }
+.modal .group-note { margin:0; padding:10px 12px; border-radius:12px; background:var(--surface-low); font-size:13px; line-height:1.45; }
+.charge-form input.code-input { text-transform:uppercase; letter-spacing:.12em; font-weight:600; }
+@media (min-width:1000px) { .group-actions { grid-template-columns:1fr 1fr; } }

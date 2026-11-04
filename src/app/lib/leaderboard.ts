@@ -110,13 +110,14 @@ const BLOCKED_ANYWHERE = ["fuck", "nigger", "madarchod", "bhenchod", "behenchod"
 const STRAY_JOINER = new RegExp("(^|[^\\p{L}\\p{M}])[\\u200C\\u200D]|[\\u200C\\u200D]($|[^\\p{L}\\p{M}])", "u");
 const JOINERS = /[‌‍]/g;
 
-export function validateDisplayName(raw: unknown): string | null {
+// `maxLength`: 20 for a display name; group names (lib/groups.ts) get more room.
+export function validateDisplayName(raw: unknown, maxLength = MAX_NAME_LENGTH): string | null {
   if (typeof raw !== "string") return null;
   const name = raw.trim().replace(/\s+/g, " ");
   if (!NAME_PATTERN.test(name) || STRAY_JOINER.test(name)) return null;
   // Length and the block lists apply to what's visible, without joiners.
   const visible = name.replace(JOINERS, "");
-  if (visible.length < 2 || visible.length > 20) return null;
+  if (visible.length < 2 || visible.length > maxLength) return null;
   const lower = visible.toLowerCase();
   if (lower.split(" ").some((word) => BLOCKED_WORDS.has(word))) return null;
   const squashed = lower.replace(/[^a-z]/g, "");

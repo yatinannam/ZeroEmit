@@ -7,14 +7,14 @@ import { redis, redisConfigured, redisTransaction } from "./redis";
 
 export const leaderboardConfigured = redisConfigured;
 
-const RETENTION_S = 70 * 24 * 60 * 60;
+export const RETENTION_S = 70 * 24 * 60 * 60;
 const UPDATES_PER_HOUR = 30;
 const NEW_MEMBERS_PER_ADDRESS_PER_HOUR = 20;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 // `scoredAt` is when `points` last changed — it breaks ties, so it must not
 // move when a re-sync leaves the score where it was.
-type MemberRecord = { name: string; zone: Zone; keyHash: string; month: string; points: number; co2Kg: number; scoredAt: number; updatedAt: number };
+export type MemberRecord = { name: string; zone: Zone; keyHash: string; month: string; points: number; co2Kg: number; scoredAt: number; updatedAt: number };
 export type MemberInput = { id: string; key: string; name: string; zone: Zone; charges: LeaderboardCharge[] };
 export type SubmitResult = { ok: true; rank: number; points: number; co2Kg: number } | { ok: false; status: 403 | 409 | 410 | 429 };
 
@@ -23,7 +23,27 @@ export const isZone = (value: unknown): value is Zone => typeof value === "strin
 
 const memberKey = (id: string) => `lb:member:${id}`;
 const boardKey = (month: string, scope: LeaderboardScope) => `lb:${month}:${scope}`;
+// Group challenges (./groups): the group itself, who's in it, its board
+// each month, and the groups each member is in (the list syncs update).
+export const groupKey = (code: string) => `lb:group:${code}`;
+export const groupMembersKey = (code: string) => `lb:group:${code}:members`;
+export const groupBoardKey = (month: string, code: string) => `lb:${month}:g:${code}`;
+export const memberGroupsKey = (id: string) => `lb:mgroups:${id}`;
+// A group lasts this long after anyone in it last synced or joined.
+export const GROUP_RETENTION_S = 120 * 24 * 60 * 60;
+// HGETALL's flat [field, value, field, value, …] reply, as the fields.
+export const hashFields = (flat: string[] | null) => (flat ?? []).filter((_, index) => index % 2 === 0);
+export const memberGroups = async (id: string) => hashFields(await redis<string[]>("HGETALL", memberGroupsKey(id)));
 const hashKey = (key: string) => createHash("sha256").update(key).digest("hex");
+
+// The member record for `id` when `key` is its key: "missing" when there's
+// no entry, "forbidden" when the key is wrong.
+export async function verifiedMember(id: string, key: string): Promise<MemberRecord | "missing" | "forbidden"> {
+  const record = await getMember(id);
+  if (!record) return "missing";
+  return sameHash(record.keyHash, hashKey(key)) ? record : "forbidden";
+}
+
 function sameHash(a: string, b: string) {
   const left = Buffer.from(a);
   const right = Buffer.from(b);
@@ -31,7 +51,7 @@ function sameHash(a: string, b: string) {
 }
 // Sorted-set score: points, plus a fraction that is larger the earlier the
 // score was reached (seconds keep it well inside double precision).
-const sortScore = (points: number, scoredAt: number) => points + (2e10 - Math.floor(scoredAt / 1000)) / 1e11;
+export const sortScore = (points: number, scoredAt: number) => points + (2e10 - Math.floor(scoredAt / 1000)) / 1e11;
 
 function parseCharge(raw: unknown): LeaderboardCharge | null {
   if (!raw || typeof raw !== "object") return null;
@@ -90,7 +110,7 @@ export async function withinHourlyLimit(name: string, limit: number, now: number
 // `pattern`: the region's typical day (by IST hour), to judge each charge's
 // timing on the server; null when the server has no grid data for it.
 export async function submitMember(input: MemberInput, now = Date.now(), ip: string | null = null, pattern: (number | null)[] | null = null): Promise<SubmitResult> {
-  const [rawMember, removed] = await redis<(string | null)[]>("MGET", memberKey(input.id), removedKey(input.id));
+  const [[rawMember, removed], groups] = await Promise.all([redis<(string | null)[]>("MGET", memberKey(input.id), removedKey(input.id)), memberGroups(input.id)]);
   if (removed) return { ok: false, status: 410 };
   const existing = rawMember ? JSON.parse(rawMember) as MemberRecord : null;
   const keyHash = hashKey(input.key);
@@ -128,20 +148,37 @@ export async function submitMember(input: MemberInput, now = Date.now(), ip: str
     ...(oldClaim !== null && oldClaim !== claim ? [["HDEL", namesKey(month), oldClaim]] : []),
     ["HSETNX", namesKey(month), claim, input.id],
     ["EXPIRE", namesKey(month), RETENTION_S],
+    // The same score on each of the member's group boards; syncing also
+    // keeps a group alive while anyone in it is still charging.
+    ...groups.flatMap((code) => [
+      ["ZADD", groupBoardKey(month, code), score, input.id],
+      ["EXPIRE", groupBoardKey(month, code), RETENTION_S],
+      ["EXPIRE", groupKey(code), GROUP_RETENTION_S],
+      ["EXPIRE", groupMembersKey(code), GROUP_RETENTION_S],
+    ]),
+    ...(groups.length ? [["EXPIRE", memberGroupsKey(input.id), RETENTION_S]] : []),
     ["ZREVRANK", boardKey(month, "all"), input.id],
   ]);
   const rank = results.at(-1) as number | null;
   return { ok: true, rank: (rank ?? 0) + 1, points, co2Kg };
 }
 
+// Taking a member off every group they're in: its member list and its board
+// for the month the member last synced (the only month they can be on).
+const leaveGroupsCommands = (id: string, month: string, groups: string[]) => [
+  ...groups.flatMap((code) => [["ZREM", groupBoardKey(month, code), id], ["HDEL", groupMembersKey(code), id]]),
+  ["DEL", memberGroupsKey(id)],
+];
+
 export async function removeMember(id: string, key: string): Promise<"ok" | "forbidden"> {
   const existing = await getMember(id);
   if (!existing) return "ok";
   if (!sameHash(existing.keyHash, hashKey(key))) return "forbidden";
-  const holder = await redis<string | null>("HGET", namesKey(existing.month), nameClaim(existing.name));
+  const [holder, groups] = await Promise.all([redis<string | null>("HGET", namesKey(existing.month), nameClaim(existing.name)), memberGroups(id)]);
   await redisTransaction([
     ["ZREM", boardKey(existing.month, "all"), id],
     ["ZREM", boardKey(existing.month, existing.zone), id],
+    ...leaveGroupsCommands(id, existing.month, groups),
     ["DEL", memberKey(id)],
     ["SET", removedKey(id), "1", "EX", REMOVED_MARKER_S],
     // Leaving frees the name for someone else.
@@ -167,11 +204,12 @@ export async function removeMembersByName(name: string, zone: Zone, now = Date.n
     return record !== null && record.zone === zone && nameClaim(record.name) === target && (maxPoints === null || record.points <= maxPoints);
   });
   if (!matches.length) return 0;
-  const holder = await redis<string | null>("HGET", namesKey(month), target);
+  const [holder, ...groupLists] = await Promise.all([redis<string | null>("HGET", namesKey(month), target), ...matches.map(memberGroups)]);
   await redisTransaction([
-    ...matches.flatMap((id) => [
+    ...matches.flatMap((id, index) => [
       ["ZREM", boardKey(month, "all"), id],
       ["ZREM", boardKey(month, zone), id],
+      ...leaveGroupsCommands(id, month, groupLists[index]),
       ["DEL", memberKey(id)],
       ["SET", removedKey(id), "1", "EX", REMOVED_MARKER_S],
     ]),
@@ -220,7 +258,11 @@ const toRow = (rank: number, record: MemberRecord, isMe: boolean): LeaderboardRo
 
 export async function readLeaderboard(scope: LeaderboardScope, me: string | null, now = Date.now()): Promise<LeaderboardResponse> {
   const month = istMonthKey(now);
-  const key = boardKey(month, scope);
+  return readBoard(boardKey(month, scope), month, me);
+}
+
+// The top of one month's board (`key`), and `me`'s own row wherever it is.
+export async function readBoard(key: string, month: string, me: string | null): Promise<LeaderboardResponse> {
   // Only members with points this month are listed and counted (scores are
   // points plus a fraction under 1, so ">= 1" means at least one charge);
   // someone who joined but hasn't charged sees their own status only.

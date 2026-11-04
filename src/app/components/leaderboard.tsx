@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { displayNameFrom, validateDisplayName, type LeaderboardResponse, type LeaderboardRow, type LeaderboardScope } from "../lib/leaderboard";
 import { ZONE_LABELS, zoneOf } from "../lib/places";
 import { BottomNav, TopBar } from "./app-shell";
@@ -20,35 +20,40 @@ import { joinedMessage, joinLeaderboard, leaveLeaderboard, useLeaderboardMembers
 export const LEFT_MESSAGE = "You've left the leaderboard";
 export const LEAVE_PENDING_MESSAGE = "You've left. Your name will be removed from the board as soon as you're back online.";
 
-type BoardState = { status: "loading" } | { status: "ready"; data: LeaderboardResponse } | { status: "error" } | { status: "unavailable" };
+// "missing": the server has no such board (a group code that's gone).
+export type BoardState<T = LeaderboardResponse> = { status: "loading" } | { status: "ready"; data: T } | { status: "error" } | { status: "unavailable" } | { status: "missing" };
 
-// Fetches the board for `scope`; `refresh` bumps (after joining or leaving)
+// Fetches a board from `url`; `refresh` bumps (after joining or leaving)
 // and accepted syncs (a newly logged charge) reload it. The result is tagged
-// with its request so a response never shows under a different scope; while
+// with its request so a response never shows under a different board; while
 // the same board reloads, the previous result stays up instead of "Loading".
-function useBoard(scope: LeaderboardScope, me: string | null, refresh: number): BoardState {
+export function useBoardData<T>(url: string, refresh: number): BoardState<T> {
   const version = useLeaderboardVersion();
-  const view = `${scope}|${me ?? ""}`;
-  const request = `${view}|${refresh}|${version}`;
-  const [result, setResult] = useState<{ request: string; view: string; state: BoardState } | null>(null);
+  const request = `${url}|${refresh}|${version}`;
+  const [result, setResult] = useState<{ request: string; view: string; state: BoardState<T> } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    const query = new URLSearchParams({ scope });
-    if (me) query.set("me", me);
-    fetch(`/api/leaderboard?${query}`, { cache: "no-store" })
-      .then(async (response): Promise<BoardState> => {
+    fetch(url, { cache: "no-store" })
+      .then(async (response): Promise<BoardState<T>> => {
         if (response.status === 503) return { status: "unavailable" };
+        if (response.status === 404) return { status: "missing" };
         if (!response.ok) return { status: "error" };
-        return { status: "ready", data: await response.json() as LeaderboardResponse };
+        return { status: "ready", data: await response.json() as T };
       })
-      .catch((): BoardState => ({ status: "error" }))
-      .then((state) => { if (!cancelled) setResult({ request, view, state }); });
+      .catch((): BoardState<T> => ({ status: "error" }))
+      .then((state) => { if (!cancelled) setResult({ request, view: url, state }); });
     return () => { cancelled = true; };
-  }, [scope, me, view, request]);
+  }, [url, request]);
 
   if (result?.request === request) return result.state;
-  return result?.view === view && result.state.status === "ready" ? result.state : { status: "loading" };
+  return result?.view === url && result.state.status === "ready" ? result.state : { status: "loading" };
+}
+
+function useBoard(scope: LeaderboardScope, me: string | null, refresh: number) {
+  const query = new URLSearchParams({ scope });
+  if (me) query.set("me", me);
+  return useBoardData<LeaderboardResponse>(`/api/leaderboard?${query}`, refresh);
 }
 
 function LeaderboardItem({ row }: { row: LeaderboardRow }) {
@@ -72,13 +77,14 @@ function LeaderboardList({ rows, me }: { rows: LeaderboardRow[]; me: Leaderboard
   </ol>;
 }
 
-function BoardBody({ state, limit, retry }: { state: BoardState; limit: number; retry: () => void }) {
+// `empty`: what to say when nobody has a point yet this month.
+export function BoardBody({ state, limit, retry, empty = "Nobody is on the leaderboard yet this month. Join and invite friends who charge an EV." }: { state: BoardState<LeaderboardResponse>; limit: number; retry: () => void; empty?: string }) {
   if (state.status === "loading") return <p className="personal-note">Loading the leaderboard…</p>;
   if (state.status !== "ready") return <p className="personal-note">Couldn&apos;t load the leaderboard. <button type="button" className="text-button" onClick={retry}>Try again</button></p>;
   const { rows, me, total } = state.data;
   // Only members with points this month are listed.
   const notYet = me !== null && me.points === 0;
-  if (!rows.length) return <p className="personal-note">{notYet ? "You're in. Log a charge this month to appear on the board." : "Nobody is on the leaderboard yet this month. Join and invite friends who charge an EV."}</p>;
+  if (!rows.length) return <p className="personal-note">{notYet ? "You're in. Log a charge this month to appear on the board." : empty}</p>;
   return <>
     {me && (notYet ? <p className="leaderboard-summary">You&apos;re in. Log a charge this month to appear on the board.</p> : <p className="leaderboard-summary">You&apos;re <b>#{me.rank}</b> of {total} this month</p>)}
     <LeaderboardList rows={rows.slice(0, limit)} me={notYet ? null : me}/>
@@ -124,8 +130,9 @@ function BoardName({ name, onChange }: { name: string; onChange: () => void }) {
   return <p className="personal-note">On the board as <b>{name}</b> · <button type="button" className="text-button" onClick={onChange}>Change<span className="sr-only"> display name</span></button></p>;
 }
 
-// Rewards page: the user's rank and the top 5 for All India.
-export function LeaderboardCard() {
+// Rewards page: the user's rank and the top 5 for All India. `after` (the
+// groups card) shows below it, and hides with it when there's no leaderboard.
+export function LeaderboardCard({ after }: { after?: ReactNode }) {
   const membership = useLeaderboardMembership();
   const [joinOpen, setJoinOpen] = useState(false);
   const [renameOpen, setRenameOpen] = useState(false);
@@ -142,6 +149,7 @@ export function LeaderboardCard() {
       {membership ? <BoardName name={membership.name} onChange={() => setRenameOpen(true)}/> : <button className="primary-button" onClick={() => setJoinOpen(true)}>Join the leaderboard</button>}
       <Link className="forecast-button" href="/rewards/leaderboard">See full leaderboard <Icon name="arrow" size={18}/></Link>
     </section>
+    {after}
     {joinOpen && <NameModal onClose={() => setJoinOpen(false)} onDone={() => { setJoinOpen(false); setRefresh((n) => n + 1); }}/>}
     {renameOpen && membership && <NameModal currentName={membership.name} onClose={() => setRenameOpen(false)} onDone={() => { setRenameOpen(false); setRefresh((n) => n + 1); }}/>}
   </>;

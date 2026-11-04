@@ -11,6 +11,7 @@ import { BottomNav, TopBar } from "./app-shell";
 import { LocationModal } from "./location-modal";
 import { PageHeader } from "./page-header";
 import { LeaderboardCard } from "./leaderboard";
+import { GroupsCard } from "./groups";
 import { CountUp, ProgressFill } from "./motion";
 
 const BADGE_ICONS: Record<string, IconName> = {
@@ -49,7 +50,7 @@ export function RewardsScreen() {
         {ready && !charges.length && <p className="personal-note">No charges yet. <Link className="text-button" href="/log?quick=1">Log your first charge</Link> to start earning points.</p>}
       </section>
 
-      <LeaderboardCard/>
+      <LeaderboardCard after={<GroupsCard/>}/>
 
       <section className="activity">
         <div className="section-head"><h2>Achievements</h2><span className="chip">{unlockedCount} of {badges.length} unlocked</span></div>

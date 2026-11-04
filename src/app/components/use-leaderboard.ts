@@ -24,6 +24,9 @@ export function useLeaderboardMembership() {
   return useSyncExternalStore(store.subscribe, store.getSnapshot, store.getServerSnapshot);
 }
 
+// The membership outside React (group calls need its id and key).
+export const getLeaderboardMembership = () => store.getSnapshot();
+
 function submit(membership: Membership, zone: Zone, charges: Charge[]) {
   return fetch("/api/leaderboard/member", {
     method: "POST",
