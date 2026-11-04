@@ -25,6 +25,7 @@ import { leaveLeaderboard, useLeaderboardMembership } from "./use-leaderboard";
 import { LEAVE_PENDING_MESSAGE, LEFT_MESSAGE } from "./leaderboard";
 import { CountUp } from "./motion";
 import { forgetChargerLocation } from "./use-charger-location";
+import { resetPlannerSettings } from "./use-planner-settings";
 
 // The Profile & vehicle field to focus: the one the user tapped to fill in.
 type EditField = "name" | "vehicle" | "price";
@@ -102,6 +103,7 @@ export function ProfileScreen({ shareLastMonth = false }: { shareLastMonth?: boo
     void leaveLeaderboard();
     resetIntroSeen();
     forgetChargerLocation();
+    resetPlannerSettings();
     // Small per-device records with no store of their own: today's clean-grid
     // alert and the last leaderboard score sent.
     for (const key of ["zeroemit-clean-alert", "zeroemit-leaderboard-synced"]) { try { window.localStorage.removeItem(key); } catch { /* storage unavailable */ } }

@@ -44,4 +44,13 @@ describe("chargingWindowIcs", () => {
   test("lines are folded at 75 bytes, counting multi-byte characters", () => {
     for (const line of lines) expect(new TextEncoder().encode(line).length).toBeLessThanOrEqual(75);
   });
+
+  test("a planned charge has its own wording and a UID apart from the window's", () => {
+    const plan = chargingWindowIcs({ ...window, kind: "plan", summary: "Plug in your EV", description: "Add 10 kWh; before 7:00 am", alarm: "Plug in now" }, NOW);
+    expect(plan).toContain("SUMMARY:Plug in your EV\r\n");
+    expect(plan).toContain("DESCRIPTION:Add 10 kWh\\; before 7:00 am\r\n");
+    expect(plan).toContain("DESCRIPTION:Plug in now\r\n");
+    expect(plan.match(/UID:.*\r\n/)?.[0]).toStartWith("UID:plan-");
+    expect(plan.match(/UID:.*\r\n/)?.[0]).not.toBe(ics.match(/UID:.*\r\n/)?.[0]);
+  });
 });

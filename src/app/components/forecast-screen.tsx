@@ -14,6 +14,7 @@ import { PageHeader } from "./page-header";
 import { ForecastChart } from "./forecast-chart";
 import { AddToCalendarButton, addWindowToCalendar } from "./add-to-calendar";
 import { reducedMotion } from "./motion";
+import { PlanChargeLink } from "./planner-screen";
 
 type Day = "today" | "tomorrow";
 const DAYS: { key: Day; label: string }[] = [{ key: "today", label: "Today" }, { key: "tomorrow", label: "Tomorrow" }];
@@ -79,6 +80,8 @@ export function ForecastScreen() {
         {/* A failed update keeps the last good forecast on screen; say so. */}
         {error && data?.available && <p className="personal-note" role="status">{error.replace(/\.?$/, ".")} Showing the last forecast loaded. {retry}</p>}
       </section>
+
+      <PlanChargeLink/>
 
       <section className="activity" ref={windowsRef}>
         <h2>Top charging windows {day === "today" ? "today" : "tomorrow"}</h2>

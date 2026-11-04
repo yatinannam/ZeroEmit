@@ -18,6 +18,7 @@ import { AddToCalendarButton } from "./add-to-calendar";
 import { StationsCard } from "./stations";
 import { forgetChargerLocation } from "./use-charger-location";
 import { CountUp } from "./motion";
+import { PlanChargeLink } from "./planner-screen";
 
 // The page is prerendered at build time, so the greeting can't be computed
 // during render — it would bake in the build machine's hour and mismatch on
@@ -82,6 +83,8 @@ export function Dashboard() {
         {intensityDiff !== null && <p className="personal-note">{intensityDiff === 0 ? "About the same as your usual charging window." : `${Math.abs(intensityDiff)} gCO₂/kWh ${intensityDiff < 0 ? "lower" : "higher"} than your usual charging window.`}</p>}
         <Link className="forecast-button" href="/forecast">See full forecast <Icon name="arrow" size={18}/></Link>
       </section>
+
+      <PlanChargeLink/>
 
       <InstallPrompt/>
 

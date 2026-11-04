@@ -12,5 +12,6 @@ export default function manifest(): MetadataRoute.Manifest {
   shortcuts: [
     { name: "Log a charge", url: "/log?quick=1", icons: [{ src: "/icons/icon-192.png", sizes: "192x192" }] },
     { name: "Today's forecast", short_name: "Forecast", url: "/forecast", icons: [{ src: "/icons/icon-192.png", sizes: "192x192" }] },
+    { name: "Plan a charge", short_name: "Plan", url: "/forecast/plan", icons: [{ src: "/icons/icon-192.png", sizes: "192x192" }] },
   ] };
 }

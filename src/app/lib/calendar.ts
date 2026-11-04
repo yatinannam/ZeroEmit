@@ -1,7 +1,9 @@
 // A calendar event (.ics, RFC 5545) for a recommended charging window, so a
 // driver can put it in their own calendar — works on every phone, with or
 // without push notifications.
-export type CalendarWindow = { start: string; end: string; average: number; placeLabel: string; gridLabel: string };
+// `summary`, `description` and `alarm` replace the window's wording, for a
+// planned charge (lib/planner.ts); `kind` keeps its UID apart from a window's.
+export type CalendarWindow = { start: string; end: string; average: number; placeLabel: string; gridLabel: string; kind?: "window" | "plan"; summary?: string; description?: string; alarm?: string };
 
 // UTC "basic" form: 20261030T063000Z. Calendars show it in their own timezone.
 const icsTime = (value: string | number) => new Date(value).toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
@@ -32,17 +34,17 @@ export function chargingWindowIcs(window: CalendarWindow, now = Date.now()) {
     "METHOD:PUBLISH",
     "BEGIN:VEVENT",
     // Same window, same UID: adding it again updates the event, not a duplicate.
-    `UID:${icsTime(window.start)}-${window.placeLabel.toLowerCase().replace(/[^a-z0-9]+/g, "-")}@zero-emit.vercel.app`,
+    `UID:${window.kind === "plan" ? "plan-" : ""}${icsTime(window.start)}-${window.placeLabel.toLowerCase().replace(/[^a-z0-9]+/g, "-")}@zero-emit.vercel.app`,
     `DTSTAMP:${icsTime(now)}`,
     `DTSTART:${icsTime(window.start)}`,
     `DTEND:${icsTime(window.end)}`,
-    "SUMMARY:Charge your EV (cleanest window)",
+    `SUMMARY:${escapeText(window.summary ?? "Charge your EV (cleanest window)")}`,
     `LOCATION:${escapeText(window.placeLabel)}`,
-    `DESCRIPTION:${escapeText(`About ${Math.round(window.average)} gCO₂/kWh on average, one of the cleanest stretches of the day on the ${window.gridLabel}. Times from ZeroEmit: https://zero-emit.vercel.app`)}`,
+    `DESCRIPTION:${escapeText(window.description ?? `About ${Math.round(window.average)} gCO₂/kWh on average, one of the cleanest stretches of the day on the ${window.gridLabel}. Times from ZeroEmit: https://zero-emit.vercel.app`)}`,
     "BEGIN:VALARM",
     "TRIGGER:-PT10M",
     "ACTION:DISPLAY",
-    "DESCRIPTION:Your cleanest charging window starts in 10 minutes",
+    `DESCRIPTION:${escapeText(window.alarm ?? "Your cleanest charging window starts in 10 minutes")}`,
     "END:VALARM",
     "END:VEVENT",
     "END:VCALENDAR",

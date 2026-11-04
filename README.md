@@ -1,6 +1,6 @@
 # ZeroEmit
 
-A mobile-first Next.js PWA that tells EV drivers in India when their regional grid is cleanest, scores charges by how well they were timed, and runs an opt-in monthly leaderboard and scheduled Web Push reminders.
+A mobile-first Next.js PWA that tells EV drivers in India when their regional grid is cleanest, plans a charge around it, scores charges by how well they were timed, and runs an opt-in monthly leaderboard and scheduled Web Push reminders.
 
 Live at [zero-emit.vercel.app](https://zero-emit.vercel.app). The exhibition poster (PNG/PDF, with editable HTML source) is in [`docs/poster`](docs/poster).
 
@@ -75,6 +75,7 @@ Tests sit next to the code as `*.test.ts` and run under `bun test`. `tsconfig.js
 | --- | --- | --- |
 | `/` | Dashboard | Today's best 2-hour window, live intensity, metrics, streak, tomorrow's best, nearest chargers |
 | `/forecast` | Forecast | Hourly chart and top windows for today/tomorrow (`?day=tomorrow`); tap a window to add it to the calendar |
+| `/forecast/plan` | Charge planner | Energy to add, charger speed and a ready-by time give the cleanest start; add it to the calendar (see [Charge planner](#charge-planner-libplannerts)) |
 | `/log` | Charge log | History, add/delete with undo; `?quick=1` opens the form (used by notification actions) |
 | `/stations` | Chargers | Leaflet map and up to 20 nearest chargers within 30 km |
 | `/rewards` | Rewards | Points, levels, badges, how to earn |
@@ -99,6 +100,7 @@ Main keys, all prefixed `zeroemit-`:
 | `notification-prefs` | Per-kind switches |
 | `theme` | `system`/`light`/`dark` |
 | `leaderboard`, `leaderboard-pending-join`, `leaderboard-pending-leave`, `leaderboard-synced` | Membership (`id`, `key`, name, zone) and retry queues |
+| `planner` | The planner's last `kwh` (null means "use my usual charge"), `charger` and `readyBy` (`HH:MM`) |
 | `intro-seen`, `install-dismissed`, `chargers-near-me`, `push-active`, `clean-alert` | UI flags |
 
 ### First load and hydration
@@ -119,6 +121,17 @@ Main keys, all prefixed `zeroemit-`:
 - Handles `push` and `notificationclick`; a click focuses an open window or opens the notification's URL, including the "Log a charge" action.
 
 `sw.js` itself is served with `no-store` and a strict CSP (`next.config.ts`). All responses get `nosniff`, `X-Frame-Options: DENY` and a strict referrer policy.
+
+## Charge planner (`lib/planner.ts`)
+
+The planner answers "I need this much charge by this time: when should I plug in?". It runs on the device from the same `/api/grid` answer as the forecast, so it costs no extra requests.
+
+- **Inputs.** Energy to add (0.5–150 kWh; defaults to the average charge in the chosen city, else 10 kWh), a charger (scooter 0.75 kW, home socket 3.3 kW, wallbox 7.2 kW, DC fast 30 kW) and a ready-by clock time. The deadline is the next time the clock reads that time in IST.
+- **Duration.** `kWh ÷ kW`, rounded up to 5 minutes. It assumes the charger's full speed; the page says to leave spare time because cars slow down near 100%.
+- **Curve.** The forecast with the live reading merged in as "now" (`mergeLiveReading`). Each point covers its whole hour, and a charge's average is weighted by the minutes it spends in each hour (`averageBetween`).
+- **Search.** On an hourly step curve, a fixed-length stretch averages lowest with its start or its end on an hour boundary, or at a limit (now, or the latest start that still finishes by the deadline). `planCharge` compares only those starts. Ties go to the earlier start.
+- **Results.** `plan` (start, end, average, the average if plugged in now, grams saved, % cleaner), `short` (not enough time; how many kWh plugging in now adds by the deadline), `beyond` (the deadline is past the end of the forecast) or `no-data`.
+- **Extras.** The plan shows the timing bonus its start would earn when logged (same `chargeTiming` as the log form), a chart band for the charge, and an Add to calendar event with a 10-minute alarm (`chargingWindowIcs` with `kind: "plan"`, so its UID never clashes with a window's).
 
 ## Scoring (`lib/rewards.ts`, `lib/timing.ts`)
 

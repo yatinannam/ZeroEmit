@@ -2,7 +2,7 @@
 
 import { useLayoutEffect, useRef } from "react";
 import gsap from "gsap";
-import { formatShortHour, type ChargeWindow, type ForecastPoint } from "../lib/grid";
+import { formatShortHour, HOUR_MS, type ChargeWindow, type ForecastPoint } from "../lib/grid";
 import { reducedMotion } from "./motion";
 
 const WIDTH = 328;
@@ -22,7 +22,9 @@ export function chartDomain(values: number[]): [number, number] {
   return [Math.max(0, min - span), max + span * 0.1];
 }
 
-export function ForecastChart({ points, highlight }: { points: ForecastPoint[]; highlight: ChargeWindow | null }) {
+// `highlight` bands a 2-hour window; `span` bands any stretch of time
+// instead (a planned charge, lib/planner.ts), from and to timestamps.
+export function ForecastChart({ points, highlight, span = null }: { points: ForecastPoint[]; highlight: ChargeWindow | null; span?: { start: number; end: number } | null }) {
   const svg = useRef<SVGSVGElement>(null);
   const shape = points.map((point) => point.carbonIntensity).join();
 
@@ -55,6 +57,10 @@ export function ForecastChart({ points, highlight }: { points: ForecastPoint[]; 
   // 11 pm – 1 am), so clamp the band to the plotted range.
   const bandStart = highlight ? points.findIndex((point) => point.datetime === highlight.start.datetime) : -1;
   const bandEnd = bandStart >= 0 ? Math.min(bandStart + 2, points.length - 1) : -1;
+  // Points sit one hour apart, so a time maps onto x in proportion.
+  const firstHour = Date.parse(points[0].datetime);
+  const xAt = (timestamp: number) => Math.min(Math.max(((timestamp - firstHour) / HOUR_MS / (points.length - 1)) * WIDTH, 0), WIDTH);
+  const band = span ? { from: xAt(span.start), to: xAt(span.end) } : bandStart >= 0 ? { from: x(bandStart), to: x(bandEnd) } : null;
 
   // Evenly spaced whole-hour ticks (every `step` hours), plus the last point
   // unless it would crowd the previous tick.
@@ -64,7 +70,7 @@ export function ForecastChart({ points, highlight }: { points: ForecastPoint[]; 
   if (lastIndex - tickIndexes[tickIndexes.length - 1] >= step / 2) tickIndexes.push(lastIndex);
 
   return <svg ref={svg} className="forecast-chart" viewBox={`0 0 ${WIDTH} ${HEIGHT}`} role="img" aria-label="Carbon intensity by hour">
-    {bandStart >= 0 && <rect className="forecast-chart-band" x={x(bandStart)} y={TOP_PAD} width={Math.max(x(bandEnd) - x(bandStart), 4)} height={plotHeight}/>}
+    {band && <rect className="forecast-chart-band" x={band.from} y={TOP_PAD} width={Math.max(band.to - band.from, 4)} height={plotHeight}/>}
     <line className="forecast-chart-baseline" x1="0" y1={baseline} x2={WIDTH} y2={baseline}/>
     <path className="forecast-chart-area" d={areaPath}/>
     <path className="forecast-chart-line" d={linePath}/>
