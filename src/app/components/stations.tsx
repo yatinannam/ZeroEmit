@@ -4,7 +4,7 @@ import Link from "next/link";
 import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
 import { placeLabel, type Place } from "../lib/places";
-import { addChargerUrl, chargerSearchUrl, compassDirection, directionsUrl, STATIONS_RADIUS_M, type LatLon, type Station } from "../lib/stations";
+import { addChargerUrl, chargerSearchUrl, compassDirection, connectorsIn, directionsUrl, networksIn, STATIONS_RADIUS_M, type LatLon, type Station } from "../lib/stations";
 import { BottomNav, TopBar } from "./app-shell";
 import { Icon } from "./icon-set";
 import { LocationModal } from "./location-modal";
@@ -129,14 +129,32 @@ export function StationsScreen() {
   // Picking a city here means "show me chargers there", even with "Use my
   // location" on, so the list follows the toast's "Location set to …".
   const chooseCity = (next: Place) => { chooseLocation(next); charger.chooseCityCentre(); };
+  // Filter by network (most chargers name one) or by connector (few list
+  // them), among what the chargers found here have. A connector filter also
+  // says how many it had to leave out for listing none.
+  type Filter = { kind: "network" | "connector"; value: string };
+  const [filter, setFilter] = useState<Filter | null>(null);
+  const options: Filter[] = state.status === "ready" ? [...networksIn(state.stations).map((value) => ({ kind: "network" as const, value })), ...connectorsIn(state.stations).map((value) => ({ kind: "connector" as const, value }))] : [];
+  const active = filter && options.some((option) => option.kind === filter.kind && option.value === filter.value) ? filter : null;
+  const matches = (station: Station) => !active || (active.kind === "network" ? station.operator === active.value : station.connectors.includes(active.value));
+  const shown: StationsState = state.status === "ready" && active ? { ...state, stations: state.stations.filter(matches) } : state;
+  const unlisted = state.status === "ready" && active?.kind === "connector" ? state.stations.filter((station) => !station.connectors.length).length : 0;
   return <div className="mobile-app">
     <TopBar onChooseLocation={openLocation}/>
     <main className="dashboard-content">
       <PageHeader eyebrow="EV chargers" title={nearYou ? "Chargers near you" : ready ? `Chargers near ${place.name}` : "Chargers nearby"} intro={`Public EV chargers within ${RADIUS_KM} km, nearest first${nearYou || !ready ? "" : `, measured from the centre of ${placeLabel(place)}`}.`}/>
       <OriginControl place={place} ready={ready} {...charger}/>
       {/* The map's space is held while loading, so the list below doesn't jump. With none in range it shows the nearest farther away. */}
-      {state.status === "ready" ? <ChargerMap origin={state.origin} stations={state.stations.length ? state.stations : state.farther} nearYou={state.nearYou}/> : state.status === "loading" && <div className="charger-map charger-map-loading" aria-hidden="true"/>}
-      <section className="card stat-card stations-card"><StationsBody state={state} retry={retry} where={nearYou ? "you" : place.name} searchNear={nearYou ? "me" : placeLabel(place)} limit={20}/></section>
+      {options.length > 1 && <div className="connector-filter" role="group" aria-label="Filter chargers by network or connector">
+        <button type="button" aria-pressed={active === null} className={active === null ? "active" : ""} onClick={() => setFilter(null)}>All</button>
+        {options.map((option) => { const on = active?.kind === option.kind && active.value === option.value; return <button key={`${option.kind}:${option.value}`} type="button" aria-pressed={on} className={`${on ? "active" : ""}${option.kind === "connector" ? " connector-option" : ""}`} onClick={() => setFilter(option)}>{option.kind === "connector" ? <><Icon name="plug" size={14}/> {option.value}</> : option.value}</button>; })}
+      </div>}
+      {shown.status === "ready" ? <ChargerMap origin={shown.origin} stations={shown.stations.length ? shown.stations : active ? [] : shown.farther} nearYou={shown.nearYou}/> : shown.status === "loading" && <div className="charger-map charger-map-loading" aria-hidden="true"/>}
+      <section className="card stat-card stations-card">
+        {active && shown.status === "ready" && !shown.stations.length ? <p className="personal-note" role="status">None of the chargers within {RADIUS_KM} km {active.kind === "network" ? `are ${active.value}'s` : `list ${active.value}`}. <button type="button" className="text-button" onClick={() => setFilter(null)}>Show all</button></p>
+          : <StationsBody state={shown} retry={retry} where={nearYou ? "you" : place.name} searchNear={nearYou ? "me" : placeLabel(place)} limit={20}/>}
+        {active && unlisted > 0 && <p className="personal-note">{unlisted} {unlisted === 1 ? "charger doesn't" : "chargers don't"} list their connectors and {unlisted === 1 ? "is" : "are"} left out. <button type="button" className="text-button" onClick={() => setFilter(null)}>Show all</button></p>}
+      </section>
       <Attribution updatedAt={state.status === "ready" ? state.updatedAt : null}/>
     </main>
     <BottomNav/>

@@ -77,7 +77,7 @@ Tests sit next to the code as `*.test.ts` and run under `bun test`. `tsconfig.js
 | `/forecast` | Forecast | Hourly chart and top windows for the next 24 hours (default), today (`?day=today`) or tomorrow (`?day=tomorrow`); tap a window to add it to the calendar |
 | `/forecast/plan` | Charge planner | Energy to add, charger speed and a ready-by time give the cleanest start; add it to the calendar (see [Charge planner](#charge-planner-libplannerts)) |
 | `/log` | Charge log | History in month sections with each month's totals, each charge's chip coloured by its timing (best window, cleaner hour, other); add/delete with undo; charges logged as kWh or, once Profile knows the EV, as battery % (see [Vehicles](#vehicles-libvehiclests)); `?quick=1` opens the form (used by notification actions) |
-| `/stations` | Chargers | A tab of its own: Leaflet map and up to 20 nearest chargers within 30 km |
+| `/stations` | Chargers | A tab of its own: Leaflet map and up to 20 nearest chargers within 30 km, filtered by network (operator) or, where listed, connector |
 | `/rewards` | Rewards | Points, levels, badges, how to earn |
 | `/rewards/leaderboard` | Leaderboard | Join/rename/leave, all-India or per-zone board |
 | `/rewards/groups` | Groups | `?code=` a group's board with its invite code, share and leave; `?join=` (an invite link) also opens the join sheet; no query lists the device's groups |
@@ -89,6 +89,12 @@ Tests sit next to the code as `*.test.ts` and run under `bun test`. `tsconfig.js
 - The tab bar is Home, Forecast, Log, Chargers and Rewards; Profile is the top bar's avatar (the driver's initials once they've given a name). On desktop the tabs become a sidebar.
 - On phones the tab bar floats as frosted glass: a translucent background with `backdrop-filter: blur(22px) saturate(180%)`, a hairline border and an inner highlight, in light and dark. Browsers without `backdrop-filter` get the solid bar.
 - Card titles are sentence case; the page eyebrow is the only small-caps label left on a screen.
+
+### Reading the grid
+
+- **Low / Average / High.** Next to "Right now" (Home and Forecast), `intensityLevel` places the reading among its region's own day by IST hour: its cleanest third of hours is Low (green), its dirtiest third High (red), the rest Average (amber). Without at least 6 hours of the day to compare with there's no label.
+- **Chart reading.** Tap or drag sideways across a forecast chart (the page still scrolls vertically: `touch-action: pan-y`), hover with a mouse, or focus it and use the arrow keys, Home and End, to see an hour's value. To assistive tech it's a slider whose value is read out as "12:00 pm, 455 gCO₂/kWh".
+- **Charger filters.** Chips for the networks among the chargers found (up to 6, most common first; about 70% of mapped chargers name one) and for any connectors listed (only about 6% list them, so a connector filter says how many it left out).
 
 ### Local state
 

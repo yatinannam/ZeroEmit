@@ -18,6 +18,7 @@ import { StationsCard } from "./stations";
 import { forgetChargerLocation } from "./use-charger-location";
 import { CountUp } from "./motion";
 import { RecapBanner } from "./recap-banner";
+import { IntensityLevelChip } from "./intensity-level";
 
 // The page is prerendered at build time, so the greeting can't be computed
 // during render — it would bake in the build machine's hour and mismatch on
@@ -74,7 +75,7 @@ export function Dashboard() {
         <div className="time-range">{loading && !data ? <strong className="loading-value">Loading…</strong> : nextBest ? <><HeroTime datetime={nextBest.start.datetime} isNow={nextBest.start.isNow}/><span>–</span><HeroTime datetime={nextBest.end.datetime}/></> : <strong className="unavailable-value">Unavailable</strong>}</div>
         {heroNote && <p className="personal-note">{heroNote}</p>}
         {nextBest && !nextBest.start.isNow && <AddToCalendarButton window={nextBest} place={place}/>}
-        <div className="intensity"><span className="co2">CO₂</span> Right now <strong>{current ? `${Math.round(current.carbonIntensity)} gCO₂/kWh` : "Unavailable"}</strong></div>
+        <div className="intensity"><span className="co2">CO₂</span> Right now <strong>{current ? `${Math.round(current.carbonIntensity)} gCO₂/kWh` : "Unavailable"}</strong>{current && <IntensityLevelChip value={current.carbonIntensity} data={data} place={place}/>}</div>
         {intensityDiff !== null && <p className="personal-note">{intensityDiff === 0 ? "About the same as your usual charging window." : `${Math.abs(intensityDiff)} gCO₂/kWh ${intensityDiff < 0 ? "lower" : "higher"} than your usual charging window.`}</p>}
         <div className="hero-actions">
           <Link className="forecast-button" href="/forecast/plan"><Icon name="plug" size={18}/> Plan a charge</Link>

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { formatUpdatedAt, HOUR_MS, intensityAt, istHourStart, liveReading, planByDay, planNext24, relativeDay, type GridData } from "./grid";
+import { formatUpdatedAt, HOUR_MS, intensityAt, istHourStart, liveReading, planByDay, planNext24, relativeDay, intensityLevel, type GridData } from "./grid";
 
 const MINUTE_MS = 60_000;
 const hourly = (from: number, hours: number, value = 500) => Array.from({ length: hours }, (_, i) => ({ datetime: new Date(istHourStart(from) + i * HOUR_MS).toISOString(), carbonIntensity: value }));
@@ -87,5 +87,20 @@ describe("planNext24", () => {
     expect(relativeDay(Date.parse("2026-11-04T05:30:00Z"), now)).toBe("Today");
     expect(relativeDay(now + 20 * HOUR_MS, now)).toBe("Tomorrow");
     expect(relativeDay(now + 60 * HOUR_MS, now)).toBe("");
+  });
+});
+
+describe("intensityLevel", () => {
+  const day = Array.from({ length: 24 }, (_, hour) => 400 + hour * 10); // 400 … 630
+  test("thirds of the region's own day", () => {
+    expect(intensityLevel(410, day)).toBe("low");
+    expect(intensityLevel(520, day)).toBe("average");
+    expect(intensityLevel(600, day)).toBe("high");
+    expect(intensityLevel(900, day)).toBe("high");
+    expect(intensityLevel(100, day)).toBe("low");
+  });
+  test("no label without enough of a day to compare with", () => {
+    expect(intensityLevel(500, null)).toBeNull();
+    expect(intensityLevel(500, [400, 500, null, null])).toBeNull();
   });
 });

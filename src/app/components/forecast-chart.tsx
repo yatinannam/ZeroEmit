@@ -1,8 +1,8 @@
 "use client";
 
-import { useLayoutEffect, useRef } from "react";
+import { useLayoutEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
 import gsap from "gsap";
-import { formatShortHour, HOUR_MS, type ChargeWindow, type ForecastPoint } from "../lib/grid";
+import { formatHour, formatShortHour, HOUR_MS, type ChargeWindow, type ForecastPoint } from "../lib/grid";
 import { reducedMotion } from "./motion";
 
 const WIDTH = 328;
@@ -27,6 +27,10 @@ export function chartDomain(values: number[]): [number, number] {
 export function ForecastChart({ points, highlight, span = null }: { points: ForecastPoint[]; highlight: ChargeWindow | null; span?: { start: number; end: number } | null }) {
   const svg = useRef<SVGSVGElement>(null);
   const shape = points.map((point) => point.carbonIntensity).join();
+  // The hour being read: tap or drag across the chart (or use the arrow
+  // keys) to see its value. Tied to the curve, so new data starts clear.
+  const [reading, setReading] = useState<{ shape: string; index: number } | null>(null);
+  const activeIndex = reading?.shape === shape ? reading.index : null;
 
   // Draw the line in from the left each time a different day's curve
   // appears, then let the fill and the best-window band settle in.
@@ -69,12 +73,46 @@ export function ForecastChart({ points, highlight, span = null }: { points: Fore
   const tickIndexes = Array.from({ length: Math.floor(lastIndex / step) + 1 }, (_, i) => i * step);
   if (lastIndex - tickIndexes[tickIndexes.length - 1] > step / 2) tickIndexes.push(lastIndex);
 
-  return <svg ref={svg} className="forecast-chart" viewBox={`0 0 ${WIDTH} ${HEIGHT}`} role="img" aria-label="Carbon intensity by hour">
+  const read = (index: number | null) => setReading(index === null ? null : { shape, index: Math.min(Math.max(index, 0), lastIndex) });
+  const indexAt = (event: PointerEvent<SVGSVGElement>) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    return Math.round(((event.clientX - rect.left) / rect.width) * lastIndex);
+  };
+  // A mouse reads as it hovers; a finger reads where it touches and drags
+  // sideways (the page still scrolls up and down: touch-action: pan-y).
+  const onPointer = (event: PointerEvent<SVGSVGElement>) => {
+    // A mouse click shouldn't leave a keyboard focus ring round the chart.
+    if (event.type === "pointerdown" && event.pointerType === "mouse") event.preventDefault();
+    if (event.pointerType === "mouse" || event.buttons || event.type === "pointerdown") read(indexAt(event));
+  };
+  function onKeyDown(event: KeyboardEvent<SVGSVGElement>) {
+    const current = activeIndex ?? 0;
+    const next = event.key === "ArrowRight" ? current + 1 : event.key === "ArrowLeft" ? current - 1 : event.key === "Home" ? 0 : event.key === "End" ? lastIndex : null;
+    if (event.key === "Escape") { read(null); return; }
+    if (next === null) return;
+    event.preventDefault();
+    read(next);
+  }
+  const shownIndex = activeIndex ?? 0;
+  const label = (index: number) => `${index === 0 && points[0].isNow ? "Now" : formatHour(points[index].datetime)}, ${Math.round(points[index].carbonIntensity)} gCO₂/kWh`;
+  const tip = activeIndex === null ? null : { x: x(activeIndex), y: y(points[activeIndex].carbonIntensity), text: `${activeIndex === 0 && points[0].isNow ? "Now" : formatShortHour(points[activeIndex].datetime)} · ${Math.round(points[activeIndex].carbonIntensity)} g` };
+  const tipWidth = tip ? tip.text.length * 6.2 + 14 : 0;
+
+  // A slider to assistive tech: arrow keys move through the hours, and each
+  // value is read out with its time.
+  return <svg ref={svg} className="forecast-chart" viewBox={`0 0 ${WIDTH} ${HEIGHT}`} role="slider" tabIndex={0} aria-label="Carbon intensity by hour" aria-valuemin={0} aria-valuemax={lastIndex} aria-valuenow={shownIndex} aria-valuetext={label(shownIndex)}
+    onPointerDown={onPointer} onPointerMove={onPointer} onPointerLeave={(event) => { if (event.pointerType === "mouse") read(null); }} onKeyDown={onKeyDown} onBlur={() => read(null)}>
     {band && <rect className="forecast-chart-band" x={band.from} y={TOP_PAD} width={Math.max(band.to - band.from, 4)} height={plotHeight}/>}
     <line className="forecast-chart-baseline" x1="0" y1={baseline} x2={WIDTH} y2={baseline}/>
     <path className="forecast-chart-area" d={areaPath}/>
     <path className="forecast-chart-line" d={linePath}/>
     {points[0].isNow && <circle className="forecast-chart-dot" cx={x(0)} cy={y(points[0].carbonIntensity)} r="4"/>}
+    {tip && <g className="forecast-chart-reading" aria-hidden="true">
+      <line className="forecast-chart-cursor" x1={tip.x} y1={TOP_PAD} x2={tip.x} y2={baseline}/>
+      <circle className="forecast-chart-dot" cx={tip.x} cy={tip.y} r="4"/>
+      <rect className="forecast-chart-tip" x={Math.min(Math.max(tip.x - tipWidth / 2, 0), WIDTH - tipWidth)} y={0} width={tipWidth} height={18} rx={9}/>
+      <text className="forecast-chart-tip-text" x={Math.min(Math.max(tip.x, tipWidth / 2), WIDTH - tipWidth / 2)} y={12.5} textAnchor="middle">{tip.text}</text>
+    </g>}
     {tickIndexes.map((index) => <text key={index} className="forecast-chart-label" x={x(index)} y={HEIGHT - 4} textAnchor={index === 0 ? "start" : index === points.length - 1 ? "end" : "middle"}>{index === 0 && points[0].isNow ? "Now" : formatShortHour(points[index].datetime)}</text>)}
   </svg>;
 }

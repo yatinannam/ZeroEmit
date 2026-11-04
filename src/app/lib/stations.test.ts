@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { addChargerUrl, chargerOrigin, chargerSearchUrl, compactChargers, compassDirection, directionsUrl, distanceKm, INDIA_CHARGERS_QUERY, nearbyStations, normalizeOperator, parseOverpass, roundCoordinate, stationsAround } from "./stations";
+import { addChargerUrl, chargerOrigin, chargerSearchUrl, compactChargers, compassDirection, directionsUrl, distanceKm, INDIA_CHARGERS_QUERY, nearbyStations, normalizeOperator, parseOverpass, roundCoordinate, stationsAround, connectorsIn, networksIn } from "./stations";
 
 const PUNE = { lat: 18.5204, lon: 73.8567 };
 
@@ -186,5 +186,21 @@ describe("search area", () => {
   test("30 km by default, since India's mapped chargers are sparse outside city centres", () => {
     const far = [{ type: "node", id: 1, lat: 12.82 + 0.26, lon: 80.04, tags: {} }]; // ~29 km north
     expect(nearbyStations(far, { lat: 12.82, lon: 80.04 })).toHaveLength(1);
+  });
+});
+
+describe("networksIn", () => {
+  const station = (operator: string | null, id: string) => ({ id, name: "x", operator, lat: 0, lon: 0, distanceKm: 1, connectors: [], open24h: false });
+  test("most common first, unnamed ones ignored, capped", () => {
+    expect(networksIn([station("Statiq", "1"), station("Tata Power", "2"), station("Tata Power", "3"), station(null, "4")])).toEqual(["Tata Power", "Statiq"]);
+    expect(networksIn([station("A", "1"), station("B", "2"), station("C", "3")], 2)).toEqual(["A", "B"]);
+  });
+});
+
+describe("connectorsIn", () => {
+  const station = (connectors: string[]) => ({ id: connectors.join() || "none", name: "x", operator: null, lat: 0, lon: 0, distanceKm: 1, connectors, open24h: false });
+  test("most common first, ties by name, unlisted ones ignored", () => {
+    expect(connectorsIn([station(["Type 2"]), station(["CCS2", "Type 2"]), station(["CCS2"]), station([]), station(["CHAdeMO"])])).toEqual(["CCS2", "Type 2", "CHAdeMO"]);
+    expect(connectorsIn([])).toEqual([]);
   });
 });

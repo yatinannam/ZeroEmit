@@ -15,6 +15,7 @@ import { ForecastChart } from "./forecast-chart";
 import { AddToCalendarButton, addWindowToCalendar } from "./add-to-calendar";
 import { reducedMotion } from "./motion";
 import { PlanChargeLink } from "./planner-screen";
+import { IntensityLevelChip } from "./intensity-level";
 
 // "next": the 24 hours from now, the default — late in the evening "today"
 // has almost nothing left, while the next clean window is what matters.
@@ -74,7 +75,7 @@ export function ForecastScreen() {
 
       <section className="card stat-card">
         <div className="recommendation-head">
-          <div><h2>Right now</h2>{loading && !data ? <strong className="stat-figure loading-value">…</strong> : current ? <strong className="stat-figure">{Math.round(current.carbonIntensity)} <small>gCO₂/kWh</small></strong> : <strong className="stat-figure unavailable-value">Unavailable</strong>}</div>
+          <div><h2>Right now</h2>{loading && !data ? <strong className="stat-figure loading-value">…</strong> : current ? <><strong className="stat-figure">{Math.round(current.carbonIntensity)} <small>gCO₂/kWh</small></strong><IntensityLevelChip value={current.carbonIntensity} data={data} place={place} long/></> : <strong className="stat-figure unavailable-value">Unavailable</strong>}</div>
           {data?.available && <span className="recommended">{data.forecastIsTypical ? "Typical pattern" : "Live forecast"}</span>}
         </div>
 

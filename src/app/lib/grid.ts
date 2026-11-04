@@ -122,6 +122,19 @@ export function relativeDay(timestamp: number, now = Date.now()) {
   return istDayKey(timestamp) === istDayKey(now + DAY_MS) ? "Tomorrow" : "";
 }
 
+// How a reading compares with the region's own day (`pattern`, by IST
+// hour): "low" among its cleanest third of hours, "high" among its dirtiest
+// third, "average" between. India's grid rarely looks clean in absolute
+// terms, so a number on its own ("688 gCO₂/kWh") says little to a driver.
+export type IntensityLevel = "low" | "average" | "high";
+export function intensityLevel(value: number, pattern: (number | null)[] | null): IntensityLevel | null {
+  const known = (pattern ?? []).filter((item): item is number => item !== null && Number.isFinite(item));
+  if (known.length < 6) return null;
+  const below = known.filter((item) => item < value).length / known.length;
+  return below < 1 / 3 ? "low" : below >= 2 / 3 ? "high" : "average";
+}
+export const INTENSITY_LEVEL_LABELS: Record<IntensityLevel, string> = { low: "Low", average: "Average", high: "High" };
+
 export const istHourOfDay = (timestamp: number) => Math.floor(((timestamp + IST_OFFSET_MS) % (24 * HOUR_MS)) / HOUR_MS);
 
 // Grid intensity for when a charge actually happened (not when it was logged):
