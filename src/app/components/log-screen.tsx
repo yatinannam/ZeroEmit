@@ -66,6 +66,9 @@ export function LogScreen({ quick = false }: { quick?: boolean }) {
   const battery = profile.batteryKwh ?? null;
   // The kWh a battery % gain works out to, shown live under the two fields.
   const percentKwh = form && battery ? kwhForPercent(battery, parsePercent(form.from) ?? NaN, parsePercent(form.to) ?? NaN) : null;
+  // Each way a % gain can't be saved gets its own message.
+  const percentOk = percentKwh !== null && percentKwh >= 0.1 && percentKwh <= MAX_KWH;
+  const percentProblem = percentKwh === null ? "Enter levels from 0 to 100%, with the battery after charging above where it started." : percentKwh < 0.1 ? "That's under 0.1 kWh. Check the levels, or log it in kWh." : `That's over ${MAX_KWH} kWh. Check your EV's battery size in Profile.`;
   const typicalTime = typicalChargeTime(cityCharges);
 
   // A section per month (IST, as the recap and leaderboard count them),
@@ -117,7 +120,7 @@ export function LogScreen({ quick = false }: { quick?: boolean }) {
     const byPercent = form?.mode === "percent" && battery !== null;
     const from = byPercent ? parsePercent(form.from) : null;
     const to = byPercent ? parsePercent(form.to) : null;
-    if (byPercent && (from === null || to === null || percentKwh === null)) { setFormError("Enter battery levels from 0 to 100%, with the second above the first."); return; }
+    if (byPercent && (from === null || to === null || !percentOk)) { setFormError(percentProblem); return; }
     const energy = byPercent ? percentKwh! : Number(data.get("energy"));
     const time = String(data.get("time"));
     const when = new Date(`${String(data.get("date"))}T${time}`).getTime();
@@ -193,15 +196,20 @@ export function LogScreen({ quick = false }: { quick?: boolean }) {
         <label>Date<input name="date" type="date" defaultValue={form.date} min={form.earliest} max={form.today} required onChange={() => setFormError("")}/></label>
         <label>Time<input name="time" type="time" defaultValue={form.time} required onChange={() => setFormError("")}/></label>
       </div>
-      {battery !== null && <div className="segmented" role="radiogroup" aria-label="Log the charge as">
-        {(["percent", "kwh"] as const).map((mode) => <button key={mode} type="button" role="radio" aria-checked={form.mode === mode} className={form.mode === mode ? "active" : ""} onClick={() => { setFormError(""); setForm({ ...form, mode }); }}>{mode === "percent" ? "Battery %" : "kWh"}</button>)}
+      {battery !== null && <div className="segmented" role="group" aria-label="Log the charge as">
+        {(["percent", "kwh"] as const).map((mode) => <button key={mode} type="button" aria-pressed={form.mode === mode} className={form.mode === mode ? "active" : ""} onClick={(event) => {
+          // A kWh figure typed before switching to % comes back when switching back.
+          const typed = event.currentTarget.form ? new FormData(event.currentTarget.form).get("energy") : null;
+          setFormError("");
+          setForm({ ...form, mode, energy: typed === null ? form.energy : String(typed) });
+        }}>{mode === "percent" ? "Battery %" : "kWh"}</button>)}
       </div>}
       {form.mode === "percent" && battery !== null ? <>
         <div className="form-row">
-          <label>Battery before (%)<input name="from" type="number" inputMode="numeric" min="0" max="99" step="1" value={form.from} required onChange={(event) => { setFormError(""); setForm({ ...form, from: event.target.value }); }}/></label>
-          <label>Battery after (%)<input name="to" type="number" inputMode="numeric" min="1" max="100" step="1" value={form.to} required onChange={(event) => { setFormError(""); setForm({ ...form, to: event.target.value }); }}/></label>
+          <label>Battery before (%)<input name="from" type="number" inputMode="numeric" min="0" max="99" step="1" value={form.from} required aria-describedby="log-percent-hint" aria-invalid={!percentOk} onChange={(event) => { setFormError(""); setForm({ ...form, from: event.target.value }); }}/></label>
+          <label>Battery after (%)<input name="to" type="number" inputMode="numeric" min="1" max="100" step="1" value={form.to} required aria-describedby="log-percent-hint" aria-invalid={!percentOk} onChange={(event) => { setFormError(""); setForm({ ...form, to: event.target.value }); }}/></label>
         </div>
-        <p className="form-hint" aria-live="polite">{percentKwh !== null ? `About ${percentKwh} kWh from the grid for your ${profile.vehicle || "EV"}'s ${battery} kWh battery, with about 10% lost as heat while charging.` : "The battery after charging should be above where it started."}</p>
+        <p id="log-percent-hint" className={percentOk ? "form-hint" : "form-hint form-error"}>{percentOk ? `About ${percentKwh} kWh from the grid for your ${battery} kWh battery (about 10% is lost as heat while charging).` : percentProblem}</p>
       </> : <label>Energy added (kWh)<input name="energy" type="number" inputMode="decimal" min="0.1" max={MAX_KWH} step="0.1" defaultValue={form.energy ?? (typicalEnergy ? Math.min(typicalEnergy, MAX_KWH).toFixed(1) : "18")} required onChange={() => setFormError("")}/></label>}
       {battery === null && <p className="form-hint">Prefer battery %? <Link className="text-button" href="/profile">Pick your EV in Profile</Link></p>}
       <p className="form-location">Location: {city} · <button type="button" className="text-button" aria-label={`Change location, ${city}`} onClick={changeLocation}>Change</button></p>

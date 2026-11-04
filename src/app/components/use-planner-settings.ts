@@ -20,7 +20,8 @@ function normalize(raw: unknown): PlannerSettings {
   const charger = CHARGERS.some((option) => option.key === value.charger) ? value.charger as ChargerKey : DEFAULT_CHARGER;
   const readyBy = typeof value.readyBy === "string" && /^([01]\d|2[0-3]):[0-5]\d$/.test(value.readyBy) ? value.readyBy : DEFAULT_SETTINGS.readyBy;
   const [from, to] = isPercent(value.from) && isPercent(value.to) && value.to > value.from ? [value.from, value.to] : [DEFAULT_SETTINGS.from, DEFAULT_SETTINGS.to];
-  return { kwh, charger, readyBy, byPercent: typeof value.byPercent === "boolean" ? value.byPercent : DEFAULT_SETTINGS.byPercent, from, to };
+  // Settings saved before % existed keep the kWh figure they had.
+  return { kwh, charger, readyBy, byPercent: typeof value.byPercent === "boolean" ? value.byPercent : kwh === null, from, to };
 }
 
 const store = createLocalStorageStore<PlannerSettings>(

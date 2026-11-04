@@ -18,7 +18,8 @@ function normalizeProfile(raw: unknown): Profile {
   const joinedAt = typeof value.joinedAt === "string" && !Number.isNaN(Date.parse(value.joinedAt)) ? value.joinedAt : undefined;
   const pricePerKwh = parsePricePerKwh(value.pricePerKwh);
   const vehicleKey = typeof value.vehicleKey === "string" && (value.vehicleKey === OTHER_VEHICLE || vehicleByKey(value.vehicleKey)) ? value.vehicleKey : undefined;
-  const batteryKwh = parseBatteryKwh(value.batteryKwh);
+  // A preset knows its own battery, even if an older save didn't keep it.
+  const batteryKwh = parseBatteryKwh(value.batteryKwh) ?? vehicleByKey(vehicleKey)?.batteryKwh ?? null;
   return { name: typeof value.name === "string" ? value.name : "", vehicle: typeof value.vehicle === "string" ? value.vehicle : "", ...(joinedAt ? { joinedAt } : {}), ...(pricePerKwh ? { pricePerKwh } : {}), ...(vehicleKey ? { vehicleKey } : {}), ...(batteryKwh ? { batteryKwh } : {}) };
 }
 

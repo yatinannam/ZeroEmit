@@ -35,7 +35,9 @@ function normalizeCharge(raw: Charge): Charge {
   // a damaged one is rebuilt or dropped rather than crash the app.
   const timed = typeof dated.chargedAt === "string" && /^\d{1,2}:\d{2}$/.test(dated.chargedAt) ? dated : { ...dated, chargedAt: timeOfDay(new Date(dated.loggedAt)) };
   const measured = Number.isFinite(timed.carbonIntensity) || timed.carbonIntensity === null ? timed : { ...timed, carbonIntensity: null };
-  if (measured.percentTo !== undefined && !(Number.isInteger(measured.percentFrom) && Number.isInteger(measured.percentTo) && measured.percentFrom! >= 0 && measured.percentTo <= 100 && measured.percentTo > measured.percentFrom!)) {
+  const { percentFrom: from, percentTo: to } = measured;
+  const percentValid = typeof from === "number" && typeof to === "number" && Number.isInteger(from) && Number.isInteger(to) && from >= 0 && to <= 100 && to > from;
+  if ((from !== undefined || to !== undefined) && !percentValid) {
     const { percentFrom, percentTo, ...rest } = measured;
     void percentFrom; void percentTo;
     return normalizeCharge(rest);

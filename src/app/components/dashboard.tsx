@@ -9,6 +9,8 @@ import { useProfile } from "./use-profile";
 import { useLocationPicker } from "./use-location-picker";
 import { currentStreakDays, estimatedCarbonSavedGrams, totalPoints } from "../lib/rewards";
 import { averageChargeIntensity } from "../lib/personalization";
+import { chargeTiming, hourlyPattern } from "../lib/timing";
+import { istHourOfDay } from "../lib/grid";
 import { Icon } from "./icon-set";
 import { BottomNav, TopBar } from "./app-shell";
 import { LocationModal } from "./location-modal";
@@ -61,7 +63,11 @@ export function Dashboard() {
   const updatedAt = data?.updatedAt ? formatUpdatedAt(data.updatedAt) : "";
   const intensityDiff = current && avgChargeIntensity !== null ? Math.round(current.carbonIntensity - avgChargeIntensity) : null;
   const heroPill = nextBest?.start.isNow ? "Charge now" : nextDay || "Recommended";
-  const heroNote = !nextBest ? "" : nextBest.start.isNow ? "The grid is cleaner right now than at any other time in the next 24 hours." : `${Math.round(nextBest.average)} gCO₂/kWh on average: the cleanest 2 hours in the next 24${data?.forecastIsTypical ? ", from your region's typical day" : ""}.`;
+  // The live reading can beat the region's usual cleanest hours, but the
+  // timing bonus goes by those usual hours: say so rather than imply points.
+  const pattern = data?.available ? hourlyPattern(data.forecast) : null;
+  const nowEarnsBest = Boolean(pattern && nextBest?.start.isNow && chargeTiming(pattern, istHourOfDay(Date.parse(nextBest.start.datetime))) === "best");
+  const heroNote = !nextBest ? "" : nextBest.start.isNow ? `The grid is cleaner right now than at any other time in the next 24 hours.${nowEarnsBest ? "" : " It isn't one of your region's usual cleanest hours, so there's no best-window bonus."}` : `${Math.round(nextBest.average)} gCO₂/kWh on average: the cleanest 2 hours in the next 24${data?.forecastIsTypical ? ", from your region's typical day" : ""}.`;
 
   return <div className="mobile-app">
     <TopBar onChooseLocation={openLocation}/>

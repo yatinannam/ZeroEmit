@@ -11,7 +11,7 @@ export default function manifest(): MetadataRoute.Manifest {
   // Long-press the home-screen icon to jump straight in.
   shortcuts: [
     { name: "Log a charge", url: "/log?quick=1", icons: [{ src: "/icons/icon-192.png", sizes: "192x192" }] },
-    { name: "Today's forecast", short_name: "Forecast", url: "/forecast", icons: [{ src: "/icons/icon-192.png", sizes: "192x192" }] },
+    { name: "Forecast for the next 24 hours", short_name: "Forecast", url: "/forecast", icons: [{ src: "/icons/icon-192.png", sizes: "192x192" }] },
     { name: "Plan a charge", short_name: "Plan", url: "/forecast/plan", icons: [{ src: "/icons/icon-192.png", sizes: "192x192" }] },
   ] };
 }

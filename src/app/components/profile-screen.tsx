@@ -48,7 +48,7 @@ function VehicleFields({ vehicle, vehicleKey, batteryKwh }: { vehicle: string; v
     {preset && <p className="form-hint">Battery about {preset.batteryKwh} kWh, so you can log charges by battery %.</p>}
     {choice === OTHER_VEHICLE && <div className="form-row">
       <label>Vehicle name<input name="vehicle" type="text" defaultValue={vehicle} placeholder="e.g. Tata Nexon EV" maxLength={60}/></label>
-      <label>Battery (kWh)<input name="batteryKwh" type="number" inputMode="decimal" step="0.1" min="1" max="200" defaultValue={vehicleKey === OTHER_VEHICLE || !vehicleKey ? batteryKwh ?? "" : ""} placeholder="e.g. 30"/></label>
+      <label>Battery (kWh)<input name="batteryKwh" type="number" inputMode="decimal" step="0.1" min="1" max="135" defaultValue={vehicleKey === OTHER_VEHICLE || !vehicleKey ? batteryKwh ?? "" : ""} placeholder="e.g. 30"/></label>
     </div>}
   </>;
 }
@@ -89,7 +89,7 @@ export function ProfileScreen({ shareLastMonth = false }: { shareLastMonth?: boo
   const leaderboardMember = useLeaderboardMembership();
   const { charges, ready: chargesReady, clearCharges } = useCharges();
   const { profile, updateProfile, resetProfile } = useProfile();
-  const { update: updatePlanner } = usePlannerSettings();
+  const { settings: plannerSettings, update: updatePlanner } = usePlannerSettings();
 
   const points = totalPoints(charges);
   const streak = currentStreakDays(charges);
@@ -120,8 +120,13 @@ export function ProfileScreen({ shareLastMonth = false }: { shareLastMonth?: boo
     const vehicle = preset ? preset.name : key === OTHER_VEHICLE ? String(form.get("vehicle") || "").trim() : "";
     const batteryKwh = preset ? preset.batteryKwh : key === OTHER_VEHICLE ? parseBatteryKwh(form.get("batteryKwh")) ?? undefined : undefined;
     updateProfile({ ...profile, name: String(form.get("name") || "").trim(), vehicle, vehicleKey: key || undefined, batteryKwh, pricePerKwh: parsePricePerKwh(form.get("price")) ?? undefined });
-    // A new EV also picks the planner's usual charger for it.
-    if (preset && key !== profile.vehicleKey) updatePlanner({ charger: preset.kind === "scooter" ? "scooter" : "socket" });
+    // A new EV only changes the planner's charger when the one set can't be
+    // its own: a scooter charger for a car, or a car's charger for a scooter.
+    if (preset && key !== profile.vehicleKey) {
+      const scooter = preset.kind === "scooter";
+      if (scooter && plannerSettings.charger !== "scooter") updatePlanner({ charger: "scooter" });
+      else if (!scooter && plannerSettings.charger === "scooter") updatePlanner({ charger: "socket" });
+    }
     setEditing(null);
     showToast("Profile updated");
   }

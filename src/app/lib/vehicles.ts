@@ -55,7 +55,8 @@ export const vehicleByKey = (key: string | undefined) => VEHICLES.find((vehicle)
 // charging (about 10% on AC), and the grid's carbon is in what the meter counts.
 export const CHARGING_EFFICIENCY = 0.9;
 const MIN_BATTERY_KWH = 1;
-const MAX_BATTERY_KWH = 200;
+// 135 kWh from 0 to 100% is the log's 150 kWh cap once charging losses are added.
+const MAX_BATTERY_KWH = 135;
 
 // A battery size typed in, or null when it isn't a sensible one.
 export function parseBatteryKwh(raw: unknown): number | null {

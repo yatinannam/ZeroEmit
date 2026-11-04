@@ -87,6 +87,11 @@ describe("planNext24", () => {
     expect(relativeDay(Date.parse("2026-11-04T05:30:00Z"), now)).toBe("Today");
     expect(relativeDay(now + 20 * HOUR_MS, now)).toBe("Tomorrow");
     expect(relativeDay(now + 60 * HOUR_MS, now)).toBe("");
+    // 9 pm: 2 am is tonight. 12:10 am: 2 am is tonight too, and noon is today.
+    expect(relativeDay(Date.parse("2026-11-04T20:30:00Z"), now)).toBe("Tonight");
+    const pastMidnight = Date.parse("2026-11-04T18:40:00Z");
+    expect(relativeDay(Date.parse("2026-11-04T20:30:00Z"), pastMidnight)).toBe("Tonight");
+    expect(relativeDay(Date.parse("2026-11-05T06:30:00Z"), pastMidnight)).toBe("Today");
   });
 });
 

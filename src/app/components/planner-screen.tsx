@@ -72,6 +72,8 @@ export function PlannerScreen() {
   const typedKwh = Number(kwhText);
   const percentKwh = battery !== null ? kwhForPercent(battery, parsePercent(percentText.from) ?? NaN, parsePercent(percentText.to) ?? NaN) : null;
   const kwh = byPercent ? (percentKwh !== null && isPlanKwh(percentKwh) ? percentKwh : null) : kwhText.trim() && isPlanKwh(typedKwh) ? typedKwh : null;
+  const percentValid = byPercent && kwh !== null;
+  const percentHint = percentKwh === null ? "Enter levels from 0 to 100%, with the wanted level above where the battery is now." : percentKwh < 0.5 ? "That's under 0.5 kWh, too little to plan. Raise the wanted level." : "That's over 150 kWh. Check your EV's battery size in Profile.";
   const kw = chargerKw(settings.charger);
   const readyBy = now ? nextOccurrence(timeDraft ?? settings.readyBy, now) : null;
 
@@ -91,12 +93,18 @@ export function PlannerScreen() {
     if (value.trim() && isPlanKwh(parsed)) update({ kwh: parsed });
   }
 
+  // The plan follows what's typed at once; the pair is saved (for next
+  // time) once focus leaves both fields with a valid gain.
   function changePercent(field: "from" | "to", value: string) {
-    const next = { ...percentText, [field]: value };
-    setPercentDraft(next);
-    const from = parsePercent(next.from);
-    const to = parsePercent(next.to);
-    if (from !== null && to !== null && to > from) update({ from, to });
+    setPercentDraft({ ...percentText, [field]: value });
+  }
+
+  function leavePercent() {
+    const from = parsePercent(percentText.from);
+    const to = parsePercent(percentText.to);
+    if (!percentValid || from === null || to === null) return;
+    update({ from, to });
+    setPercentDraft(null);
   }
 
   function changeTime(value: string) {
@@ -142,14 +150,16 @@ export function PlannerScreen() {
           <h2 id="planner-form-title">Your charge</h2>
           <div className="planner-field">
             <label htmlFor={byPercent ? "planner-from" : "planner-kwh"}>Energy to add</label>
-            {battery !== null && <div className="segmented" role="radiogroup" aria-label="Energy as">
-              {([true, false] as const).map((percent) => <button key={String(percent)} type="button" role="radio" aria-checked={byPercent === percent} className={byPercent === percent ? "active" : ""} onClick={() => update({ byPercent: percent })}>{percent ? "Battery %" : "kWh"}</button>)}
+            {battery !== null && <div className="segmented" role="group" aria-label="Energy as">
+              {([true, false] as const).map((percent) => <button key={String(percent)} type="button" aria-pressed={byPercent === percent} className={byPercent === percent ? "active" : ""} onClick={() => update({ byPercent: percent })}>{percent ? "Battery %" : "kWh"}</button>)}
             </div>}
-            {byPercent ? <div className="form-row planner-percent">
-              <span className="input-with-unit"><input id="planner-from" type="number" inputMode="numeric" min="0" max="99" step="1" value={percentText.from} onChange={(event) => changePercent("from", event.target.value)} onBlur={() => setPercentDraft(null)} aria-label="Battery now, %" aria-invalid={kwh === null} aria-describedby="planner-kwh-hint"/><span aria-hidden="true">% now</span></span>
-              <span className="input-with-unit"><input type="number" inputMode="numeric" min="1" max="100" step="1" value={percentText.to} onChange={(event) => changePercent("to", event.target.value)} onBlur={() => setPercentDraft(null)} aria-label="Battery wanted, %" aria-invalid={kwh === null} aria-describedby="planner-kwh-hint"/><span aria-hidden="true">% wanted</span></span>
+            {/* What's typed stays until focus leaves both fields: leaving one
+                half-done (85 → 80) mustn't snap it back to an older value. */}
+            {byPercent ? <div className="form-row planner-percent" onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) leavePercent(); }}>
+              <span className="input-with-unit"><input id="planner-from" type="number" inputMode="numeric" min="0" max="99" step="1" value={percentText.from} onChange={(event) => changePercent("from", event.target.value)} aria-label="Battery now, %" aria-invalid={kwh === null} aria-describedby="planner-kwh-hint"/><span aria-hidden="true">% now</span></span>
+              <span className="input-with-unit"><input type="number" inputMode="numeric" min="1" max="100" step="1" value={percentText.to} onChange={(event) => changePercent("to", event.target.value)} aria-label="Battery wanted, %" aria-invalid={kwh === null} aria-describedby="planner-kwh-hint"/><span aria-hidden="true">% wanted</span></span>
             </div> : <span className="input-with-unit"><input id="planner-kwh" type="number" inputMode="decimal" min="0.5" max="150" step="0.1" value={kwhText} onChange={(event) => changeKwh(event.target.value)} onBlur={() => setKwhDraft(null)} aria-invalid={kwhInvalid} aria-describedby="planner-kwh-hint"/><span aria-hidden="true">kWh</span></span>}
-            <small id="planner-kwh-hint" className={kwhInvalid ? "form-error" : undefined}>{byPercent ? (kwh !== null ? `About ${formatKwh(kwh)} kWh from the grid for your ${battery} kWh battery.` : "The wanted level should be above where the battery is now.") : kwhInvalid ? "Enter between 0.5 and 150 kWh." : usual !== null ? `Your usual charge in ${place.name} is ${formatKwh(usual)} kWh.` : "A small car battery holds about 30 kWh; a scooter about 3."}</small>
+            <small id="planner-kwh-hint" className={kwhInvalid || (byPercent && !percentValid) ? "form-error" : undefined}>{byPercent ? (kwh !== null ? `About ${formatKwh(kwh)} kWh from the grid for your ${battery} kWh battery.` : percentHint) : kwhInvalid ? "Enter between 0.5 and 150 kWh." : usual !== null ? `Your usual charge in ${place.name} is ${formatKwh(usual)} kWh.` : "A small car battery holds about 30 kWh; a scooter about 3."}</small>
           </div>
 
           <fieldset className="planner-chargers">

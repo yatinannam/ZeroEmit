@@ -115,11 +115,15 @@ export function planNext24(data: GridData | null | undefined, now = Date.now()):
   return { points: merged.filter(within), windows: topWindows(merged, 2, 3, within) };
 }
 
-// "Today", "Tonight" (from 6 pm) or "Tomorrow" for a time in the next day
-// or so (IST); "" beyond that.
+// "Today", "Tonight" or "Tomorrow" for a time in the next day or so (IST);
+// "" beyond that. The night runs from 6 pm to 6 am: at 10 pm a 2 am start is
+// tonight, not tomorrow, and so it is at 12:10 am.
 export function relativeDay(timestamp: number, now = Date.now()) {
-  if (istDayKey(timestamp) === istDayKey(now)) return istHourOfDay(timestamp) >= 18 ? "Tonight" : "Today";
-  return istDayKey(timestamp) === istDayKey(now + DAY_MS) ? "Tomorrow" : "";
+  const hour = istHourOfDay(timestamp);
+  const nowHour = istHourOfDay(now);
+  if (istDayKey(timestamp) === istDayKey(now)) return hour >= 18 || (hour < 6 && nowHour < 6) ? "Tonight" : "Today";
+  if (istDayKey(timestamp) === istDayKey(now + DAY_MS)) return hour < 6 && nowHour >= 18 ? "Tonight" : "Tomorrow";
+  return "";
 }
 
 // How a reading compares with the region's own day (`pattern`, by IST
