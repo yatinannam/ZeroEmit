@@ -2,10 +2,13 @@
 import { useCallback, useSyncExternalStore } from "react";
 import { createLocalStorageStore } from "./local-storage-store";
 import { parsePricePerKwh } from "../lib/cost";
+import { OTHER_VEHICLE, parseBatteryKwh, vehicleByKey } from "../lib/vehicles";
 
 // `joinedAt` is when this device first finished setup (for "member since").
 // `pricePerKwh`: the driver's electricity price, for cost estimates.
-export type Profile = { name: string; vehicle: string; joinedAt?: string; pricePerKwh?: number };
+// `vehicleKey`: a preset from lib/vehicles.ts (or "other"), and
+// `batteryKwh` its usable battery, so charges can be logged by battery %.
+export type Profile = { name: string; vehicle: string; joinedAt?: string; pricePerKwh?: number; vehicleKey?: string; batteryKwh?: number };
 const STORAGE_KEY = "zeroemit-profile";
 const DEFAULT_PROFILE: Profile = { name: "", vehicle: "" };
 
@@ -14,7 +17,9 @@ function normalizeProfile(raw: unknown): Profile {
   const value = raw as Record<string, unknown>;
   const joinedAt = typeof value.joinedAt === "string" && !Number.isNaN(Date.parse(value.joinedAt)) ? value.joinedAt : undefined;
   const pricePerKwh = parsePricePerKwh(value.pricePerKwh);
-  return { name: typeof value.name === "string" ? value.name : "", vehicle: typeof value.vehicle === "string" ? value.vehicle : "", ...(joinedAt ? { joinedAt } : {}), ...(pricePerKwh ? { pricePerKwh } : {}) };
+  const vehicleKey = typeof value.vehicleKey === "string" && (value.vehicleKey === OTHER_VEHICLE || vehicleByKey(value.vehicleKey)) ? value.vehicleKey : undefined;
+  const batteryKwh = parseBatteryKwh(value.batteryKwh);
+  return { name: typeof value.name === "string" ? value.name : "", vehicle: typeof value.vehicle === "string" ? value.vehicle : "", ...(joinedAt ? { joinedAt } : {}), ...(pricePerKwh ? { pricePerKwh } : {}), ...(vehicleKey ? { vehicleKey } : {}), ...(batteryKwh ? { batteryKwh } : {}) };
 }
 
 const store = createLocalStorageStore<Profile>(

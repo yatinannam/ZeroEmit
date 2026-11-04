@@ -16,7 +16,8 @@ import type { ChargeTiming } from "../lib/timing";
 // `baselineIntensity`: the region's average intensity that day (gCO₂/kWh),
 // what CO₂ avoided is measured against; absent on older charges, which use
 // the fixed UNTIMED_CHARGE_BASELINE (lib/rewards.ts).
-export type Charge = { id: string; energyKwh: number; chargedAt: string; city: string; carbonIntensity: number | null; intensityClass?: string | null; intensitySource?: "live" | "typical"; timing?: ChargeTiming; baselineIntensity?: number; loggedAt: string };
+// `percentFrom`/`percentTo`: the battery % it was logged as, when it was.
+export type Charge = { id: string; energyKwh: number; chargedAt: string; city: string; carbonIntensity: number | null; intensityClass?: string | null; intensitySource?: "live" | "typical"; timing?: ChargeTiming; baselineIntensity?: number; percentFrom?: number; percentTo?: number; loggedAt: string };
 const STORAGE_KEY = "zeroemit-charges";
 const EMPTY: Charge[] = [];
 
@@ -34,6 +35,11 @@ function normalizeCharge(raw: Charge): Charge {
   // a damaged one is rebuilt or dropped rather than crash the app.
   const timed = typeof dated.chargedAt === "string" && /^\d{1,2}:\d{2}$/.test(dated.chargedAt) ? dated : { ...dated, chargedAt: timeOfDay(new Date(dated.loggedAt)) };
   const measured = Number.isFinite(timed.carbonIntensity) || timed.carbonIntensity === null ? timed : { ...timed, carbonIntensity: null };
+  if (measured.percentTo !== undefined && !(Number.isInteger(measured.percentFrom) && Number.isInteger(measured.percentTo) && measured.percentFrom! >= 0 && measured.percentTo <= 100 && measured.percentTo > measured.percentFrom!)) {
+    const { percentFrom, percentTo, ...rest } = measured;
+    void percentFrom; void percentTo;
+    return normalizeCharge(rest);
+  }
   // A damaged baseline is dropped: the charge falls back to the fixed one.
   if (measured.baselineIntensity === undefined || (Number.isFinite(measured.baselineIntensity) && measured.baselineIntensity > 0)) return measured;
   const { baselineIntensity, ...rest } = measured;

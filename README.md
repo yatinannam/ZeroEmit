@@ -73,10 +73,10 @@ Tests sit next to the code as `*.test.ts` and run under `bun test`. `tsconfig.js
 
 | Path | Screen | Notes |
 | --- | --- | --- |
-| `/` | Dashboard | Today's best 2-hour window, live intensity, metrics, streak, tomorrow's best, nearest chargers; in a month's first week, a link to last month's recap |
-| `/forecast` | Forecast | Hourly chart and top windows for today/tomorrow (`?day=tomorrow`); tap a window to add it to the calendar |
+| `/` | Dashboard | The next clean 2-hour window in the coming 24 hours, live intensity, metrics, streak, tomorrow's best, nearest chargers; in a month's first week, a link to last month's recap |
+| `/forecast` | Forecast | Hourly chart and top windows for the next 24 hours (default), today (`?day=today`) or tomorrow (`?day=tomorrow`); tap a window to add it to the calendar |
 | `/forecast/plan` | Charge planner | Energy to add, charger speed and a ready-by time give the cleanest start; add it to the calendar (see [Charge planner](#charge-planner-libplannerts)) |
-| `/log` | Charge log | History, add/delete with undo; `?quick=1` opens the form (used by notification actions) |
+| `/log` | Charge log | History, add/delete with undo; charges logged as kWh or, once Profile knows the EV, as battery % (see [Vehicles](#vehicles-libvehiclests)); `?quick=1` opens the form (used by notification actions) |
 | `/stations` | Chargers | Leaflet map and up to 20 nearest chargers within 30 km |
 | `/rewards` | Rewards | Points, levels, badges, how to earn |
 | `/rewards/leaderboard` | Leaderboard | Join/rename/leave, all-India or per-zone board |
@@ -96,13 +96,13 @@ Main keys, all prefixed `zeroemit-`:
 
 | Key | Holds |
 | --- | --- |
-| `charges` | Charge records: `energyKwh`, `chargedAt`, `city`, `carbonIntensity`, `intensitySource`, `timing` (`best`/`cleaner`/`other`), `baselineIntensity`, `loggedAt` |
-| `profile` | `name`, `vehicle`, `pricePerKwh`, `joinedAt` |
+| `charges` | Charge records: `energyKwh`, `chargedAt`, `city`, `carbonIntensity`, `intensitySource`, `timing` (`best`/`cleaner`/`other`), `baselineIntensity`, `percentFrom`/`percentTo` (when logged by battery %), `loggedAt` |
+| `profile` | `name`, `vehicle`, `vehicleKey` (a preset or `other`), `batteryKwh`, `pricePerKwh`, `joinedAt` |
 | `location` | Chosen `{ name, state }`; `null` means first launch |
 | `notification-prefs` | Per-kind switches |
 | `theme` | `system`/`light`/`dark` |
 | `leaderboard`, `leaderboard-pending-join`, `leaderboard-pending-leave`, `leaderboard-synced` | Membership (`id`, `key`, name, zone) and retry queues |
-| `planner` | The planner's last `kwh` (null means "use my usual charge"), `charger` and `readyBy` (`HH:MM`) |
+| `planner` | The planner's last `kwh` (null means "use my usual charge"), `byPercent` with `from`/`to` (battery %), `charger` and `readyBy` (`HH:MM`) |
 | `intro-seen`, `install-dismissed`, `chargers-near-me`, `push-active`, `clean-alert` | UI flags |
 
 ### First load and hydration
@@ -128,13 +128,25 @@ Main keys, all prefixed `zeroemit-`:
 
 The planner answers "I need this much charge by this time: when should I plug in?". It runs on the device from the same `/api/grid` answer as the forecast, so it costs no extra requests.
 
-- **Inputs.** Energy to add (0.5–150 kWh; defaults to the average charge in the chosen city, else 10 kWh), a charger (scooter 0.75 kW, home socket 3.3 kW, wallbox 7.2 kW, DC fast 30 kW) and a ready-by clock time. The deadline is the next time the clock reads that time in IST.
+- **Inputs.** Energy to add as a battery % gain (once Profile knows the EV) or in kWh (0.5–150 kWh; defaults to the average charge in the chosen city, else 10 kWh), a charger (scooter 0.75 kW, home socket 3.3 kW, wallbox 7.2 kW, DC fast 30 kW) and a ready-by clock time. The deadline is the next time the clock reads that time in IST.
 - **Duration.** `kWh ÷ kW`, rounded up to 5 minutes. It assumes the charger's full speed; the page says to leave spare time because cars slow down near 100%.
 - **Curve.** The forecast with the live reading merged in as "now" (`mergeLiveReading`). Each point covers its whole hour, and a charge's average is weighted by the minutes it spends in each hour (`averageBetween`).
 - **Search.** On an hourly step curve, a fixed-length stretch averages lowest with its start or its end on an hour boundary, or at a limit (now, or the latest start that still finishes by the deadline). `planCharge` compares only those starts. Ties go to the earlier start. Waiting must pay: a later start has to beat plugging in now by at least 10 gCO₂/kWh and 3%, or the plan is "now".
 - **Night starts.** A start from 10 pm to 6 am says to plug in before bed and set a timer, and its calendar reminder comes at 9:30 pm the evening before (`bedtimeBefore`) instead of waking the driver.
 - **Results.** `plan` (start, end, average, the average if plugged in now, grams saved, % cleaner), `short` (not enough time; how many kWh plugging in now adds by the deadline), `beyond` (the deadline is past the end of the forecast) or `no-data`.
 - **Extras.** The plan shows the timing bonus its start would earn when logged (same `chargeTiming` as the log form; none under 2 kWh), a chart band for the charge, and an Add to calendar event with a 10-minute alarm (`chargingWindowIcs` with `kind: "plan"`, so its UID never clashes with a window's).
+
+## Vehicles (`lib/vehicles.ts`)
+
+Most drivers know their battery %, not kWh. Profile → Profile & vehicle offers about 35 popular Indian EVs (cars, scooters and bikes, three-wheelers) with approximate usable battery sizes, or "Other" with a name and battery size typed in. Picking a preset also sets the planner's usual charger (scooter charger for two-wheelers, home socket otherwise).
+
+- With a battery size known, the log form and the planner ask "battery before / after" by default (kWh stays one tap away).
+- `kwhForPercent` converts a gain to energy from the grid: `(to − from)% × battery ÷ 0.9`, since about 10% is lost as heat on AC charging and the grid's carbon is in what the meter counts. The form shows the result live.
+- The % is saved on the charge (`percentFrom`, `percentTo`) and shown in the history; damaged values are dropped when charges are read.
+
+## Next 24 hours (`planNext24` in `lib/grid.ts`)
+
+Home and Forecast look ahead 24 hours from now instead of only at what's left of "today", which late in the evening has almost nothing to offer. The Home hero is "Next clean window" with Today / Tonight / Tomorrow on it (`relativeDay`), and Forecast opens on a "Next 24 h" tab, with Today and Tomorrow still a tap away.
 
 ## Recap (`lib/recap.ts`)
 

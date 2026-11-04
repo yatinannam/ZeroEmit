@@ -104,6 +104,24 @@ export function planByDay(data: GridData | null | undefined): { today: DayPlan; 
   return { today: plan(todayKey), tomorrow: plan(tomorrowKey) };
 }
 
+// The next 24 hours from the hour we're in, with the live reading as "now",
+// and its cleanest 2-hour windows (any that start in those 24 hours). Late
+// in the evening this is what drivers mean by "the next clean window", where
+// "today" has almost nothing left to offer.
+export function planNext24(data: GridData | null | undefined, now = Date.now()): DayPlan {
+  if (!data?.available) return { points: [], windows: [] };
+  const merged = mergeLiveReading({ forecast: data.forecast, current: liveReading(data, now) }, now);
+  const within = (point: ForecastPoint) => Date.parse(point.datetime) < now + DAY_MS;
+  return { points: merged.filter(within), windows: topWindows(merged, 2, 3, within) };
+}
+
+// "Today", "Tonight" (from 6 pm) or "Tomorrow" for a time in the next day
+// or so (IST); "" beyond that.
+export function relativeDay(timestamp: number, now = Date.now()) {
+  if (istDayKey(timestamp) === istDayKey(now)) return istHourOfDay(timestamp) >= 18 ? "Tonight" : "Today";
+  return istDayKey(timestamp) === istDayKey(now + DAY_MS) ? "Tomorrow" : "";
+}
+
 export const istHourOfDay = (timestamp: number) => Math.floor(((timestamp + IST_OFFSET_MS) % (24 * HOUR_MS)) / HOUR_MS);
 
 // Grid intensity for when a charge actually happened (not when it was logged):

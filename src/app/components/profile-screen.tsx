@@ -19,6 +19,8 @@ import { Modal } from "./modal";
 import { ShareImpactModal, type SharePeriod } from "./share-card";
 import { equivalentsSentence } from "../lib/equivalents";
 import { recapPeriods } from "../lib/recap";
+import { OTHER_VEHICLE, parseBatteryKwh, vehicleByKey, VEHICLE_GROUPS, VEHICLES } from "../lib/vehicles";
+import { usePlannerSettings } from "./use-planner-settings";
 import { chargeCost, DEFAULT_PRICE_PER_KWH, formatRupees, parsePricePerKwh } from "../lib/cost";
 import { useThemeChoice, type ThemeChoice } from "./theme";
 import { resetIntroSeen } from "./location-gate";
@@ -30,6 +32,25 @@ import { resetPlannerSettings } from "./use-planner-settings";
 
 // The Profile & vehicle field to focus: the one the user tapped to fill in.
 type EditField = "name" | "vehicle" | "price";
+
+// The EV picker: a preset fills in the name and battery; "Other" asks for
+// both. Old profiles with a typed-in vehicle and no preset start on "Other".
+function VehicleFields({ vehicle, vehicleKey, batteryKwh }: { vehicle: string; vehicleKey?: string; batteryKwh?: number }) {
+  const [choice, setChoice] = useState(vehicleKey ?? (vehicle ? OTHER_VEHICLE : ""));
+  const preset = vehicleByKey(choice);
+  return <>
+    <label>Your EV<select name="vehicleKey" value={choice} onChange={(event) => setChoice(event.target.value)}>
+      <option value="">Choose your EV</option>
+      {VEHICLE_GROUPS.map((group) => <optgroup key={group.kind} label={group.label}>{VEHICLES.filter((item) => item.kind === group.kind).map((item) => <option key={item.key} value={item.key}>{item.name}</option>)}</optgroup>)}
+      <option value={OTHER_VEHICLE}>Other</option>
+    </select></label>
+    {preset && <p className="form-hint">Battery about {preset.batteryKwh} kWh, so you can log charges by battery %.</p>}
+    {choice === OTHER_VEHICLE && <div className="form-row">
+      <label>Vehicle name<input name="vehicle" type="text" defaultValue={vehicle} placeholder="e.g. Tata Nexon EV" maxLength={60}/></label>
+      <label>Battery (kWh)<input name="batteryKwh" type="number" inputMode="decimal" step="0.1" min="1" max="200" defaultValue={vehicleKey === OTHER_VEHICLE || !vehicleKey ? batteryKwh ?? "" : ""} placeholder="e.g. 30"/></label>
+    </div>}
+  </>;
+}
 
 const THEME_OPTIONS: { key: ThemeChoice; label: string }[] = [{ key: "system", label: "System" }, { key: "light", label: "Light" }, { key: "dark", label: "Dark" }];
 
@@ -65,6 +86,7 @@ export function ProfileScreen({ shareLastMonth = false }: { shareLastMonth?: boo
   const leaderboardMember = useLeaderboardMembership();
   const { charges, ready: chargesReady, clearCharges } = useCharges();
   const { profile, updateProfile, resetProfile } = useProfile();
+  const { update: updatePlanner } = usePlannerSettings();
 
   const points = totalPoints(charges);
   const streak = currentStreakDays(charges);
@@ -90,7 +112,13 @@ export function ProfileScreen({ shareLastMonth = false }: { shareLastMonth?: boo
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     // A blank or out-of-range price clears it (back to the typical tariff).
-    updateProfile({ ...profile, name: String(form.get("name") || "").trim(), vehicle: String(form.get("vehicle") || "").trim(), pricePerKwh: parsePricePerKwh(form.get("price")) ?? undefined });
+    const key = String(form.get("vehicleKey") || "");
+    const preset = vehicleByKey(key);
+    const vehicle = preset ? preset.name : key === OTHER_VEHICLE ? String(form.get("vehicle") || "").trim() : "";
+    const batteryKwh = preset ? preset.batteryKwh : key === OTHER_VEHICLE ? parseBatteryKwh(form.get("batteryKwh")) ?? undefined : undefined;
+    updateProfile({ ...profile, name: String(form.get("name") || "").trim(), vehicle, vehicleKey: key || undefined, batteryKwh, pricePerKwh: parsePricePerKwh(form.get("price")) ?? undefined });
+    // A new EV also picks the planner's usual charger for it.
+    if (preset && key !== profile.vehicleKey) updatePlanner({ charger: preset.kind === "scooter" ? "scooter" : "socket" });
     setEditing(null);
     showToast("Profile updated");
   }
@@ -182,9 +210,9 @@ export function ProfileScreen({ shareLastMonth = false }: { shareLastMonth?: boo
 
     {locationOpen && <LocationModal current={place} onClose={closeLocation} onChoose={chooseLocation}/>}
 
-    {editing && <Modal title="Profile & vehicle" onClose={() => setEditing(null)} onSubmit={submitProfile} initialFocus={editing.focus && `input[name="${editing.focus}"]`}>
+    {editing && <Modal title="Profile & vehicle" onClose={() => setEditing(null)} onSubmit={submitProfile} initialFocus={editing.focus && (editing.focus === "vehicle" ? `select[name="vehicleKey"]` : `input[name="${editing.focus}"]`)}>
       <label>Name<input name="name" type="text" defaultValue={profile.name} placeholder="Your name" maxLength={60} autoComplete="name"/></label>
-      <label>Vehicle<input name="vehicle" type="text" defaultValue={profile.vehicle} placeholder="e.g. Tata Nexon EV" maxLength={60}/></label>
+      <VehicleFields vehicle={profile.vehicle} vehicleKey={profile.vehicleKey} batteryKwh={profile.batteryKwh}/>
       <label>Electricity price (₹ per kWh)<input name="price" type="number" inputMode="decimal" step="0.01" min="1" max="60" defaultValue={profile.pricePerKwh ?? ""} placeholder={String(DEFAULT_PRICE_PER_KWH)}/></label>
       <button className="primary-button" type="submit">Save profile</button>
     </Modal>}

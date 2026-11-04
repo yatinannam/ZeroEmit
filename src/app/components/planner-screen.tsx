@@ -7,6 +7,8 @@ import { bedtimeBefore, CHARGERS, chargerKw, dayWord, formatDuration, isNightSta
 import { chargeTiming, hourlyPattern, TIMING_BONUS } from "../lib/timing";
 import { averageEnergyKwh } from "../lib/personalization";
 import { earnsPoints } from "../lib/rewards";
+import { kwhForPercent, parsePercent } from "../lib/vehicles";
+import { useProfile } from "./use-profile";
 import { chargingWindowIcs, downloadIcs } from "../lib/calendar";
 import { placeLabel, ZONE_LABELS, zoneOf } from "../lib/places";
 import { useGridData } from "./use-grid-data";
@@ -57,12 +59,19 @@ export function PlannerScreen() {
   // shouldn't snap back to the saved value under the cursor.
   const [kwhDraft, setKwhDraft] = useState<string | null>(null);
   const [timeDraft, setTimeDraft] = useState<string | null>(null);
+  const [percentDraft, setPercentDraft] = useState<{ from: string; to: string } | null>(null);
+  const { profile } = useProfile();
+  // With the EV's battery known (Profile), energy can be asked as a % gain.
+  const battery = profile.batteryKwh ?? null;
+  const byPercent = battery !== null && settings.byPercent;
+  const percentText = percentDraft ?? { from: String(settings.from), to: String(settings.to) };
 
   const usual = averageEnergyKwh(charges.filter((charge) => charge.city === location));
   const savedKwh = settings.kwh ?? (usual !== null && isPlanKwh(usual) ? Math.round(usual * 10) / 10 : FALLBACK_KWH);
   const kwhText = kwhDraft ?? formatKwh(savedKwh);
   const typedKwh = Number(kwhText);
-  const kwh = kwhText.trim() && isPlanKwh(typedKwh) ? typedKwh : null;
+  const percentKwh = battery !== null ? kwhForPercent(battery, parsePercent(percentText.from) ?? NaN, parsePercent(percentText.to) ?? NaN) : null;
+  const kwh = byPercent ? (percentKwh !== null && isPlanKwh(percentKwh) ? percentKwh : null) : kwhText.trim() && isPlanKwh(typedKwh) ? typedKwh : null;
   const kw = chargerKw(settings.charger);
   const readyBy = now ? nextOccurrence(timeDraft ?? settings.readyBy, now) : null;
 
@@ -80,6 +89,14 @@ export function PlannerScreen() {
     setKwhDraft(value);
     const parsed = Number(value);
     if (value.trim() && isPlanKwh(parsed)) update({ kwh: parsed });
+  }
+
+  function changePercent(field: "from" | "to", value: string) {
+    const next = { ...percentText, [field]: value };
+    setPercentDraft(next);
+    const from = parsePercent(next.from);
+    const to = parsePercent(next.to);
+    if (from !== null && to !== null && to > from) update({ from, to });
   }
 
   function changeTime(value: string) {
@@ -124,9 +141,15 @@ export function PlannerScreen() {
         <section className="card stat-card planner-form" aria-labelledby="planner-form-title">
           <h2 id="planner-form-title">Your charge</h2>
           <div className="planner-field">
-            <label htmlFor="planner-kwh">Energy to add</label>
-            <span className="input-with-unit"><input id="planner-kwh" type="number" inputMode="decimal" min="0.5" max="150" step="0.1" value={kwhText} onChange={(event) => changeKwh(event.target.value)} onBlur={() => setKwhDraft(null)} aria-invalid={kwhInvalid} aria-describedby="planner-kwh-hint"/><span aria-hidden="true">kWh</span></span>
-            <small id="planner-kwh-hint" className={kwhInvalid ? "form-error" : undefined}>{kwhInvalid ? "Enter between 0.5 and 150 kWh." : usual !== null ? `Your usual charge in ${place.name} is ${formatKwh(usual)} kWh.` : "A small car battery holds about 30 kWh; a scooter about 3."}</small>
+            <label htmlFor={byPercent ? "planner-from" : "planner-kwh"}>Energy to add</label>
+            {battery !== null && <div className="segmented" role="radiogroup" aria-label="Energy as">
+              {([true, false] as const).map((percent) => <button key={String(percent)} type="button" role="radio" aria-checked={byPercent === percent} className={byPercent === percent ? "active" : ""} onClick={() => update({ byPercent: percent })}>{percent ? "Battery %" : "kWh"}</button>)}
+            </div>}
+            {byPercent ? <div className="form-row planner-percent">
+              <span className="input-with-unit"><input id="planner-from" type="number" inputMode="numeric" min="0" max="99" step="1" value={percentText.from} onChange={(event) => changePercent("from", event.target.value)} onBlur={() => setPercentDraft(null)} aria-label="Battery now, %" aria-invalid={kwh === null} aria-describedby="planner-kwh-hint"/><span aria-hidden="true">% now</span></span>
+              <span className="input-with-unit"><input type="number" inputMode="numeric" min="1" max="100" step="1" value={percentText.to} onChange={(event) => changePercent("to", event.target.value)} onBlur={() => setPercentDraft(null)} aria-label="Battery wanted, %" aria-invalid={kwh === null} aria-describedby="planner-kwh-hint"/><span aria-hidden="true">% wanted</span></span>
+            </div> : <span className="input-with-unit"><input id="planner-kwh" type="number" inputMode="decimal" min="0.5" max="150" step="0.1" value={kwhText} onChange={(event) => changeKwh(event.target.value)} onBlur={() => setKwhDraft(null)} aria-invalid={kwhInvalid} aria-describedby="planner-kwh-hint"/><span aria-hidden="true">kWh</span></span>}
+            <small id="planner-kwh-hint" className={kwhInvalid ? "form-error" : undefined}>{byPercent ? (kwh !== null ? `About ${formatKwh(kwh)} kWh from the grid for your ${battery} kWh battery.` : "The wanted level should be above where the battery is now.") : kwhInvalid ? "Enter between 0.5 and 150 kWh." : usual !== null ? `Your usual charge in ${place.name} is ${formatKwh(usual)} kWh.` : "A small car battery holds about 30 kWh; a scooter about 3."}</small>
           </div>
 
           <fieldset className="planner-chargers">

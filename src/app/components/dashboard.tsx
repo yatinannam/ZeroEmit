@@ -2,8 +2,7 @@
 
 import Link from "next/link";
 import { useSyncExternalStore } from "react";
-import { formatHourParts, formatUpdatedAt, formatWindow, istHourOfDay, liveReading, planByDay } from "../lib/grid";
-import { hourlyPattern, isBestWindowStart } from "../lib/timing";
+import { formatHourParts, formatUpdatedAt, formatWindow, liveReading, planByDay, planNext24, relativeDay } from "../lib/grid";
 import { useGridData } from "./use-grid-data";
 import { useCharges } from "./use-charges";
 import { useProfile } from "./use-profile";
@@ -49,16 +48,12 @@ export function Dashboard() {
   const streak = currentStreakDays(charges);
   const savedKg = estimatedCarbonSavedGrams(charges) / 1000;
   const current = liveReading(data);
-  const { today, tomorrow } = planByDay(data);
-  const todayBest = today.windows[0] ?? null;
+  const { tomorrow } = planByDay(data);
   const tomorrowBest = tomorrow.windows[0] ?? null;
-  // The hero ranks only what's left of today, while the timing bonus counts
-  // the whole day's cleanest windows. Late in the day the best left can be
-  // none of those: then it's offered as just the best left (pointing on to
-  // tomorrow's), not as a clean time to charge.
-  const pattern = data?.available ? hourlyPattern(data.forecast) : null;
-  const todayIsClean = !todayBest || isBestWindowStart(pattern, istHourOfDay(Date.parse(todayBest.start.datetime)));
-  const tomorrowHint = tomorrowBest ? ` Tomorrow's best: ${formatWindow(tomorrowBest)}.` : "";
+  // The hero looks 24 hours ahead from now, not just at what's left of
+  // today: at 10 pm the useful answer is tomorrow's dip, not 11 pm.
+  const nextBest = planNext24(data).windows[0] ?? null;
+  const nextDay = nextBest && !nextBest.start.isNow ? relativeDay(Date.parse(nextBest.start.datetime)) : "";
   // Different cities sit on different regional grids with very different
   // baselines, so "usual" personalization is scoped to the selected city
   // rather than blended across everywhere the user has ever charged.
@@ -67,8 +62,8 @@ export function Dashboard() {
   const typicalTime = typicalChargeTime(cityCharges);
   const updatedAt = data?.updatedAt ? formatUpdatedAt(data.updatedAt) : "";
   const intensityDiff = current && avgChargeIntensity !== null ? Math.round(current.carbonIntensity - avgChargeIntensity) : null;
-  const heroPill = !todayIsClean ? "Best left today" : todayBest?.start.isNow ? "Charge now" : data?.forecastIsTypical ? "Typical pattern" : "Recommended";
-  const heroNote = !todayBest ? "" : !todayIsClean ? `${todayBest.start.isNow ? "Right now is" : `${Math.round(todayBest.average)} gCO₂/kWh on average —`} the cleanest left today, but not one of the day's cleanest windows.${tomorrowHint}` : todayBest.start.isNow ? "The grid is cleaner right now than at any other time left today." : `${Math.round(todayBest.average)} gCO₂/kWh on average — the cleanest stretch left today.`;
+  const heroPill = nextBest?.start.isNow ? "Charge now" : nextDay || "Recommended";
+  const heroNote = !nextBest ? "" : nextBest.start.isNow ? "The grid is cleaner right now than at any other time in the next 24 hours." : `${Math.round(nextBest.average)} gCO₂/kWh on average: the cleanest 2 hours in the next 24${data?.forecastIsTypical ? ", from your region's typical day" : ""}.`;
 
   return <div className="mobile-app">
     <TopBar onChooseLocation={openLocation}/>
@@ -78,10 +73,10 @@ export function Dashboard() {
       <RecapBanner/>
 
       <section className="recommendation card">
-        <div className="recommendation-head"><h2>Best time to charge today</h2>{todayBest && <span className="recommended"><Icon name="bolt" size={15}/> {heroPill}</span>}</div>
-        <div className="time-range">{loading && !data ? <strong className="loading-value">Loading…</strong> : todayBest ? <><HeroTime datetime={todayBest.start.datetime} isNow={todayBest.start.isNow}/><span>–</span><HeroTime datetime={todayBest.end.datetime}/></> : <strong className="unavailable-value">Unavailable</strong>}</div>
+        <div className="recommendation-head"><h2>Next clean window</h2>{nextBest && <span className="recommended"><Icon name="bolt" size={15}/> {heroPill}</span>}</div>
+        <div className="time-range">{loading && !data ? <strong className="loading-value">Loading…</strong> : nextBest ? <><HeroTime datetime={nextBest.start.datetime} isNow={nextBest.start.isNow}/><span>–</span><HeroTime datetime={nextBest.end.datetime}/></> : <strong className="unavailable-value">Unavailable</strong>}</div>
         {heroNote && <p className="personal-note">{heroNote}</p>}
-        {todayBest && todayIsClean && !todayBest.start.isNow && <AddToCalendarButton window={todayBest} place={place}/>}
+        {nextBest && !nextBest.start.isNow && <AddToCalendarButton window={nextBest} place={place}/>}
         <div className="intensity"><span className="co2">CO₂</span> Right now <strong>{current ? `${Math.round(current.carbonIntensity)} gCO₂/kWh` : "Unavailable"}</strong></div>
         {intensityDiff !== null && <p className="personal-note">{intensityDiff === 0 ? "About the same as your usual charging window." : `${Math.abs(intensityDiff)} gCO₂/kWh ${intensityDiff < 0 ? "lower" : "higher"} than your usual charging window.`}</p>}
         <Link className="forecast-button" href="/forecast">See full forecast <Icon name="arrow" size={18}/></Link>

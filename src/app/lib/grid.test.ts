@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { formatUpdatedAt, HOUR_MS, intensityAt, istHourStart, liveReading, planByDay, type GridData } from "./grid";
+import { formatUpdatedAt, HOUR_MS, intensityAt, istHourStart, liveReading, planByDay, planNext24, relativeDay, type GridData } from "./grid";
 
 const MINUTE_MS = 60_000;
 const hourly = (from: number, hours: number, value = 500) => Array.from({ length: hours }, (_, i) => ({ datetime: new Date(istHourStart(from) + i * HOUR_MS).toISOString(), carbonIntensity: value }));
@@ -58,5 +58,34 @@ describe("formatUpdatedAt", () => {
 
   test("never in the future", () => {
     expect(formatUpdatedAt("2026-11-03T11:00:00+05:30", now)).toBe("10:00 am");
+  });
+});
+
+describe("planNext24", () => {
+  // 9 pm IST: today has 3 hours left, the clean dip is at noon tomorrow.
+  const now = Date.parse("2026-11-04T15:30:00Z");
+  const forecast = Array.from({ length: 30 }, (_, i) => {
+    const at = istHourStart(now) + i * HOUR_MS;
+    const hour = new Date(at + 5.5 * HOUR_MS).getUTCHours();
+    return { datetime: new Date(at).toISOString(), carbonIntensity: hour === 12 || hour === 13 ? 400 : 700 };
+  });
+  const data: GridData = { available: true, state: "maharashtra", forecast, forecastIsTypical: true, source: "test" };
+
+  test("covers the next 24 hours and finds tomorrow's dip", () => {
+    const plan = planNext24(data, now);
+    expect(plan.points).toHaveLength(24);
+    expect(plan.windows[0].average).toBe(400);
+    expect(relativeDay(Date.parse(plan.windows[0].start.datetime), now)).toBe("Tomorrow");
+  });
+
+  test("nothing without data", () => {
+    expect(planNext24(null, now)).toEqual({ points: [], windows: [] });
+  });
+
+  test("relativeDay", () => {
+    expect(relativeDay(now + HOUR_MS, now)).toBe("Tonight");
+    expect(relativeDay(Date.parse("2026-11-04T05:30:00Z"), now)).toBe("Today");
+    expect(relativeDay(now + 20 * HOUR_MS, now)).toBe("Tomorrow");
+    expect(relativeDay(now + 60 * HOUR_MS, now)).toBe("");
   });
 });

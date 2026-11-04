@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { FormEvent, MouseEvent, useEffect, useEffectEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { DAY_MS, intensityAt, istHourOfDay } from "../lib/grid";
@@ -18,6 +19,7 @@ import { BottomNav, TopBar } from "./app-shell";
 import { LocationModal } from "./location-modal";
 import { Modal } from "./modal";
 import { PageHeader } from "./page-header";
+import { kwhForPercent, parsePercent } from "../lib/vehicles";
 
 // How far back a charge can be logged: enough to catch up on a missed month,
 // while a mistyped year (1999 for 2026) is caught instead of saved.
@@ -32,8 +34,9 @@ export function LogScreen({ quick = false }: { quick?: boolean }) {
   const { profile } = useProfile();
   const { place, ready, location: city, locationOpen, openLocation, closeLocation, chooseLocation } = useLocationPicker();
   // `energy` is set only when the form comes back after a location change,
-  // so what was typed survives the trip to the location sheet.
-  const [form, setForm] = useState<{ date: string; time: string; today: string; earliest: string; energy?: string } | null>(null);
+  // so what was typed survives the trip to the location sheet. `mode`: logged
+  // as battery % (with the EV's battery size from Profile) or as kWh.
+  const [form, setForm] = useState<{ date: string; time: string; today: string; earliest: string; energy?: string; mode: "percent" | "kwh"; from: string; to: string } | null>(null);
   const [shown, setShown] = useState(PAGE_SIZE);
   const [formError, setFormError] = useState("");
   const [selected, setSelected] = useState<Charge | null>(null);
@@ -55,6 +58,9 @@ export function LogScreen({ quick = false }: { quick?: boolean }) {
   // so a blended cross-city average wouldn't be a meaningful "usual" here.
   const cityCharges = charges.filter((charge) => charge.city === city);
   const typicalEnergy = averageEnergyKwh(cityCharges);
+  const battery = profile.batteryKwh ?? null;
+  // The kWh a battery % gain works out to, shown live under the two fields.
+  const percentKwh = form && battery ? kwhForPercent(battery, parsePercent(form.from) ?? NaN, parsePercent(form.to) ?? NaN) : null;
   const typicalTime = typicalChargeTime(cityCharges);
 
   const groups: { heading: string; items: Charge[] }[] = [];
@@ -71,7 +77,7 @@ export function LogScreen({ quick = false }: { quick?: boolean }) {
     // night's charge" case) — or, with no usual time, to right now.
     const { date, time } = defaultChargeMoment(atNow ? null : typicalTime, now);
     setFormError("");
-    setForm({ date, time, today: localDate(now), earliest: localDate(new Date(now.getTime() - MAX_BACKDATE_DAYS * DAY_MS)) });
+    setForm({ date, time, today: localDate(now), earliest: localDate(new Date(now.getTime() - MAX_BACKDATE_DAYS * DAY_MS)), mode: battery ? "percent" : "kwh", from: "20", to: "80" });
   }
 
   // Open once, then drop ?quick=1 so a refresh or Back doesn't reopen it.
@@ -91,7 +97,7 @@ export function LogScreen({ quick = false }: { quick?: boolean }) {
     const fields = event.currentTarget.form;
     if (form && fields) {
       const typed = new FormData(fields);
-      setForm({ ...form, date: String(typed.get("date")), time: String(typed.get("time")), energy: String(typed.get("energy")) });
+      setForm({ ...form, date: String(typed.get("date")), time: String(typed.get("time")), energy: typed.get("energy") === null ? form.energy : String(typed.get("energy")) });
     }
     openLocation();
   }
@@ -100,7 +106,11 @@ export function LogScreen({ quick = false }: { quick?: boolean }) {
     event.preventDefault();
     if (savePending) return;
     const data = new FormData(event.currentTarget);
-    const energy = Number(data.get("energy"));
+    const byPercent = form?.mode === "percent" && battery !== null;
+    const from = byPercent ? parsePercent(form.from) : null;
+    const to = byPercent ? parsePercent(form.to) : null;
+    if (byPercent && (from === null || to === null || percentKwh === null)) { setFormError("Enter battery levels from 0 to 100%, with the second above the first."); return; }
+    const energy = byPercent ? percentKwh! : Number(data.get("energy"));
     const time = String(data.get("time"));
     const when = new Date(`${String(data.get("date"))}T${time}`).getTime();
     if (!Number.isFinite(energy) || energy <= 0 || energy > MAX_KWH) { setFormError(`Enter between 0.1 and ${MAX_KWH} kWh.`); return; }
@@ -113,7 +123,7 @@ export function LogScreen({ quick = false }: { quick?: boolean }) {
     const timing: ChargeTiming | undefined = pattern?.some((value) => value !== null) ? chargeTiming(pattern, istHourOfDay(when)) : undefined;
     // The region's average that day: what CO₂ avoided is measured against.
     const baseline = baselineFromPattern(pattern);
-    const charge = { energyKwh: Math.round(energy * 10) / 10, chargedAt: time, city, carbonIntensity: intensity?.carbonIntensity ?? null, intensityClass: intensity?.intensityClass ?? null, intensitySource: intensity?.source, ...(timing ? { timing } : {}), ...(baseline !== null ? { baselineIntensity: Math.round(baseline) } : {}), loggedAt: new Date(when).toISOString() };
+    const charge = { energyKwh: Math.round(energy * 10) / 10, chargedAt: time, city, carbonIntensity: intensity?.carbonIntensity ?? null, intensityClass: intensity?.intensityClass ?? null, intensitySource: intensity?.source, ...(timing ? { timing } : {}), ...(baseline !== null ? { baselineIntensity: Math.round(baseline) } : {}), ...(byPercent ? { percentFrom: from!, percentTo: to! } : {}), loggedAt: new Date(when).toISOString() };
     const { points, rewards } = chargeOutcome(charges, { ...charge, id: "" });
     // A charge too small to earn points says so instead of "+0 points".
     const counts = earnsPoints(charge);
@@ -152,7 +162,7 @@ export function LogScreen({ quick = false }: { quick?: boolean }) {
           <h3>{group.heading}</h3>
           {group.items.map((charge) => <button key={charge.id} className="card activity-item" onClick={() => setSelected(charge)}>
             <span className="round-icon"><Icon name="bolt" size={19}/></span>
-            <span className="activity-text"><strong>{charge.energyKwh} kWh</strong><span>{formatTimeOfDay(charge.chargedAt)}{charge.city !== city ? ` · ${charge.city}` : ""}</span></span>
+            <span className="activity-text"><strong>{charge.energyKwh} kWh{charge.percentTo !== undefined && <small> · {charge.percentFrom}% → {charge.percentTo}%</small>}</strong><span>{formatTimeOfDay(charge.chargedAt)}{charge.city !== city ? ` · ${charge.city}` : ""}</span></span>
             <b>+{pointsForCharge(charge)} pts</b>
           </button>)}
         </div>) : null}
@@ -169,7 +179,17 @@ export function LogScreen({ quick = false }: { quick?: boolean }) {
         <label>Date<input name="date" type="date" defaultValue={form.date} min={form.earliest} max={form.today} required onChange={() => setFormError("")}/></label>
         <label>Time<input name="time" type="time" defaultValue={form.time} required onChange={() => setFormError("")}/></label>
       </div>
-      <label>Energy added (kWh)<input name="energy" type="number" inputMode="decimal" min="0.1" max={MAX_KWH} step="0.1" defaultValue={form.energy ?? (typicalEnergy ? Math.min(typicalEnergy, MAX_KWH).toFixed(1) : "18")} required onChange={() => setFormError("")}/></label>
+      {battery !== null && <div className="segmented" role="radiogroup" aria-label="Log the charge as">
+        {(["percent", "kwh"] as const).map((mode) => <button key={mode} type="button" role="radio" aria-checked={form.mode === mode} className={form.mode === mode ? "active" : ""} onClick={() => { setFormError(""); setForm({ ...form, mode }); }}>{mode === "percent" ? "Battery %" : "kWh"}</button>)}
+      </div>}
+      {form.mode === "percent" && battery !== null ? <>
+        <div className="form-row">
+          <label>Battery before (%)<input name="from" type="number" inputMode="numeric" min="0" max="99" step="1" value={form.from} required onChange={(event) => { setFormError(""); setForm({ ...form, from: event.target.value }); }}/></label>
+          <label>Battery after (%)<input name="to" type="number" inputMode="numeric" min="1" max="100" step="1" value={form.to} required onChange={(event) => { setFormError(""); setForm({ ...form, to: event.target.value }); }}/></label>
+        </div>
+        <p className="form-hint" aria-live="polite">{percentKwh !== null ? `About ${percentKwh} kWh from the grid for your ${profile.vehicle || "EV"}'s ${battery} kWh battery, with about 10% lost as heat while charging.` : "The battery after charging should be above where it started."}</p>
+      </> : <label>Energy added (kWh)<input name="energy" type="number" inputMode="decimal" min="0.1" max={MAX_KWH} step="0.1" defaultValue={form.energy ?? (typicalEnergy ? Math.min(typicalEnergy, MAX_KWH).toFixed(1) : "18")} required onChange={() => setFormError("")}/></label>}
+      {battery === null && <p className="form-hint">Prefer battery %? <Link className="text-button" href="/profile">Pick your EV in Profile</Link></p>}
       <p className="form-location">Location: {city} · <button type="button" className="text-button" aria-label={`Change location, ${city}`} onClick={changeLocation}>Change</button></p>
       {formError && <p className="form-error" role="alert">{formError}</p>}
       <button className="primary-button" type="submit" disabled={savePending}>{savePending ? "Getting grid data…" : "Save charge"}</button>
@@ -178,6 +198,7 @@ export function LogScreen({ quick = false }: { quick?: boolean }) {
     {selected && <Modal title={`${selected.energyKwh} kWh charge`} onClose={() => setSelected(null)}>
       <dl className="detail-list">
         <div><dt>When</dt><dd>{dayHeading(selected.loggedAt)}, {formatTimeOfDay(selected.chargedAt)}</dd></div>
+        {selected.percentTo !== undefined && <div><dt>Battery</dt><dd>{selected.percentFrom}% → {selected.percentTo}%</dd></div>}
         <div><dt>Location</dt><dd>{selected.city}</dd></div>
         <div><dt>Grid intensity</dt><dd>{selected.carbonIntensity !== null ? `${Math.round(selected.carbonIntensity)} gCO₂/kWh${selected.intensitySource === "typical" ? " (typical for that hour)" : ""}` : "Not recorded"}</dd></div>
         <div><dt>Points</dt><dd>+{pointsForCharge(selected)}{!earnsPoints(selected) && ` (under ${MIN_POINTS_KWH} kWh)`}</dd></div>
