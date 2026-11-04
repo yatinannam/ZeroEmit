@@ -53,4 +53,8 @@ describe("chargingWindowIcs", () => {
     expect(plan.match(/UID:.*\r\n/)?.[0]).toStartWith("UID:plan-");
     expect(plan.match(/UID:.*\r\n/)?.[0]).not.toBe(ics.match(/UID:.*\r\n/)?.[0]);
   });
+
+  test("the reminder can come earlier, e.g. at bedtime for a night charge", () => {
+    expect(chargingWindowIcs({ ...window, alarmMinutesBefore: 295 }, NOW)).toContain("TRIGGER:-PT295M\r\n");
+  });
 });

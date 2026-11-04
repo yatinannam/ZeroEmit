@@ -3,7 +3,8 @@
 // without push notifications.
 // `summary`, `description` and `alarm` replace the window's wording, for a
 // planned charge (lib/planner.ts); `kind` keeps its UID apart from a window's.
-export type CalendarWindow = { start: string; end: string; average: number; placeLabel: string; gridLabel: string; kind?: "window" | "plan"; summary?: string; description?: string; alarm?: string };
+// `alarmMinutesBefore` moves the reminder (10 minutes before by default).
+export type CalendarWindow = { start: string; end: string; average: number; placeLabel: string; gridLabel: string; kind?: "window" | "plan"; summary?: string; description?: string; alarm?: string; alarmMinutesBefore?: number };
 
 // UTC "basic" form: 20261030T063000Z. Calendars show it in their own timezone.
 const icsTime = (value: string | number) => new Date(value).toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
@@ -42,7 +43,7 @@ export function chargingWindowIcs(window: CalendarWindow, now = Date.now()) {
     `LOCATION:${escapeText(window.placeLabel)}`,
     `DESCRIPTION:${escapeText(window.description ?? `About ${Math.round(window.average)} gCO₂/kWh on average, one of the cleanest stretches of the day on the ${window.gridLabel}. Times from ZeroEmit: https://zero-emit.vercel.app`)}`,
     "BEGIN:VALARM",
-    "TRIGGER:-PT10M",
+    `TRIGGER:-PT${Math.max(0, Math.round(window.alarmMinutesBefore ?? 10))}M`,
     "ACTION:DISPLAY",
     `DESCRIPTION:${escapeText(window.alarm ?? "Your cleanest charging window starts in 10 minutes")}`,
     "END:VALARM",

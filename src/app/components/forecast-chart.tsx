@@ -67,7 +67,7 @@ export function ForecastChart({ points, highlight, span = null }: { points: Fore
   const lastIndex = points.length - 1;
   const step = Math.max(1, Math.ceil(lastIndex / TICKS));
   const tickIndexes = Array.from({ length: Math.floor(lastIndex / step) + 1 }, (_, i) => i * step);
-  if (lastIndex - tickIndexes[tickIndexes.length - 1] >= step / 2) tickIndexes.push(lastIndex);
+  if (lastIndex - tickIndexes[tickIndexes.length - 1] > step / 2) tickIndexes.push(lastIndex);
 
   return <svg ref={svg} className="forecast-chart" viewBox={`0 0 ${WIDTH} ${HEIGHT}`} role="img" aria-label="Carbon intensity by hour">
     {band && <rect className="forecast-chart-band" x={band.from} y={TOP_PAD} width={Math.max(band.to - band.from, 4)} height={plotHeight}/>}

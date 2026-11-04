@@ -20,6 +20,10 @@ export const DEFAULT_CHARGER: ChargerKey = "socket";
 export const chargerKw = (key: ChargerKey) => CHARGERS.find((charger) => charger.key === key)!.kw;
 
 export const MIN_PLAN_KWH = 0.5;
+// Waiting has to be worth it: a later start must beat plugging in now by at
+// least this much (gCO₂/kWh, and share of now's average), or the plan is now.
+const MIN_GAIN = 10;
+const MIN_GAIN_SHARE = 0.03;
 export const MAX_PLAN_KWH = 150;
 // Charging times are rounded up to this, so suggested times land on tidy minutes.
 const STEP_MS = 5 * 60_000;
@@ -100,6 +104,7 @@ export function planCharge({ points, now, kwh, kw, readyBy }: { points: Forecast
   }
   const nowAverage = averageBetween(points, now, now + durationMs);
   if (!best || nowAverage === null) return { kind: "no-data" };
+  if (nowAverage - best.average < Math.max(MIN_GAIN, nowAverage * MIN_GAIN_SHARE)) best = { start: now, average: nowAverage };
   const startsNow = best.start === now;
   const savedGrams = startsNow ? 0 : Math.max(0, (nowAverage - best.average) * kwh);
   const cleanerPercent = startsNow || nowAverage <= 0 ? 0 : Math.max(0, Math.round(((nowAverage - best.average) / nowAverage) * 100));
@@ -113,6 +118,19 @@ export function formatDuration(ms: number) {
   const rest = minutes % 60;
   if (!hours) return `${rest} min`;
   return rest ? `${hours} h ${rest} min` : `${hours} h`;
+}
+
+// A start in the small hours (10 pm to 6 am, IST): nobody should get up for
+// it, so the plan says to set a charging timer before bed instead.
+export function isNightStart(timestamp: number) {
+  const hour = Math.floor(((timestamp + IST_OFFSET_MS) % (24 * HOUR_MS)) / HOUR_MS);
+  return hour >= 22 || hour < 6;
+}
+
+// When to remind about a night start: 9:30 pm IST the evening before it.
+export function bedtimeBefore(start: number) {
+  const evening = nextOccurrence("21:30", start - 24 * HOUR_MS)!;
+  return evening < start ? evening : evening - 24 * HOUR_MS;
 }
 
 // "today", "tonight" (6 pm onwards today), or "tomorrow", IST.

@@ -188,7 +188,7 @@ a.station-row { border-radius:12px; color:inherit; text-decoration:none; }a.stat
 .planner-form { display:grid; gap:18px; }
 .planner-field { display:grid; gap:6px; }.planner-field > span:first-child, .planner-chargers legend { color:var(--ink); font-size:14px; font-weight:600; }
 .planner-field input { width:100%; min-width:0; min-height:48px; padding:0 12px; border:1px solid var(--outline); border-radius:12px; color:var(--ink); background:var(--card); font:inherit; font-size:16px; }.planner-field input[aria-invalid="true"] { border-color:var(--error); }
-.planner-field small { color:var(--muted); font-size:12px; line-height:1.4; }.planner-field small.form-error { color:var(--error); }
+.planner-field > label { color:var(--ink); font-size:14px; font-weight:600; }.planner-field small { color:var(--muted); font-size:12px; line-height:1.4; }.planner-field small.form-error { color:var(--error); }
 .input-with-unit { position:relative; display:block; }.input-with-unit input { padding-right:56px; }.input-with-unit span { position:absolute; right:14px; top:50%; transform:translateY(-50%); color:var(--muted); font-size:14px; font-weight:600; pointer-events:none; }
 .planner-chargers { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:8px; min-width:0; margin:0; padding:0; border:0; }.planner-chargers legend { margin-bottom:6px; padding:0; }
 .charger-option { position:relative; display:grid; align-content:start; gap:2px; min-height:72px; padding:12px; border:1px solid var(--variant); border-radius:12px; background:var(--card); cursor:pointer; }
@@ -216,3 +216,4 @@ a.station-row { border-radius:12px; color:inherit; text-decoration:none; }a.stat
 .modal .group-note { margin:0; padding:10px 12px; border-radius:12px; background:var(--surface-low); font-size:13px; line-height:1.45; }
 .charge-form input.code-input { text-transform:uppercase; letter-spacing:.12em; font-weight:600; }
 @media (min-width:1000px) { .group-actions { grid-template-columns:1fr 1fr; } }
+.chip { flex:none; white-space:nowrap; }.plan-stats dt { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }

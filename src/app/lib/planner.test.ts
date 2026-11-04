@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { HOUR_MS } from "./grid";
-import { averageBetween, chargeDurationMs, chargerKw, CHARGERS, curveEnd, dayWord, formatDuration, nextOccurrence, planCharge } from "./planner";
+import { averageBetween, bedtimeBefore, chargeDurationMs, chargerKw, CHARGERS, curveEnd, dayWord, formatDuration, isNightStart, nextOccurrence, planCharge } from "./planner";
 
 // 10:00 IST on 4 Nov 2026 (04:30 UTC), and an hourly curve from then on.
 const T0 = Date.parse("2026-11-04T04:30:00Z");
@@ -88,6 +88,17 @@ describe("planCharge", () => {
     expect(plan.kind === "plan" && plan.savedGrams).toBe(0);
   });
 
+  test("a later start has to be clearly cleaner, or the plan is now", () => {
+    // 699 vs 700: 1 g/kWh isn't worth waiting hours for.
+    const flat = planCharge({ points: curve([700, 700, 700, 699, 700]), now, kwh: 3.3, kw: 3.3, readyBy: T0 + 5 * HOUR_MS });
+    expect(flat.kind === "plan" && flat.startsNow).toBe(true);
+    expect(flat.kind === "plan" && flat.savedGrams).toBe(0);
+    // 3% of 700 is 21: 680 is too close, 670 is worth it.
+    expect(planCharge({ points: curve([700, 700, 680]), now, kwh: 3.3, kw: 3.3, readyBy: T0 + 3 * HOUR_MS }).kind === "plan" && planCharge({ points: curve([700, 700, 680]), now, kwh: 3.3, kw: 3.3, readyBy: T0 + 3 * HOUR_MS }).startsNow).toBe(true);
+    const worth = planCharge({ points: curve([700, 700, 670]), now, kwh: 3.3, kw: 3.3, readyBy: T0 + 3 * HOUR_MS });
+    expect(worth.kind === "plan" && worth.start).toBe(T0 + 2 * HOUR_MS);
+  });
+
   test("not enough time: says how much plugging in now adds", () => {
     const plan = planCharge({ points, now, kwh: 30, kw: 3.3, readyBy: now + 2 * HOUR_MS });
     expect(plan).toEqual({ kind: "short", durationMs: chargeDurationMs(30, 3.3), availableMs: 2 * HOUR_MS, kwhByDeadline: 6.6 });
@@ -118,5 +129,15 @@ describe("labels", () => {
   });
   test("every charger has a speed", () => {
     for (const charger of CHARGERS) expect(chargerKw(charger.key)).toBeGreaterThan(0);
+  });
+  test("night starts, and the bedtime reminder before them", () => {
+    const at = (iso: string) => Date.parse(iso);
+    expect(isNightStart(at("2026-11-04T20:55:00Z"))).toBe(true); // 2:25 am IST
+    expect(isNightStart(at("2026-11-04T16:30:00Z"))).toBe(true); // 10:00 pm IST
+    expect(isNightStart(at("2026-11-05T00:30:00Z"))).toBe(false); // 6:00 am IST
+    expect(isNightStart(T0)).toBe(false);
+    // 2:25 am on the 5th: 9:30 pm on the 4th. 11 pm on the 4th: 9:30 pm that evening.
+    expect(bedtimeBefore(at("2026-11-04T20:55:00Z"))).toBe(at("2026-11-04T16:00:00Z"));
+    expect(bedtimeBefore(at("2026-11-04T17:30:00Z"))).toBe(at("2026-11-04T16:00:00Z"));
   });
 });
