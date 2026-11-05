@@ -10,10 +10,10 @@ import { HOUR_MS, IST_OFFSET_MS, istDayKey, type ForecastPoint } from "./grid";
 // roughly: a portable 2-wheeler charger, the 15 A socket a car's portable
 // charger uses, a home wallbox, and a public DC fast charger.
 export const CHARGERS = [
-  { key: "scooter", kw: 0.75, label: "Scooter or bike", detail: "Portable charger, about 0.75 kW" },
-  { key: "socket", kw: 3.3, label: "Home socket", detail: "Car's portable charger, about 3.3 kW" },
-  { key: "wallbox", kw: 7.2, label: "Wallbox", detail: "Wall-mounted AC charger, about 7.2 kW" },
-  { key: "fast", kw: 30, label: "Fast charger", detail: "Public DC charger, about 30 kW" },
+  { key: "scooter", kw: 0.75, label: "Scooter or bike", detail: "Portable charger, about 0.75\u00a0kW" },
+  { key: "socket", kw: 3.3, label: "Home socket", detail: "Car's portable charger, about 3.3\u00a0kW" },
+  { key: "wallbox", kw: 7.2, label: "Wallbox", detail: "Wall-mounted AC charger, about 7.2\u00a0kW" },
+  { key: "fast", kw: 30, label: "Fast charger", detail: "Public DC charger, about 30\u00a0kW" },
 ] as const;
 export type ChargerKey = (typeof CHARGERS)[number]["key"];
 export const DEFAULT_CHARGER: ChargerKey = "socket";

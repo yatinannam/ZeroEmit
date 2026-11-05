@@ -143,7 +143,7 @@ export function PlannerScreen() {
       <PageHeader eyebrow="Charge planner" title="Plug in at the cleanest time." intro="Say how much charge you need and when. ZeroEmit picks the cleanest time to start before then."/>
 
       <div className="planner-layout">
-        <section className="card recommendation plan-result" aria-labelledby="plan-result-title">
+        <section className="card recommendation plan-result" aria-labelledby="plan-result-title" aria-busy={waiting}>
           <PlanResult plan={plan} waiting={waiting} error={!data?.available ? error || "Grid data is unavailable right now." : ""} retry={refresh} kwh={kwh} kw={kw} now={now} readyBy={readyBy} typical={Boolean(data?.forecastIsTypical)} timing={timing} chartPoints={chartPoints} onCalendar={addToCalendar}/>
         </section>
         <section className="card stat-card planner-form" aria-labelledby="planner-form-title">
@@ -209,7 +209,7 @@ function PlanResult({ plan, waiting, error, retry, kwh, kw, now, readyBy, typica
     return <>
       <div className="recommendation-head">{title}<span className="recommended"><Icon name="bolt" size={15}/> Charge now</span></div>
       <div className="time-range"><BigTime at={now} now/></div>
-      <p className="plan-summary">Adding {formatKwh(kwh)} kWh takes {formatDuration(plan.durationMs)} at about {kw} kW, but there&apos;s only {formatDuration(plan.availableMs)} until {whenLabel(readyBy, now)}.</p>
+      <p className="plan-summary">Adding {formatKwh(kwh)} kWh takes {formatDuration(plan.durationMs)} at about {kw}{"\u00a0"}kW, but there&apos;s only {formatDuration(plan.availableMs)} until {whenLabel(readyBy, now)}.</p>
       <p className="personal-note">{plan.kwhByDeadline > 0 ? `Plug in now to add about ${formatKwh(plan.kwhByDeadline)} kWh by then.` : "Pick a later ready-by time."}</p>
     </>;
   }
@@ -222,7 +222,7 @@ function PlanResult({ plan, waiting, error, retry, kwh, kw, now, readyBy, typica
   return <>
     <div className="recommendation-head">{title}<span className="recommended"><Icon name="bolt" size={15}/> {plan.startsNow ? "Charge now" : plan.cleanerPercent ? `${plan.cleanerPercent}% cleaner` : "Recommended"}</span></div>
     <div className="time-range"><BigTime at={plan.start} now={plan.startsNow}/><span>–</span><BigTime at={plan.end}/></div>
-    <p className="plan-summary">{lead} {formatDuration(plan.durationMs)} at about {kw} kW, done {readyBy - plan.end < 60_000 ? "right on time" : `by ${whenLabel(plan.end, now)}`}.</p>
+    <p className="plan-summary">{lead} {formatDuration(plan.durationMs)} at about {kw}{"\u00a0"}kW, done {readyBy - plan.end < 60_000 ? "right on time" : `by ${whenLabel(plan.end, now)}`}.</p>
     {/* What this plan averages next to plugging in straight away, and what that difference saves. */}
     <dl className="plan-stats">
       <div><dt>Planned</dt><dd>{Math.round(plan.average)} <small>g/kWh</small></dd></div>

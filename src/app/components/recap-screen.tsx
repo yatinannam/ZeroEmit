@@ -8,7 +8,7 @@ import { formatRupees, DEFAULT_PRICE_PER_KWH } from "../lib/cost";
 import { equivalentsSentence } from "../lib/equivalents";
 import { istMonthKey } from "../lib/leaderboard";
 import { dayHeading, formatTimeOfDay } from "../lib/personalization";
-import { buildRecap, defaultPeriod, isPeriodKey, periodLabel, previousPeriod, recapPeriods, shortPeriodLabel, type Recap, type RecapPeriod } from "../lib/recap";
+import { ALL_TIME, buildRecap, defaultPeriod, isPeriodKey, periodLabel, previousPeriod, recapPeriods, shortPeriodLabel, type Recap, type RecapPeriod } from "../lib/recap";
 import { Icon } from "./icon-set";
 import { CountUp, reducedMotion } from "./motion";
 import { drawRecapCard } from "./recap-card";
@@ -285,8 +285,8 @@ export function RecapScreen({ requested, closeTo }: { requested: string | null; 
       <div className="recap-top"><span><Icon name="sparkle" size={16}/> Recap</span><button type="button" className="recap-close" aria-label="Close recap" onClick={close}><Icon name="close" size={20}/></button></div>
       <div className="recap-slide recap-empty recap-slide-share">
         <p className="recap-eyebrow">Your recap</p>
-        <h1 className="recap-title">{missing ? "Nothing logged then" : "Nothing to recap yet"}</h1>
-        <p className="recap-text">{missing ? `There are no charges logged for ${periodLabel(asked)}.` : "Log a charge and your monthly recap builds itself from your history."}</p>
+        <h1 className="recap-title">{missing && asked !== ALL_TIME ? "Nothing logged then" : "Nothing to recap yet"}</h1>
+        <p className="recap-text">{missing && asked !== ALL_TIME ? `There are no charges logged in ${periodLabel(asked)}.` : "Log a charge and your recap builds itself from your history."}</p>
         {other ? <button type="button" className="recap-primary" onClick={() => open(other.key)}><Icon name="sparkle" size={18}/> See {other.label} instead</button>
           : <Link className="recap-primary" href="/log?quick=1"><Icon name="bolt" size={18}/> Log a charge</Link>}
       </div>

@@ -79,9 +79,10 @@ export function Dashboard() {
       <section className="recommendation card">
         <div className="recommendation-head"><h2>Next clean window</h2>{nextBest && <span className="recommended"><Icon name="bolt" size={15}/> {heroPill}</span>}</div>
         <div className="time-range">{loading && !data ? <strong className="loading-value">Loading…</strong> : nextBest ? <><HeroTime datetime={nextBest.start.datetime} isNow={nextBest.start.isNow}/><span>–</span><HeroTime datetime={nextBest.end.datetime}/></> : <strong className="unavailable-value">Unavailable</strong>}</div>
+        {loading && !data && <div className="hero-skeleton" aria-hidden="true"><span/><span/><span/></div>}
         {heroNote && <p className="personal-note">{heroNote}</p>}
         {nextBest && !nextBest.start.isNow && <AddToCalendarButton window={nextBest} place={place}/>}
-        <div className="intensity"><span className="co2">CO₂</span> Right now <strong>{current ? `${Math.round(current.carbonIntensity)} gCO₂/kWh` : "Unavailable"}</strong>{current && <IntensityLevelChip value={current.carbonIntensity} data={data} place={place}/>}</div>
+        <div className="intensity">Right now <strong>{current ? `${Math.round(current.carbonIntensity)} gCO₂/kWh` : loading && !data ? "Loading…" : "Unavailable"}</strong>{current && <IntensityLevelChip value={current.carbonIntensity} data={data} place={place}/>}</div>
         {intensityDiff !== null && <p className="personal-note">{intensityDiff === 0 ? "About the same as your usual charging window." : `${Math.abs(intensityDiff)} gCO₂/kWh ${intensityDiff < 0 ? "lower" : "higher"} than your usual charging window.`}</p>}
         <div className="hero-actions">
           <Link className="forecast-button" href="/forecast/plan"><Icon name="plug" size={18}/> Plan a charge</Link>

@@ -156,8 +156,11 @@ export function intensityAt(data: GridData | null | undefined, timestamp: number
   return match ? { carbonIntensity: match.carbonIntensity, intensityClass: null, source: "typical" } : null;
 }
 
+// A no-break space before am/pm, so a time never wraps away from it.
+export const keepTimeTogether = (text: string) => text.replace(/ (am|pm)\b/gi, "\u00a0$1");
+
 export function formatHour(datetime: string) {
-  return new Intl.DateTimeFormat("en-IN", { hour: "numeric", minute: "2-digit", timeZone: IST_TIME_ZONE }).format(new Date(datetime));
+  return keepTimeTogether(new Intl.DateTimeFormat("en-IN", { hour: "numeric", minute: "2-digit", timeZone: IST_TIME_ZONE }).format(new Date(datetime)));
 }
 
 // When the data was last updated: "6:00 pm" today, "yesterday, 6:00 pm", or
@@ -168,7 +171,7 @@ export function formatHour(datetime: string) {
 export function formatUpdatedAt(iso: string, now = Date.now()) {
   const time = Math.min(Date.parse(iso), now);
   if (Number.isNaN(time)) return "";
-  const clock =new Intl.DateTimeFormat("en-IN", { hour: "numeric", minute: "2-digit", timeZone: IST_TIME_ZONE }).format(time);
+  const clock = keepTimeTogether(new Intl.DateTimeFormat("en-IN", { hour: "numeric", minute: "2-digit", timeZone: IST_TIME_ZONE }).format(time));
   if (istDayKey(time) === istDayKey(now)) return clock;
   if (istDayKey(time) === istDayKey(now - DAY_MS)) return `yesterday, ${clock}`;
   return `${new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "short", timeZone: IST_TIME_ZONE }).format(time)}, ${clock}`;
@@ -176,7 +179,7 @@ export function formatUpdatedAt(iso: string, now = Date.now()) {
 
 // "1 pm" — compact enough for chart axis ticks.
 export function formatShortHour(datetime: string) {
-  return new Intl.DateTimeFormat("en-IN", { hour: "numeric", timeZone: IST_TIME_ZONE }).format(new Date(datetime));
+  return keepTimeTogether(new Intl.DateTimeFormat("en-IN", { hour: "numeric", timeZone: IST_TIME_ZONE }).format(new Date(datetime)));
 }
 
 // A window starting in the current hour began before now, so its start time

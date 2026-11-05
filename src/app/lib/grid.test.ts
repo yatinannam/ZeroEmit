@@ -45,19 +45,19 @@ describe("formatUpdatedAt", () => {
   const now = Date.parse("2026-11-03T10:00:00+05:30");
 
   test("today's update is just the time", () => {
-    expect(formatUpdatedAt("2026-11-03T08:00:00+05:30", now)).toBe("8:00 am");
+    expect(formatUpdatedAt("2026-11-03T08:00:00+05:30", now)).toBe("8:00\u00a0am");
   });
 
   test("yesterday's says so", () => {
-    expect(formatUpdatedAt("2026-11-02T18:00:00+05:30", now)).toBe("yesterday, 6:00 pm");
+    expect(formatUpdatedAt("2026-11-02T18:00:00+05:30", now)).toBe("yesterday, 6:00\u00a0pm");
   });
 
   test("older ones get the date", () => {
-    expect(formatUpdatedAt("2026-11-01T18:00:00+05:30", now)).toBe("1 Nov, 6:00 pm");
+    expect(formatUpdatedAt("2026-11-01T18:00:00+05:30", now)).toBe("1 Nov, 6:00\u00a0pm");
   });
 
   test("never in the future", () => {
-    expect(formatUpdatedAt("2026-11-03T11:00:00+05:30", now)).toBe("10:00 am");
+    expect(formatUpdatedAt("2026-11-03T11:00:00+05:30", now)).toBe("10:00\u00a0am");
   });
 });
 

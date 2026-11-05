@@ -63,7 +63,12 @@ const IMPACT_ROWS: { label: string; value: (summary: Summary, pricePerKwh: numbe
 ];
 
 const ABOUT_TEXT = "ZeroEmit helps you charge your EV when the grid is running on cleaner power. Best-time recommendations come from live regional grid data where available, or your own charging history otherwise.";
-const PRIVACY_TEXT = "Your vehicle and charge history stay on this device. ZeroEmit's server gets your state, to fetch grid data for its region, and your city, to find public chargers near the city centre in its copy of OpenStreetMap's charger map. Choosing your location during setup only picks the nearest city, on this device. If you tap \"Use my location\" for chargers, your position, rounded to about 1 km on this device, is sent to ZeroEmit's server to search that copy; it isn't stored or linked to you. If you turn on scheduled notifications, the server also keeps your city name, which notifications you want, your streak count and last charge date, this week's charge count, CO₂ avoided and green share, the badge you're closest to, and (if you've joined the leaderboard) your leaderboard entry's ID, which links these notifications to your public entry. It uses them only to send your reminders; turning notifications off or deleting your account removes them. If you join the leaderboard, your display name, grid region and this month's Eco points and CO₂ avoided are visible to other ZeroEmit users; leaving removes them. If you create or join a group, the same details appear on that group's board, which anyone with its code can see; leaving the group or the leaderboard takes them off.";
+const PRIVACY_SECTIONS: [string, string][] = [
+  ["On this device", "Your vehicle, charge history, profile and settings stay on this device. There's no account."],
+  ["Grid data and chargers", "ZeroEmit's server gets your state, to fetch grid data for its region, and your city, to find public chargers near the city centre in its copy of OpenStreetMap's charger map. Choosing your location during setup only picks the nearest city, on this device. If you tap \"Use my location\" for chargers, your position, rounded to about 1 km on this device, is sent to ZeroEmit's server to search that copy; it isn't stored or linked to you."],
+  ["Notifications", "If you turn on scheduled notifications, the server also keeps your city name, which notifications you want, your streak count and last charge date, this week's charge count, CO₂ avoided and green share, the badge you're closest to, and (if you've joined the leaderboard) your leaderboard entry's ID, which links these notifications to your public entry. It uses them only to send your reminders; turning notifications off or deleting your account removes them."],
+  ["Leaderboard and groups", "If you join the leaderboard, your display name, grid region and this month's Eco points and CO₂ avoided are visible to other ZeroEmit users; leaving removes them. If you create or join a group, the same details appear on that group's board, which anyone with its code can see; leaving the group or the leaderboard takes them off."],
+];
 
 export function ProfileScreen() {
   const router = useRouter();
@@ -228,7 +233,7 @@ export function ProfileScreen() {
     </Modal>}
 
     {infoModal && <Modal title={infoModal === "about" ? "About ZeroEmit" : "Privacy"} onClose={() => setInfoModal(null)}>
-      <p>{infoModal === "about" ? ABOUT_TEXT : PRIVACY_TEXT}</p>
+      {infoModal === "about" ? <p>{ABOUT_TEXT}</p> : <div className="privacy-sections">{PRIVACY_SECTIONS.map(([title, text]) => <section key={title}><h3>{title}</h3><p>{text}</p></section>)}</div>}
       {infoModal === "privacy" && leaderboardMember && <button className="forecast-button action-button" onClick={() => { setInfoModal(null); setLeaveOpen(true); }}>Leave the leaderboard</button>}
     </Modal>}
 

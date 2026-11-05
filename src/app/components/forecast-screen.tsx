@@ -79,7 +79,7 @@ export function ForecastScreen() {
           {data?.available && <span className="recommended">{data.forecastIsTypical ? "Typical pattern" : "Live forecast"}</span>}
         </div>
 
-        {loading && !data ? <div className="chart-skeleton" role="status" aria-label="Loading forecast"/>
+        {loading && !data ? <><div className="chart-skeleton" role="status" aria-label="Loading forecast"/><div className="line-skeleton" aria-hidden="true"/></>
           : !data?.available ? <p className="personal-note">{error || "Live forecast data is unavailable right now."} {retry}</p>
           : plan.points.length >= 2 ? <>
             <ForecastChart points={plan.points} highlight={best}/>

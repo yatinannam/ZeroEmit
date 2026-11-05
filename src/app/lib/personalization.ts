@@ -52,5 +52,5 @@ export function formatTimeOfDay(time: string): string {
   const [hourStr, minuteStr] = time.split(":");
   const date = new Date();
   date.setHours(Number(hourStr), Number(minuteStr), 0, 0);
-  return new Intl.DateTimeFormat("en-IN", { hour: "numeric", minute: "2-digit" }).format(date);
+  return new Intl.DateTimeFormat("en-IN", { hour: "numeric", minute: "2-digit" }).format(date).replace(/ (am|pm)\b/gi, "\u00a0$1");
 }
