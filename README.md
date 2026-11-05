@@ -88,6 +88,7 @@ Tests sit next to the code as `*.test.ts` and run under `bun test`. `tsconfig.js
 
 - The tab bar is Home, Forecast, Log, Chargers and Rewards; Profile is the top bar's avatar (the driver's initials once they've given a name). On desktop the tabs become a sidebar.
 - On phones the tab bar floats as frosted glass: a mostly opaque background (82% white, 86% dark green, so its 11px labels stay readable over buttons scrolling underneath) with `backdrop-filter: blur(22px) saturate(180%)`, a hairline border and an inner highlight, in light and dark. Browsers without `backdrop-filter` get the solid bar.
+- A glass pill sits behind the current tab and slides between tabs with a little spring (`components/app-shell.tsx`, `.nav-pill`). Pressing a tab sends the pill there at once and lifts it slightly; dragging along the bar carries the pill under the finger (a light vibration at each tab on Android), and letting go opens the tab it's over. Each page renders its own bar, so the pill's on-screen position is handed from one page's bar to the next and the slide carries on across the page change. With reduced motion the pill moves without sliding. Page content fades in over 0.24 s so a tap feels answered at once.
 - Tap targets are at least 44px, including the 36px avatar (an invisible ring around it) and the filter chips. The Home stat strip's numbers shrink on narrow phones (down to 18px) instead of running into the next column.
 - Card titles are sentence case; the page eyebrow is the only small-caps label left on a screen.
 

@@ -53,10 +53,10 @@ export function MotionRoot() {
     lenis.current?.start();
     const main = document.querySelector("main.dashboard-content");
     if (!main || reducedMotion()) return;
-    const tab = document.querySelector(".bottom-nav a.active svg");
+    // Quick, so a tap feels answered at once; the tab bar's pill carries the
+    // motion between tabs.
     const ctx = gsap.context(() => {
-      gsap.from([...main.children], { y: 14, autoAlpha: 0, duration: 0.45, ease: "power3.out", stagger: 0.04, clearProps: "transform,opacity,visibility" });
-      if (tab) gsap.fromTo(tab, { scale: 0.7 }, { scale: 1, duration: 0.5, ease: "back.out(3)", clearProps: "transform" });
+      gsap.from([...main.children].slice(0, 6), { y: 6, autoAlpha: 0, duration: 0.24, ease: "power2.out", stagger: 0.02, clearProps: "transform,opacity,visibility" });
     });
     return () => ctx.revert();
   }, [pathname]);
