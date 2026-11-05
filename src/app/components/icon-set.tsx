@@ -1,4 +1,4 @@
-export type IconName = "pin" | "user" | "bolt" | "arrow" | "arrow-left" | "close" | "tree" | "fire" | "clock" | "home" | "chart" | "history" | "award" | "chevron-right" | "bell" | "shield" | "info" | "trash" | "search" | "target" | "check" | "moon" | "share" | "download" | "leaf" | "calendar" | "navigation" | "pencil" | "plug" | "users" | "plus" | "copy" | "sparkle";
+export type IconName = "pin" | "user" | "bolt" | "arrow" | "arrow-left" | "close" | "tree" | "fire" | "clock" | "home" | "chart" | "history" | "award" | "chevron-right" | "bell" | "shield" | "info" | "trash" | "search" | "target" | "check" | "moon" | "share" | "download" | "leaf" | "calendar" | "navigation" | "pencil" | "plug" | "users" | "plus" | "copy" | "sparkle" | "chevron-down";
 
 export function Icon({ name, size = 22 }: { name: IconName; size?: number }) {
   const common = { width: size, height: size, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 1.9, strokeLinecap: "round" as const, strokeLinejoin: "round" as const, "aria-hidden": true };
@@ -17,6 +17,7 @@ export function Icon({ name, size = 22 }: { name: IconName; size?: number }) {
     history: <><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/></>,
     award: <><circle cx="12" cy="8" r="5"/><path d="m9 13-1 8 4-2 4 2-1-8"/></>,
     "chevron-right": <path d="m9 6 6 6-6 6"/>,
+    "chevron-down": <path d="m6 9 6 6 6-6"/>,
     pencil: <><path d="M4 20h4L18.5 9.5a2.83 2.83 0 0 0-4-4L4 16v4Z"/><path d="m13.5 6.5 4 4"/></>,
     plug: <><path d="M9 2v5M15 2v5"/><path d="M6 7h12v4a6 6 0 0 1-12 0V7Z"/><path d="M12 17v5"/></>,
     users: <><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 4.6a3.5 3.5 0 0 1 0 6.8"/><path d="M21.5 20a6.5 6.5 0 0 0-3.8-5.9"/></>,

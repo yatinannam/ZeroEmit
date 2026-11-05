@@ -2,6 +2,21 @@
 import { useEffect, useRef, useState } from "react";
 import type { GridData } from "../lib/grid";
 
+// The latest good answer, whichever screen fetched it: the top bar's bolt
+// (components/app-shell.tsx) reads it here rather than fetching its own.
+let latestGrid: GridData | null = null;
+const latestListeners = new Set<() => void>();
+export function subscribeLatestGrid(listener: () => void) {
+  latestListeners.add(listener);
+  return () => { latestListeners.delete(listener); };
+}
+export const getLatestGrid = () => latestGrid;
+function publishGrid(result: GridData) {
+  if (!result.available) return;
+  latestGrid = result;
+  latestListeners.forEach((listener) => listener());
+}
+
 // While the page stays open (an installed app can sit open for days), fetch
 // again this often while it's on screen, and on coming back to it once the
 // last answer is this old — so "Now" and today's windows don't go stale.
@@ -36,6 +51,7 @@ export function useGridData(state: string | null) {
       // out good data already on screen for the same state: keep that, and
       // say why it couldn't be updated.
       setData((previous) => (result.available || !previous?.available || previous.state !== result.state ? result : previous));
+      publishGrid(result);
       if (result.available) setError("");
       else setError(result.error || "Live grid data is unavailable");
     }).catch((reason: unknown) => { if (reason instanceof DOMException && reason.name === "AbortError") return; setError("Live grid data is unavailable"); }).finally(() => { if (!controller.signal.aborted) { lastFetchedAt.current = Date.now(); setCompletedKey(requestKey); } });

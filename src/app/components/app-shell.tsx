@@ -2,8 +2,17 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useLayoutEffect, useRef, useState, type CSSProperties, type MouseEvent, type PointerEvent } from "react";
+import { useLayoutEffect, useRef, useState, useSyncExternalStore, type CSSProperties, type MouseEvent, type PointerEvent } from "react";
+import gsap from "gsap";
+import { intensityLevel, liveReading, planNext24 } from "../lib/grid";
+import { currentRewardTier, totalPoints } from "../lib/rewards";
+import { hourlyPattern } from "../lib/timing";
 import { Icon, type IconName } from "./icon-set";
+import { reducedMotion } from "./motion";
+import { useCharges } from "./use-charges";
+import { getLatestGrid, subscribeLatestGrid } from "./use-grid-data";
+import { useHydrated } from "./use-hydrated";
+import { useStoredLocation } from "./use-location";
 import { useProfile } from "./use-profile";
 
 // Profile lives on the top bar's avatar, so the tab bar has room for
@@ -132,10 +141,112 @@ export function TabBar() {
   </nav>;
 }
 
-// The avatar shows the driver's initials once they've given a name.
+// Each page renders its own top bar, so what it has already shown this
+// visit is kept here: the bolt draws itself in once when the app opens, the
+// city slides in only when it changes, and points are celebrated only when
+// they go up (not each time a page mounts).
+let introPlayed = false;
+let shownCity: string | null = null;
+let lastPoints: number | null = null;
+
+const RING_R = 20;
+const RING_C = 2 * Math.PI * RING_R;
+const BOLT = "M13 2 4.5 13.5H11l-1 8.5 8.5-11.5H12L13 2Z";
+
+// Left, the city (tap to change it). Centre, the name with a bolt showing the
+// grid right now, from whichever screen last fetched it: green in its
+// cleanest third of the day, amber in the middle, muted at its dirtiest, and
+// glowing slowly while the cleanest window is on. Right, the avatar (the
+// driver's initials once they've given a name) inside a ring that fills
+// towards the next Eco level; logging a charge sends the points up to it.
 export function TopBar({ onChooseLocation }: { onChooseLocation: () => void }) {
   const pathname = usePathname();
   const { profile } = useProfile();
+  const [place] = useStoredLocation();
+  const hydrated = useHydrated();
+  const { charges, ready } = useCharges();
+  const grid = useSyncExternalStore(subscribeLatestGrid, getLatestGrid, () => null);
+  const city = useRef<HTMLSpanElement>(null);
+  const avatar = useRef<HTMLAnchorElement>(null);
+  const arc = useRef<SVGCircleElement>(null);
+
   const initials = profile.name.trim().split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0].toUpperCase()).join("");
-  return <header className="top-app-bar"><button aria-label="Choose location" onClick={onChooseLocation}><Icon name="pin"/></button><strong>ZeroEmit</strong><Link className={initials ? "top-avatar" : undefined} aria-label="Profile" aria-current={pathname === "/profile" ? "page" : undefined} href="/profile">{initials || <Icon name="user"/>}</Link></header>;
+  const points = totalPoints(charges);
+  const { current: tier, next } = currentRewardTier(points);
+  const progress = next ? (points - tier.threshold) / (next.threshold - tier.threshold) : 1;
+  const ringLabel = next ? `${Math.round(progress * 100)}% of the way to ${next.name}` : `top level, ${tier.name}`;
+  const here = grid && place && grid.state === place.state ? grid : null;
+  const reading = liveReading(here);
+  const level = here && reading ? intensityLevel(reading.carbonIntensity, hourlyPattern(here.forecast)) : null;
+  const cleanNow = Boolean(planNext24(here).windows[0]?.start.isNow);
+  const cityName = hydrated ? place?.name ?? "Choose city" : "";
+  // Read before the effect below sets it, so only the first bar plays it.
+  const playIntro = !introPlayed;
+
+  useLayoutEffect(() => { introPlayed = true; }, []);
+
+  // A new city slides in; the same city on the next page doesn't.
+  useLayoutEffect(() => {
+    if (!hydrated || shownCity === cityName) return;
+    const first = shownCity === null;
+    shownCity = cityName;
+    if (first && !playIntro) return;
+    const element = city.current;
+    if (!element || reducedMotion()) return;
+    element.classList.remove("enter");
+    void element.offsetWidth;
+    element.classList.add("enter");
+  }, [hydrated, cityName, playIntro]);
+
+  // Points went up (a charge was logged): a "+N" rises from where the toast
+  // appears to the avatar, then the ring fills; a new level flashes the ring.
+  useLayoutEffect(() => {
+    if (!ready) return;
+    const before = lastPoints;
+    lastPoints = points;
+    if (before === null || points <= before) return;
+    const ring = arc.current;
+    const target = avatar.current;
+    if (!ring || !target || reducedMotion()) return;
+    const levelUp = currentRewardTier(before).current.name !== tier.name;
+    ring.style.transitionDelay = "0.7s";
+    if (levelUp) ring.style.strokeDashoffset = "0";
+    const chip = document.createElement("div");
+    chip.className = "points-fly";
+    chip.textContent = `+${points - before}`;
+    chip.setAttribute("aria-hidden", "true");
+    document.body.append(chip);
+    const to = target.getBoundingClientRect();
+    gsap.set(chip, { x: window.innerWidth / 2, y: window.innerHeight - 150, xPercent: -50, yPercent: -50 });
+    const timeline = gsap.timeline({ onComplete: () => chip.remove() });
+    timeline.to(chip, { x: to.left + to.width / 2, duration: 0.7, ease: "power1.inOut" }, 0)
+      .to(chip, { y: to.top + to.height / 2, duration: 0.7, ease: "power2.in" }, 0)
+      .to(chip, { scale: 0.4, autoAlpha: 0, duration: 0.18 }, 0.56)
+      .fromTo(target, { scale: 1 }, { scale: 1.14, duration: 0.16, yoyo: true, repeat: 1, ease: "power2.out", clearProps: "transform" }, 0.68);
+    const timers = [window.setTimeout(() => { ring.style.transitionDelay = ""; }, 1700)];
+    if (levelUp) {
+      timers.push(window.setTimeout(() => target.classList.add("level-up"), 1500));
+      // Then back to the new level's own progress, without unwinding the ring.
+      timers.push(window.setTimeout(() => {
+        target.classList.remove("level-up");
+        ring.style.transition = "none";
+        ring.style.removeProperty("stroke-dashoffset");
+        void ring.getBoundingClientRect();
+        ring.style.removeProperty("transition");
+      }, 2700));
+    }
+    return () => { timers.forEach(window.clearTimeout); timeline.kill(); chip.remove(); ring.style.transitionDelay = ""; ring.style.removeProperty("stroke-dashoffset"); target.classList.remove("level-up"); };
+  }, [points, ready, tier.name]);
+
+  const boltClass = ["brand-bolt", level && `bolt-${level}`, cleanNow && "now", playIntro && "intro"].filter(Boolean).join(" ");
+  return <header className="top-app-bar">
+    <button type="button" className="top-location" aria-label={hydrated && place ? `Location, ${place.name}. Change location` : "Choose location"} onClick={onChooseLocation}>
+      <Icon name="pin" size={17}/><span ref={city} className="top-location-name">{cityName}</span>{hydrated && <Icon name="chevron-down" size={14}/>}
+    </button>
+    <span className="brand"><svg className={boltClass} viewBox="0 0 24 24" aria-hidden="true"><path pathLength={1} d={BOLT}/></svg><strong>ZeroEmit</strong></span>
+    <Link ref={avatar} className="top-avatar" aria-label={`Profile, ${ringLabel}`} aria-current={pathname === "/profile" ? "page" : undefined} href="/profile">
+      <svg className="avatar-ring" viewBox="0 0 44 44" aria-hidden="true"><circle className="avatar-ring-track" cx="22" cy="22" r={RING_R}/><circle ref={arc} className="avatar-ring-arc" cx="22" cy="22" r={RING_R} strokeDasharray={RING_C} strokeDashoffset={RING_C * (1 - progress)}/></svg>
+      {initials || <Icon name="user" size={18}/>}
+    </Link>
+  </header>;
 }
