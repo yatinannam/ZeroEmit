@@ -87,13 +87,14 @@ Tests sit next to the code as `*.test.ts` and run under `bun test`. `tsconfig.js
 ### Navigation and look
 
 - The tab bar is Home, Forecast, Log, Chargers and Rewards; Profile is the top bar's avatar (the driver's initials once they've given a name). On desktop the tabs become a sidebar.
-- On phones the tab bar floats as frosted glass: a translucent background with `backdrop-filter: blur(22px) saturate(180%)`, a hairline border and an inner highlight, in light and dark. Browsers without `backdrop-filter` get the solid bar.
+- On phones the tab bar floats as frosted glass: a mostly opaque background (82% white, 86% dark green, so its 11px labels stay readable over buttons scrolling underneath) with `backdrop-filter: blur(22px) saturate(180%)`, a hairline border and an inner highlight, in light and dark. Browsers without `backdrop-filter` get the solid bar.
+- Tap targets are at least 44px, including the 36px avatar (an invisible ring around it) and the filter chips. The Home stat strip's numbers shrink on narrow phones (down to 18px) instead of running into the next column.
 - Card titles are sentence case; the page eyebrow is the only small-caps label left on a screen.
 
 ### Reading the grid
 
 - **Low / Average / High.** Next to "Right now" (Home and Forecast), `intensityLevel` places the reading among its region's own day by IST hour: its cleanest third of hours is Low (green), its dirtiest third High (red), the rest Average (amber). Without at least 6 hours of the day to compare with there's no label.
-- **Chart reading.** Tap or drag sideways across a forecast chart (the page still scrolls vertically: `touch-action: pan-y`), hover with a mouse, or focus it and use the arrow keys, Home and End, to see an hour's value. To assistive tech it's a slider whose value is read out as "12:00 pm, 455 gCO₂/kWh".
+- **Chart reading.** Tap or drag sideways across a forecast chart (the page still scrolls vertically: `touch-action: pan-y`), hover with a mouse, or focus it and use the arrow keys (Page Up/Down move 3 hours), Home and End, to see an hour's value. To assistive tech it's a slider whose value is read out as "12:00 pm, 455 gCO₂/kWh". The reading's label sits above the chart, or just below the point when the point is at the very top.
 - **Charger filters.** Chips for the networks among the chargers found (up to 6, most common first; about 70% of mapped chargers name one) and for any connectors listed (only about 6% list them, so a connector filter says how many it left out).
 
 ### Local state
@@ -114,6 +115,7 @@ Main keys, all prefixed `zeroemit-`:
 | `notification-prefs` | Per-kind switches |
 | `theme` | `system`/`light`/`dark` |
 | `leaderboard`, `leaderboard-pending-join`, `leaderboard-pending-leave`, `leaderboard-synced` | Membership (`id`, `key`, name, zone) and retry queues |
+| `leaderboard-rekey` | The new key a restored entry moves to on the next sync (see Backup and restore) |
 | `planner` | The planner's last `kwh` (null means "use my usual charge"), `byPercent` with `from`/`to` (battery %), `charger` and `readyBy` (`HH:MM`) |
 | `last-backup` | When this device last saved a backup (ISO) |
 | `intro-seen`, `install-dismissed`, `chargers-near-me`, `push-active`, `clean-alert` | UI flags |
@@ -162,8 +164,9 @@ Most drivers know their battery %, not kWh. Profile → Profile & vehicle offers
 
 With no accounts, the device holds the only copy of the charge history and of the leaderboard key (the only proof an entry, and its groups, belong to the driver). Profile → Back up & restore:
 
-- **Save backup file** downloads every `zeroemit-*` key as JSON (`{ app, version, exportedAt, data }`); **Send to another phone** offers the same file to the share sheet where files can be shared. Per-device keys (push subscription flag, clean-grid alert, last leaderboard sync, install prompt, last backup) are left out.
-- **Restore from a file** checks the file first (it is ZeroEmit's, at most 2 MB, not from a newer version), shows its date, charge count, name and EV, and only replaces the device's data after a confirmation. A leaderboard entry the device had that the backup doesn't is queued to leave, so it isn't left public with no key. The app then reloads from `/`.
+- **Save backup file** downloads every `zeroemit-*` key as JSON (`{ app, version, exportedAt, data }`); **Send to another phone** offers the same file to the share sheet where files can be shared (as `.txt` on Chrome for Android, which won't share `.json`; restoring reads either). The file is named by the IST date. Per-device keys (push subscription flag, clean-grid alert, last leaderboard sync, install prompt, last backup, a join or key swap in progress) are left out.
+- **Restore from a file** checks the file first (it is ZeroEmit's, at most 2 MB, not from a newer version), shows its date, charge count, name and EV, and only replaces the device's data after a confirmation. Files over 2 MB are refused before they're read, and an export date that isn't a date shows as unknown. If storage fails partway, what was there is put back. The app then reloads from `/`.
+- **The leaderboard entry moves with the backup.** The restoring phone stores a fresh key (`zeroemit-leaderboard-rekey`), and its next sync swaps it in on the server (`PATCH /api/leaderboard/member`) before sending the score. From then on the old phone's key gets 403 `not-yours`: its next sync forgets the entry and says it moved, and its "Delete my data" or "Leave" can no longer remove the entry it handed over. If the restoring phone already holds the same entry, it keeps its own (newer) key. A leaderboard entry the device had that the backup doesn't is queued to leave, and removals still waiting on either side are all kept, so no entry is left public with no key.
 - The Profile row shows the last backup date, or "Never". The sheet warns that the file holds the leaderboard key.
 
 ## Next 24 hours (`planNext24` in `lib/grid.ts`)
@@ -174,8 +177,8 @@ Home and Forecast look ahead 24 hours from now instead of only at what's left of
 
 A story of one month (or year) of charging, built on the device from its own history, so it needs no server.
 
-- **Periods.** IST months with a charge, newest first, plus each year with charges in more than one month, plus All time (`?period=all`, which replaced the old share card and also covers charges with no real date). With no `?period=`, the page opens last month during the first week of a month, else this month, else the latest month.
-- **Pages.** Cover; charges, kWh and cost at the driver's price; timing split (best window / cleaner hour / other) against the month before; CO₂ avoided with everyday equivalents; the cleanest charge; the usual plug-in time and busiest weekday; Eco points, longest streak, level, and badges first unlocked in the period (achievements up to the period's end minus those before it). Pages with nothing to say are left out.
+- **Periods.** IST months with a charge, newest first, plus each year with charges in more than one month, plus All time (`?period=all`, which replaced the old share card and also covers charges with no real date; those can't name a day, so they're left out of the cleanest charge and the busiest weekday). With no `?period=`, the page opens last month during the first week of a month, else this month, else the latest month.
+- **Pages.** Cover; charges, kWh and cost at the driver's price; timing split (best window / cleaner hour / other) against the month before; CO₂ avoided with everyday equivalents; the cleanest charge; the usual plug-in time and busiest weekday ("You charge most on Sundays"); Eco points, longest streak, level, and badges first unlocked in the period (achievements up to the period's end minus those before it). Pages with nothing to say are left out.
 - **Honest copy.** "You usually plug in around" needs one hour with at least two charges and more than any other; the timing share counts only charges logged with grid data (the rest are listed as "No grid data"); the month in progress reads "so far"; the cost names the tariff it used; a period with no charges says so instead of showing another one.
 - **Navigation.** Tap the right two-thirds to go on and the left third to go back, swipe, or use the arrow keys (Alt+← still goes Back); Escape closes, to Home when opened from the Home banner (`&from=home`) and to Profile otherwise. Buttons at the bottom do the same for keyboards and screen readers; one live region outside the page announces "Page 3 of 8" and what it shows, and focus moves to the last page's heading when Next runs out. Another period opens from a select plus an Open button, so arrow keys on the select can't jump away. Animations are skipped under `prefers-reduced-motion`.
 - **Sharing.** The last page draws a 1080 × 1920 story card on a canvas (`components/recap-card.ts`) as soon as it shows, so Share can call `navigator.share` straight from the tap; Save image downloads it.
@@ -204,6 +207,7 @@ All day/week/month boundaries use IST (`istDayKey`, `istMonthKey`).
 | `GET /api/stations?state=&city=` or `&lat=&lon=` | none | Up to 20 chargers within 30 km; `farther` holds the nearest 3 when none are in range | `s-maxage=86400` |
 | `GET /api/leaderboard?scope=all\|<zone>&me=` | none | Top 50 for the month, plus the caller's standing when `me` is given | `s-maxage=10, swr=30` without `me`, `no-store` with it |
 | `POST /api/leaderboard/member` | same-origin + `id`/`key` | Join, sync score or rename | 20 new members per IP per hour, 30 updates per member per hour; 409 `name-taken` |
+| `PATCH /api/leaderboard/member` | same-origin + `id`/`key`/`newKey` | Move the entry to a new key after a restore (repeatable) | 30 per member per hour; 403 `not-yours`, 404, 410 |
 | `DELETE /api/leaderboard/member` | same-origin + `id`/`key` | Leave | |
 | `GET /api/leaderboard/groups?code=[&me=]` | none | A group's board this month, plus `group: { code, name, members }`; 404 `no-group` | `s-maxage=10, swr=30` without `me`, `no-store` with it; 30 unknown codes per IP per hour, then 429 |
 | `POST /api/leaderboard/groups` | same-origin + `id`/`key` | `action: "list"` (the member's groups, with size and rank), `"create"` (with `name`), `"join"` or `"leave"` (with `code`) | 3 creates and 20 joins per member per hour; 403 `forbidden`, 404 `not-member`/`no-group`, 409 `too-many`/`full` |

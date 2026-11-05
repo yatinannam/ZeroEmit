@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { validateDisplayName } from "../../../lib/leaderboard";
 import { fromOwnSite, readLimitedJson } from "../../../lib/server/http";
 import { getZoneSnapshot } from "../../../lib/server/grid-source";
-import { isUuid, leaderboardConfigured, parseMemberBody, removeMember, submitMember } from "../../../lib/server/leaderboard";
+import { isUuid, leaderboardConfigured, parseMemberBody, rekeyMember, removeMember, submitMember } from "../../../lib/server/leaderboard";
 
 const NOT_CONFIGURED = { error: "The leaderboard isn't set up on this server." };
 const MAX_BODY_BYTES = 16_384; // 100 charges is ~8 KB
@@ -28,10 +28,27 @@ export async function POST(request: NextRequest) {
     // so the server judges each charge's timing itself.
     const pattern = await getZoneSnapshot(input.zone, { allowUpstream: false }).then(({ snapshot }) => snapshot?.pattern ?? null).catch(() => null);
     const result = await submitMember(input, Date.now(), ip, pattern);
-    if (!result.ok) return NextResponse.json({ error: SUBMIT_ERRORS[result.status], ...(result.status === 409 ? { code: "name-taken" } : {}) }, { status: result.status });
+    // `code: "not-yours"`: the key doesn't match, so another phone has taken the entry over.
+    if (!result.ok) return NextResponse.json({ error: SUBMIT_ERRORS[result.status], ...(result.status === 409 ? { code: "name-taken" } : result.status === 403 ? { code: "not-yours" } : {}) }, { status: result.status });
     return NextResponse.json({ rank: result.rank, points: result.points, co2Kg: result.co2Kg });
   } catch {
     return NextResponse.json({ error: "Couldn't update the leaderboard" }, { status: 502 });
+  }
+}
+
+// Moves this entry to a new key, after a backup of it was restored here.
+const REKEY_STATUS = { missing: 404, removed: 410, forbidden: 403, rate: 429 } as const;
+export async function PATCH(request: NextRequest) {
+  if (!fromOwnSite(request)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!leaderboardConfigured) return NextResponse.json(NOT_CONFIGURED, { status: 503 });
+  const body = await readLimitedJson(request, 1024) as { id?: unknown; key?: unknown; newKey?: unknown } | null;
+  if (!isUuid(body?.id) || !isUuid(body?.key) || !isUuid(body?.newKey)) return NextResponse.json({ error: "Invalid request" }, { status: 400 });
+  try {
+    const result = await rekeyMember(body.id, body.key, body.newKey);
+    if (result === "ok") return NextResponse.json({ ok: true });
+    return NextResponse.json({ error: result === "forbidden" ? "Not your entry" : "Couldn't move the entry", ...(result === "forbidden" ? { code: "not-yours" } : {}) }, { status: REKEY_STATUS[result] });
+  } catch {
+    return NextResponse.json({ error: "Couldn't move the entry" }, { status: 502 });
   }
 }
 

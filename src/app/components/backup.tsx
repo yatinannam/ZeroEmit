@@ -1,7 +1,7 @@
 "use client";
 
-import { useRef, useState, useSyncExternalStore, type ChangeEvent } from "react";
-import { backupFilename, makeBackup, parseBackup, restorePlan, type ParsedBackup } from "../lib/backup";
+import { useEffect, useRef, useState, useSyncExternalStore, type ChangeEvent } from "react";
+import { BACKUP_TOO_BIG, backupFilename, MAX_BACKUP_BYTES, makeBackup, parseBackup, restorePlan, type ParsedBackup } from "../lib/backup";
 import { Icon } from "./icon-set";
 import { createLocalStorageStore } from "./local-storage-store";
 import { Modal } from "./modal";
@@ -21,6 +21,20 @@ function storageEntries(): [string, string][] {
 
 const shortDate = (iso: string) => new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "short", year: "numeric" }).format(new Date(iso));
 
+// The file to hand to the share sheet. Chrome on Android only shares a few
+// file types, and JSON isn't one of them, so there it goes as plain text
+// (restoring reads either). Null when this browser can't share files at all.
+function shareableFile(contents: () => string) {
+  if (typeof navigator === "undefined" || typeof navigator.canShare !== "function") return null;
+  const name = backupFilename();
+  const asJson = new File(["{}"], name, { type: "application/json" });
+  if (navigator.canShare({ files: [asJson] })) return () => new File([contents()], name, { type: "application/json" });
+  const textName = name.replace(/\.json$/, ".txt");
+  if (navigator.canShare({ files: [new File(["{}"], textName, { type: "text/plain" })] })) return () => new File([contents()], textName, { type: "text/plain" });
+  return null;
+}
+const backupJson = () => JSON.stringify(makeBackup(storageEntries()));
+
 // Profile → Back up & restore: save everything to a file (or the share sheet,
 // to send it to another phone), or bring a file back.
 export function BackupModal({ onClose }: { onClose: () => void }) {
@@ -28,10 +42,11 @@ export function BackupModal({ onClose }: { onClose: () => void }) {
   const last = useLastBackup();
   const [picked, setPicked] = useState<Extract<ParsedBackup, { ok: true }> | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const makeShareFile = shareableFile(backupJson);
+  const canShare = makeShareFile !== null;
 
   function file() {
-    const backup = makeBackup(storageEntries());
-    return new File([JSON.stringify(backup)], backupFilename(), { type: "application/json" });
+    return new File([backupJson()], backupFilename(), { type: "application/json" });
   }
 
   function saved() {
@@ -52,8 +67,8 @@ export function BackupModal({ onClose }: { onClose: () => void }) {
 
   // Straight from the tap: Safari only allows share() inside the gesture.
   async function share() {
-    const backup = file();
-    try { await navigator.share({ files: [backup], title: "ZeroEmit backup" }); saved(); }
+    if (!makeShareFile) return;
+    try { await navigator.share({ files: [makeShareFile()], title: "ZeroEmit backup" }); saved(); }
     catch (reason) { if ((reason as DOMException).name !== "AbortError") showToast("Couldn't open the share sheet. Save the file instead."); }
   }
 
@@ -61,6 +76,8 @@ export function BackupModal({ onClose }: { onClose: () => void }) {
     const chosen = event.target.files?.[0];
     event.target.value = "";
     if (!chosen) return;
+    // Before reading it: a phone shouldn't load a whole video to say no.
+    if (chosen.size > MAX_BACKUP_BYTES) { setError(BACKUP_TOO_BIG); setPicked(null); return; }
     const result = parseBackup(await chosen.text().catch(() => ""));
     if (!result.ok) { setError(result.error); setPicked(null); return; }
     setError(null);
@@ -69,13 +86,22 @@ export function BackupModal({ onClose }: { onClose: () => void }) {
 
   function restore() {
     if (!picked) return;
+    const current = Object.fromEntries(storageEntries());
+    const { set, remove } = restorePlan(current, picked.backup, crypto.randomUUID());
     try {
-      const current = Object.fromEntries(storageEntries());
-      const { set, remove } = restorePlan(current, picked.backup);
-      remove.forEach((key) => window.localStorage.removeItem(key));
       Object.entries(set).forEach(([key, value]) => window.localStorage.setItem(key, value));
+      remove.forEach((key) => window.localStorage.removeItem(key));
     } catch {
-      setError("This browser wouldn't let ZeroEmit save the data. Check it isn't in private mode, then try again.");
+      // Storage full or blocked partway: put back what was there, so the
+      // device isn't left half old, half restored.
+      try {
+        for (const key of [...Object.keys(set), ...remove]) {
+          if (key in current) window.localStorage.setItem(key, current[key]);
+          else window.localStorage.removeItem(key);
+        }
+      } catch { /* nothing more to do */ }
+      setPicked(null);
+      setError("This browser wouldn't let ZeroEmit save the data. Check it isn't in private mode and the phone has space, then try again.");
       return;
     }
     // Every store caches what it read: a full page load (not a client-side
@@ -84,12 +110,18 @@ export function BackupModal({ onClose }: { onClose: () => void }) {
     window.location.assign("/");
   }
 
-  const canShare = typeof navigator !== "undefined" && typeof navigator.canShare === "function" && navigator.canShare({ files: [new File(["{}"], "test.json", { type: "application/json" })] });
+
+  // The sheet swaps its content in place; move focus to it so the new title
+  // is read out and focus isn't left on a button that's gone.
+  const top = useRef<HTMLDivElement>(null);
+  const step = picked ? "confirm" : "menu";
+  useEffect(() => { top.current?.closest<HTMLElement>(".modal")?.focus(); }, [step]);
 
   return <Modal title={picked ? "Restore this backup?" : "Back up & restore"} onClose={onClose}>
+    <div ref={top} hidden/>
     {picked ? <>
       <p>From {picked.backup.exportedAt ? shortDate(picked.backup.exportedAt) : "an unknown date"}: {picked.charges} {picked.charges === 1 ? "charge" : "charges"}{picked.name ? `, ${picked.name}` : ""}{picked.vehicle ? ` (${picked.vehicle})` : ""}.</p>
-      <p className="backup-warning">Restoring replaces everything ZeroEmit has on this device: charges, profile, settings and leaderboard entry.</p>
+      <p className="backup-warning">Restoring replaces everything ZeroEmit has on this device: charges, profile, settings and leaderboard entry. A leaderboard entry in the backup moves to this phone, and drops off the phone it came from.</p>
       <div className="share-actions">
         <button type="button" className="primary-button" onClick={restore}>Restore backup</button>
         <button type="button" className="forecast-button action-button" onClick={() => setPicked(null)}>Cancel</button>
@@ -101,7 +133,7 @@ export function BackupModal({ onClose }: { onClose: () => void }) {
         <button type="button" className={canShare ? "forecast-button action-button" : "primary-button"} onClick={download}><Icon name="download" size={18}/> Save backup file</button>
         <button type="button" className="forecast-button action-button" onClick={() => fileInput.current?.click()}><Icon name="history" size={18}/> Restore from a file</button>
       </div>
-      <input ref={fileInput} type="file" accept="application/json,.json" hidden onChange={choose}/>
+      <input ref={fileInput} type="file" accept="application/json,.json,text/plain,.txt" hidden onChange={choose}/>
       {error && <p className="form-error" role="alert">{error}</p>}
       <p className="backup-note">{last ? `Last backup: ${shortDate(last)}.` : "No backup saved from this device yet."} The file includes your leaderboard key, which proves the entry is yours, so keep it private.</p>
     </>}

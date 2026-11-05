@@ -32,7 +32,7 @@ function slidesFor(recap: Recap, { name, periods, onPeriod, ownPrice, inProgress
   const timed = recap.timing.best + recap.timing.cleaner + recap.timing.other;
   const slides: Slide[] = [];
 
-  slides.push({ key: "cover", tone: "a", summary: `Your ${recap.period.label} recap.`, body: <>
+  slides.push({ key: "cover", tone: "a", summary: `Your ${allTime ? "all-time" : recap.period.label} recap.`, body: <>
     <p className="recap-eyebrow">{inProgress ? "Your recap so far" : "Your recap"}</p>
     <h1 className="recap-title">{allTime ? "All time" : recap.period.kind === "year" ? `Your ${period}` : period}<span>{allTime || recap.period.kind === "year" ? "on ZeroEmit" : `${recap.period.key.slice(0, 4)} on ZeroEmit`}</span></h1>
     <p className="recap-text">{name ? `${name}, here's` : "Here's"} how your charging {inProgress ? "is going, and how much cleaner you're making it" : "went, and how much cleaner you made it"}.</p>
@@ -98,7 +98,7 @@ function slidesFor(recap: Recap, { name, periods, onPeriod, ownPrice, inProgress
     slides.push({ key: "habits", tone: "b", summary: `You usually plug in around ${time}.`, body: <>
       <p className="recap-eyebrow">You usually plug in around</p>
       <p className="recap-big recap-big-time">{time}</p>
-      {recap.busiestWeekday && <p className="recap-text">{recap.busiestWeekday} was your busiest charging day.</p>}
+      {recap.busiestWeekday && <p className="recap-text">You {inProgress ? "charge" : "charged"} most on {recap.busiestWeekday}s.</p>}
       <p className="recap-muted">The charge planner can find a cleaner start that still has you ready on time.</p>
     </> });
   }
@@ -295,7 +295,7 @@ export function RecapScreen({ requested, closeTo }: { requested: string | null; 
     const thisPeriod = recap.period.kind === "year" ? istMonthKey(now).slice(0, 4) : istMonthKey(now);
     const slides = slidesFor(recap, { name, periods, onPeriod: open, ownPrice: profile.pricePerKwh !== undefined, inProgress: recap.period.kind === "all" || recap.period.key === thisPeriod });
     // Keyed by period, so another month starts again from its first page.
-    content = <Story key={recap.period.key} slides={slides} label={`${recap.period.label} recap`} onClose={close}/>;
+    content = <Story key={recap.period.key} slides={slides} label={`${recap.period.kind === "all" ? "All-time" : recap.period.label} recap`} onClose={close}/>;
   }
   return <main className="recap">{content}</main>;
 }

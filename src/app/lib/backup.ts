@@ -1,3 +1,5 @@
+import { istDayKey } from "./grid";
+
 // Backups: everything ZeroEmit keeps on the device, in one JSON file, so a
 // driver can keep it safe or move to a new phone. There are no accounts, so
 // this file is the only copy of the charge history and the leaderboard key.
@@ -8,16 +10,22 @@ const PREFIX = "zeroemit-";
 export const MAX_BACKUP_BYTES = 2_000_000;
 
 // Kept per device, never carried over: push subscriptions belong to this
-// browser, and the rest are reminders of what this device already did.
+// browser, the rest are reminders of what this device already did, and a
+// join or key swap still in progress belongs to the device that started it.
 export const DEVICE_ONLY_KEYS = new Set([
   "zeroemit-push-active",
   "zeroemit-clean-alert",
   "zeroemit-leaderboard-synced",
   "zeroemit-install-dismissed",
   "zeroemit-last-backup",
+  "zeroemit-leaderboard-pending-join",
+  "zeroemit-leaderboard-rekey",
 ]);
 const PENDING_LEAVE_KEY = "zeroemit-leaderboard-pending-leave";
 const MEMBERSHIP_KEY = "zeroemit-leaderboard";
+// The new key a restored entry moves to (see syncLeaderboard).
+const REKEY_KEY = "zeroemit-leaderboard-rekey";
+export const BACKUP_TOO_BIG = "That file is too big to be a ZeroEmit backup.";
 
 export type Backup = { app: typeof BACKUP_APP; version: number; exportedAt: string; data: Record<string, string> };
 export const isBackupKey = (key: string) => key.startsWith(PREFIX) && !DEVICE_ONLY_KEYS.has(key);
@@ -29,7 +37,8 @@ export function makeBackup(entries: [string, string][], now = Date.now()): Backu
   return { app: BACKUP_APP, version: BACKUP_VERSION, exportedAt: new Date(now).toISOString(), data };
 }
 
-export const backupFilename = (now = Date.now()) => `zeroemit-backup-${new Date(now).toISOString().slice(0, 10)}.json`;
+// Named by the IST date, like everything else in the app.
+export const backupFilename = (now = Date.now()) => `zeroemit-backup-${istDayKey(now)}.json`;
 
 export type ParsedBackup = { ok: true; backup: Backup; charges: number; name: string; vehicle: string } | { ok: false; error: string };
 
@@ -37,7 +46,7 @@ const json = (raw: string | undefined) => { try { return raw === undefined ? und
 
 // A file the user picked, checked before anything on the device changes.
 export function parseBackup(text: string): ParsedBackup {
-  if (new TextEncoder().encode(text).length > MAX_BACKUP_BYTES) return { ok: false, error: "That file is too big to be a ZeroEmit backup." };
+  if (new TextEncoder().encode(text).length > MAX_BACKUP_BYTES) return { ok: false, error: BACKUP_TOO_BIG };
   const parsed = json(text) as Partial<Backup> | undefined;
   if (!parsed || typeof parsed !== "object" || parsed.app !== BACKUP_APP || typeof parsed.data !== "object" || parsed.data === null) return { ok: false, error: "That isn't a ZeroEmit backup file." };
   if (typeof parsed.version !== "number" || parsed.version > BACKUP_VERSION) return { ok: false, error: "This backup is from a newer version of ZeroEmit. Update the app, then try again." };
@@ -50,7 +59,8 @@ export function parseBackup(text: string): ParsedBackup {
   const profile = json(data["zeroemit-profile"]) as { name?: unknown; vehicle?: unknown } | undefined;
   return {
     ok: true,
-    backup: { app: BACKUP_APP, version: parsed.version, exportedAt: typeof parsed.exportedAt === "string" ? parsed.exportedAt : "", data },
+    // A date only when it is one (the file may have been edited by hand).
+    backup: { app: BACKUP_APP, version: parsed.version, exportedAt: typeof parsed.exportedAt === "string" && !Number.isNaN(Date.parse(parsed.exportedAt)) ? parsed.exportedAt : "", data },
     charges: Array.isArray(charges) ? charges.length : 0,
     name: typeof profile?.name === "string" ? profile.name : "",
     vehicle: typeof profile?.vehicle === "string" ? profile.vehicle : "",
@@ -60,21 +70,29 @@ export function parseBackup(text: string): ParsedBackup {
 type Entry = { id: string; key: string };
 const isEntry = (value: unknown): value is Entry => Boolean(value && typeof value === "object" && typeof (value as Entry).id === "string" && typeof (value as Entry).key === "string");
 
+const entries = (raw: string | undefined) => { const value = json(raw); return (Array.isArray(value) ? value : [value]).filter(isEntry); };
+
 // What the device's storage should hold after restoring `backup` over
 // `current` (its own keys and values): the backup's data, the device-only
-// keys kept, and everything else of ZeroEmit's removed. A leaderboard entry
-// this device had that the backup doesn't is queued to leave, so it isn't
-// left on the public board with nobody holding its key.
-export function restorePlan(current: Record<string, string>, backup: Backup): { set: Record<string, string>; remove: string[] } {
+// keys kept, and everything else of ZeroEmit's removed.
+// - Removals still waiting to reach the server, this device's and the
+//   backup's, are all kept: each holds the only copy of its key.
+// - A leaderboard entry this device had that the backup doesn't is queued to
+//   leave, so it isn't left on the public board with nobody holding its key.
+// - The backup's entry moves to `newKey` on the next sync, so the phone the
+//   backup came from can no longer remove or overwrite it. If this device
+//   already holds that entry, it keeps its own (newer) key instead.
+export function restorePlan(current: Record<string, string>, backup: Backup, newKey: string): { set: Record<string, string>; remove: string[] } {
   const set = { ...backup.data };
   const remove = Object.keys(current).filter((key) => isBackupKey(key) && !(key in set));
-  const mine = json(current[MEMBERSHIP_KEY]);
-  const theirs = json(set[MEMBERSHIP_KEY]);
-  if (isEntry(mine) && !(isEntry(theirs) && theirs.id === mine.id)) {
-    const pending = json(set[PENDING_LEAVE_KEY]);
-    const list = (Array.isArray(pending) ? pending : []).filter(isEntry);
-    if (!list.some((entry) => entry.id === mine.id)) list.push({ id: mine.id, key: mine.key });
-    set[PENDING_LEAVE_KEY] = JSON.stringify(list.map(({ id, key }) => ({ id, key })));
-  }
+  const [mine] = entries(current[MEMBERSHIP_KEY]);
+  const [theirs] = entries(set[MEMBERSHIP_KEY]);
+  const leaving = [...entries(set[PENDING_LEAVE_KEY]), ...entries(current[PENDING_LEAVE_KEY])];
+  if (mine && mine.id !== theirs?.id) leaving.push(mine);
+  const unique = leaving.filter((entry, index) => leaving.findIndex((other) => other.id === entry.id) === index).map(({ id, key }) => ({ id, key }));
+  if (unique.length) set[PENDING_LEAVE_KEY] = JSON.stringify(unique);
+  if (theirs && mine?.id === theirs.id) set[MEMBERSHIP_KEY] = current[MEMBERSHIP_KEY];
+  else if (theirs) set[REKEY_KEY] = newKey;
+  else if (REKEY_KEY in current) remove.push(REKEY_KEY);
   return { set, remove: remove.filter((key) => !(key in set)) };
 }

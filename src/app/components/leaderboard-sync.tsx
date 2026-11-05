@@ -5,7 +5,7 @@ import { zoneOf } from "../lib/places";
 import { useCharges } from "./use-charges";
 import { useStoredLocation } from "./use-location";
 import { showToast } from "./toast";
-import { ENTRY_GONE_MESSAGE, retryPendingLeave, syncLeaderboard, useLeaderboardMembership } from "./use-leaderboard";
+import { ENTRY_GONE_MESSAGE, ENTRY_MOVED_MESSAGE, retryPendingLeave, syncLeaderboard, useLeaderboardMembership } from "./use-leaderboard";
 
 // While this device is on the leaderboard, re-sends this month's charges when
 // they change (or the user's grid region does) so the server can rescore.
@@ -37,6 +37,7 @@ export function LeaderboardSync() {
       // The entry vanished from the server (expired, its name taken): say so
       // once, rather than showing a membership that isn't on the board.
       if (result === "gone") showToast(ENTRY_GONE_MESSAGE);
+      if (result === "moved") showToast(ENTRY_MOVED_MESSAGE);
       if (cancelled || synced || attempts >= 3) return;
       attempts += 1;
       timer = setTimeout(run, attempts * 60_000);

@@ -4,7 +4,7 @@ import type { LeaderboardCharge } from "../leaderboard";
 import { fakeRedis, fakeRedisModule, resetFakeRedis } from "./test-redis";
 
 mock.module("./redis", () => fakeRedisModule);
-const { boardStandings, parseMemberBody, readLeaderboard, removeMember, removeMembersByName, submitMember } = await import("./leaderboard");
+const { boardStandings, parseMemberBody, readLeaderboard, rekeyMember, removeMember, removeMembersByName, submitMember } = await import("./leaderboard");
 
 const NOW = Date.parse("2026-10-14T06:30:00.000Z"); // noon IST, 14 Oct
 const uuid = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
@@ -151,6 +151,26 @@ describe("removeMember", () => {
 
   test("removing someone who isn't there is fine", async () => {
     expect(await removeMember(uuid(5), uuid(6))).toBe("ok");
+  });
+});
+
+describe("rekeyMember (a backup restored on another phone)", () => {
+  test("the new key works and the old one stops working", async () => {
+    await submitMember(member(1, 3), NOW);
+    expect(await rekeyMember(uuid(1), uuid(1001), uuid(2001), NOW)).toBe("ok");
+    expect(await submitMember(member(1, 4), NOW + 1000)).toEqual({ ok: false, status: 403 });
+    expect(await removeMember(uuid(1), uuid(1001))).toBe("forbidden");
+    expect(await submitMember(member(1, 4, { key: uuid(2001) }), NOW + 2000)).toMatchObject({ ok: true, points: 40 });
+  });
+
+  test("repeating it is fine; a wrong key, a missing or removed entry are refused", async () => {
+    await submitMember(member(1, 3), NOW);
+    expect(await rekeyMember(uuid(1), uuid(1001), uuid(2001), NOW)).toBe("ok");
+    expect(await rekeyMember(uuid(1), uuid(1001), uuid(2001), NOW)).toBe("ok");
+    expect(await rekeyMember(uuid(1), uuid(1001), uuid(3001), NOW)).toBe("forbidden");
+    expect(await rekeyMember(uuid(7), uuid(1007), uuid(2007), NOW)).toBe("missing");
+    await removeMember(uuid(1), uuid(2001));
+    expect(await rekeyMember(uuid(1), uuid(2001), uuid(3001), NOW)).toBe("removed");
   });
 });
 

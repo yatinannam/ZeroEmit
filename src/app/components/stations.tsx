@@ -149,10 +149,9 @@ export function StationsScreen() {
         <button type="button" aria-pressed={active === null} className={active === null ? "active" : ""} onClick={() => setFilter(null)}>All</button>
         {options.map((option) => { const on = active?.kind === option.kind && active.value === option.value; return <button key={`${option.kind}:${option.value}`} type="button" aria-pressed={on} className={`${on ? "active" : ""}${option.kind === "connector" ? " connector-option" : ""}`} onClick={() => setFilter(option)}>{option.kind === "connector" ? <><Icon name="plug" size={14}/> {option.value}</> : option.value}</button>; })}
       </div>}
-      {shown.status === "ready" ? <ChargerMap origin={shown.origin} stations={shown.stations.length ? shown.stations : active ? [] : shown.farther} nearYou={shown.nearYou}/> : shown.status === "loading" && <div className="charger-map charger-map-loading" aria-hidden="true"/>}
+      {shown.status === "ready" ? <ChargerMap origin={shown.origin} stations={shown.stations.length ? shown.stations : shown.farther} nearYou={shown.nearYou}/> : shown.status === "loading" && <div className="charger-map charger-map-loading" aria-hidden="true"/>}
       <section className="card stat-card stations-card">
-        {active && shown.status === "ready" && !shown.stations.length ? <p className="personal-note" role="status">None of the chargers within {RADIUS_KM} km {active.kind === "network" ? `are ${active.value}'s` : `list ${active.value}`}. <button type="button" className="text-button" onClick={() => setFilter(null)}>Show all</button></p>
-          : <StationsBody state={shown} retry={retry} where={nearYou ? "you" : place.name} searchNear={nearYou ? "me" : placeLabel(place)} limit={20}/>}
+        <StationsBody state={shown} retry={retry} where={nearYou ? "you" : place.name} searchNear={nearYou ? "me" : placeLabel(place)} limit={20}/>
         {active && unlisted > 0 && <p className="personal-note">{unlisted} {unlisted === 1 ? "charger doesn't" : "chargers don't"} list their connectors and {unlisted === 1 ? "is" : "are"} left out. <button type="button" className="text-button" onClick={() => setFilter(null)}>Show all</button></p>}
       </section>
       <Attribution updatedAt={state.status === "ready" ? state.updatedAt : null}/>

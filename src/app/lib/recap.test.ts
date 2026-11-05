@@ -101,6 +101,14 @@ describe("buildRecap", () => {
     expect(buildRecap(october, "2026-08")).toBeNull();
   });
 
+  test("all time leaves charges with no real date out of the weekday and the cleanest charge", () => {
+    const undated = (n: number, extra: Partial<Charge> = {}) => charge(new Date(0).toISOString(), { id: `u${n}`, ...extra });
+    const recap = buildRecap([undated(1, { carbonIntensity: 300 }), undated(2), undated(3), undated(4), ...october], "all")!;
+    expect(recap.count).toBe(8);
+    expect(recap.cleanest).toMatchObject({ intensity: 450 });
+    expect(recap.busiestWeekday).toBe("Saturday");
+  });
+
   test("charges from before timing was recorded count as untimed", () => {
     const recap = buildRecap([charge("2026-10-03T17:30:00Z", { timing: undefined })], "2026-10")!;
     expect(recap.timing.untimed).toBe(1);

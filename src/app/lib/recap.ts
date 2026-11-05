@@ -137,7 +137,10 @@ export function buildRecap(all: Charge[], key: string, pricePerKwh = DEFAULT_PRI
   const before = previousPeriod(key);
   const previous = before === null ? [] : all.filter(inPeriod(before));
   const measured = charges.filter((charge): charge is Charge & { carbonIntensity: number } => charge.carbonIntensity !== null);
-  const cleanest = measured.reduce<(typeof measured)[number] | null>((best, charge) => (!best || charge.carbonIntensity < best.carbonIntensity ? charge : best), null);
+  // Old charges saved without a real date (epoch 0, in All time) can't name
+  // a day, so they're left out of the cleanest charge and the busiest weekday.
+  const dated = (charge: Charge) => Date.parse(charge.loggedAt) > 0;
+  const cleanest = measured.filter(dated).reduce<(typeof measured)[number] | null>((best, charge) => (!best || charge.carbonIntensity < best.carbonIntensity ? charge : best), null);
 
   // Badges and level from everything up to the end of the period, against
   // everything before it began (the streak badges use the best streak).
@@ -163,7 +166,7 @@ export function buildRecap(all: Charge[], key: string, pricePerKwh = DEFAULT_PRI
     cleanest: cleanest ? { loggedAt: cleanest.loggedAt, chargedAt: cleanest.chargedAt, intensity: cleanest.carbonIntensity, city: cleanest.city } : null,
     averageIntensity: measured.length ? measured.reduce((sum, charge) => sum + charge.carbonIntensity, 0) / measured.length : null,
     usualTime: usualHour(charges),
-    busiestWeekday: busiestWeekday(charges),
+    busiestWeekday: busiestWeekday(charges.filter(dated)),
     longestStreak: longestStreakDays(charges),
     cities: new Set(charges.map((charge) => charge.city)).size,
     newBadges,

@@ -146,6 +146,42 @@ describe("an entry gone from the server", () => {
   });
 });
 
+describe("a backup restored on another phone", () => {
+  const REKEY = "zeroemit-leaderboard-rekey";
+  const NEW_KEY = "11111111-1111-4111-8111-111111111111";
+
+  test("the restoring phone swaps in its new key before syncing", async () => {
+    const { id, key } = joined();
+    storage.set(REKEY, NEW_KEY);
+    statuses = [200, 200];
+    expect(await syncLeaderboard("western", [])).toBe(true);
+    expect(requests.map((request) => [request.method, JSON.parse(request.body).newKey ?? JSON.parse(request.body).key])).toEqual([["PATCH", NEW_KEY], ["POST", NEW_KEY]]);
+    expect(JSON.parse(requests[0].body)).toMatchObject({ id, key });
+    expect(joined().key).toBe(NEW_KEY);
+    expect(storage.has(REKEY)).toBe(false);
+  });
+
+  test("a swap that can't reach the server is tried again later", async () => {
+    storage.set(REKEY, NEW_KEY);
+    statuses = ["offline"];
+    expect(await syncLeaderboard("western", [])).toBe(false);
+    expect(storage.get(REKEY)).toBe(NEW_KEY);
+    expect(joined()).not.toBeNull();
+  });
+
+  test("the old phone forgets the entry once its key stops working, and says why", async () => {
+    statuses = [{ status: 403, body: { error: "Not your entry", code: "not-yours" } }];
+    expect(await syncLeaderboard("western", [])).toBe("moved");
+    expect(joined()).toBeNull();
+  });
+
+  test("a 403 from the same-site check doesn't drop the entry", async () => {
+    statuses = [{ status: 403, body: { error: "Forbidden" } }];
+    expect(await syncLeaderboard("western", [])).toBe(false);
+    expect(joined()).not.toBeNull();
+  });
+});
+
 describe("leaving with only a pending join", () => {
   test("a join whose answer was lost is removed too, and the pending join forgotten", async () => {
     await leaveLeaderboard();

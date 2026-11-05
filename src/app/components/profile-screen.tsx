@@ -16,7 +16,7 @@ import { Icon, type IconName } from "./icon-set";
 import { BottomNav, TopBar } from "./app-shell";
 import { LocationModal } from "./location-modal";
 import { Modal } from "./modal";
-import { equivalentsSentence } from "../lib/equivalents";
+import { EQUIVALENTS_NOTE, equivalentsSentence } from "../lib/equivalents";
 import { OTHER_VEHICLE, parseBatteryKwh, vehicleByKey, VEHICLE_GROUPS, VEHICLES } from "../lib/vehicles";
 import { usePlannerSettings } from "./use-planner-settings";
 import { BackupModal, useLastBackup } from "./backup";
@@ -191,7 +191,7 @@ export function ProfileScreen() {
           <tbody>{IMPACT_ROWS.map((row) => <tr key={row.label}><th scope="row">{row.label}</th><td>{row.value(thisMonth, price)}</td><td>{row.value(lastMonth, price)}</td></tr>)}</tbody>
         </table>
         <p className="personal-note">Cost at {formatRupees(price)} per kWh{profile.pricePerKwh ? "." : ", a typical home tariff."} <button type="button" className="text-button" onClick={() => setEditing({ focus: "price" })}>{profile.pricePerKwh ? "Change price" : "Set your price"}</button></p>
-        {equivalentsSentence(savedGrams / 1000) && <p className="equivalents">In total: {equivalentsSentence(savedGrams / 1000)!.replace(/^Like/, "like")}</p>}
+        {equivalentsSentence(savedGrams / 1000) && <><p className="equivalents">In total: {equivalentsSentence(savedGrams / 1000)!.replace(/^Like/, "like")}</p><p className="personal-note">{EQUIVALENTS_NOTE}</p></>}
         {!chargesReady ? null : charges.length ? <div className="hero-actions profile-recap-actions">
           <Link className="forecast-button" href="/recap"><Icon name="sparkle" size={18}/> Monthly recap</Link>
           <Link className="forecast-button" href="/recap?period=all"><Icon name="share" size={18}/> Share all-time</Link>

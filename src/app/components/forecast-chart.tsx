@@ -87,7 +87,9 @@ export function ForecastChart({ points, highlight, span = null }: { points: Fore
   };
   function onKeyDown(event: KeyboardEvent<SVGSVGElement>) {
     const current = activeIndex ?? 0;
-    const next = event.key === "ArrowRight" ? current + 1 : event.key === "ArrowLeft" ? current - 1 : event.key === "Home" ? 0 : event.key === "End" ? lastIndex : null;
+    // The slider keys: Up/Right later, Down/Left earlier, Page keys by 3 hours.
+    const moves: Record<string, number> = { ArrowRight: current + 1, ArrowUp: current + 1, ArrowLeft: current - 1, ArrowDown: current - 1, PageUp: current + 3, PageDown: current - 3, Home: 0, End: lastIndex };
+    const next = event.key in moves ? moves[event.key] : null;
     if (event.key === "Escape") { read(null); return; }
     if (next === null) return;
     event.preventDefault();
@@ -97,6 +99,9 @@ export function ForecastChart({ points, highlight, span = null }: { points: Fore
   const label = (index: number) => `${index === 0 && points[0].isNow ? "Now" : formatHour(points[index].datetime)}, ${Math.round(points[index].carbonIntensity)} gCO₂/kWh`;
   const tip = activeIndex === null ? null : { x: x(activeIndex), y: y(points[activeIndex].carbonIntensity), text: `${activeIndex === 0 && points[0].isNow ? "Now" : formatShortHour(points[activeIndex].datetime)} · ${Math.round(points[activeIndex].carbonIntensity)} g` };
   const tipWidth = tip ? tip.text.length * 6.2 + 14 : 0;
+  // Above the plot, unless the point is up there too (the day's peak): then
+  // just below it, so the label doesn't cover the dot it describes.
+  const tipY = tip && tip.y < 24 ? tip.y + 8 : 0;
 
   // A slider to assistive tech: arrow keys move through the hours, and each
   // value is read out with its time.
@@ -110,8 +115,8 @@ export function ForecastChart({ points, highlight, span = null }: { points: Fore
     {tip && <g className="forecast-chart-reading" aria-hidden="true">
       <line className="forecast-chart-cursor" x1={tip.x} y1={TOP_PAD} x2={tip.x} y2={baseline}/>
       <circle className="forecast-chart-dot" cx={tip.x} cy={tip.y} r="4"/>
-      <rect className="forecast-chart-tip" x={Math.min(Math.max(tip.x - tipWidth / 2, 0), WIDTH - tipWidth)} y={0} width={tipWidth} height={18} rx={9}/>
-      <text className="forecast-chart-tip-text" x={Math.min(Math.max(tip.x, tipWidth / 2), WIDTH - tipWidth / 2)} y={12.5} textAnchor="middle">{tip.text}</text>
+      <rect className="forecast-chart-tip" x={Math.min(Math.max(tip.x - tipWidth / 2, 0), WIDTH - tipWidth)} y={tipY} width={tipWidth} height={18} rx={9}/>
+      <text className="forecast-chart-tip-text" x={Math.min(Math.max(tip.x, tipWidth / 2), WIDTH - tipWidth / 2)} y={tipY + 12.5} textAnchor="middle">{tip.text}</text>
     </g>}
     {tickIndexes.map((index) => <text key={index} className="forecast-chart-label" x={x(index)} y={HEIGHT - 4} textAnchor={index === 0 ? "start" : index === points.length - 1 ? "end" : "middle"}>{index === 0 && points[0].isNow ? "Now" : formatShortHour(points[index].datetime)}</text>)}
   </svg>;

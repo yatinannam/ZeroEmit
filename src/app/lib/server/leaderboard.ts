@@ -173,6 +173,24 @@ export async function submitMember(input: MemberInput, now = Date.now(), ip: str
   return { ok: true, rank: (rank ?? 0) + 1, points, co2Kg };
 }
 
+// Moves an entry to `newKey`: a backup restored on another phone takes the
+// entry over, and the key the old phone still holds stops working. Repeating
+// it is harmless, so a request whose answer was lost can simply be retried.
+// (A sync from the old phone already past its key check can still write the
+// old key back; the new phone then reads that as the entry having moved.)
+export async function rekeyMember(id: string, key: string, newKey: string, now = Date.now()): Promise<"ok" | "missing" | "removed" | "forbidden" | "rate"> {
+  const [rawMember, removed] = await redis<(string | null)[]>("MGET", memberKey(id), removedKey(id));
+  if (removed) return "removed";
+  if (!rawMember) return "missing";
+  const record = JSON.parse(rawMember) as MemberRecord;
+  const newHash = hashKey(newKey);
+  if (sameHash(record.keyHash, newHash)) return "ok";
+  if (!sameHash(record.keyHash, hashKey(key))) return "forbidden";
+  if (!(await withinHourlyLimit(`lb:rate:${id}`, UPDATES_PER_HOUR, now))) return "rate";
+  await redis("SET", memberKey(id), JSON.stringify({ ...record, keyHash: newHash }), "EX", RETENTION_S);
+  return "ok";
+}
+
 // Taking a member off every group they're in: its member list and its board
 // for the month the member last synced (the only month they can be on).
 const leaveGroupsCommands = (id: string, month: string, groups: string[]) => [

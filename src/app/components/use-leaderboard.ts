@@ -94,6 +94,47 @@ export function joinedMessage({ rank, points }: { rank: number; points: number }
 
 // Shown when a sync finds this device's entry gone from the server.
 export const ENTRY_GONE_MESSAGE = "Your leaderboard entry is no longer on the board. Join again from Rewards to get back on.";
+// Shown when the entry's key no longer works here: a backup of it was
+// restored on another phone, which took the entry over.
+export const ENTRY_MOVED_MESSAGE = "Your leaderboard entry moved to another phone, where a backup was restored. Join again from Rewards to have one here too.";
+
+// The server's answer when this key isn't the entry's (not a 403 from the
+// same-site check, which says nothing about the entry).
+const notYours = async (response: Response) => response.status === 403 && ((await response.clone().json().catch(() => ({}))) as { code?: string }).code === "not-yours";
+
+// A restored backup carries the entry's key, so the phone it came from still
+// holds the same key. The restore leaves a fresh key here (lib/backup's
+// restorePlan), and the next sync swaps it in on the server: from then on the
+// old phone's copy no longer works, so it can't remove or overwrite the entry
+// it handed over.
+const REKEY_KEY = "zeroemit-leaderboard-rekey";
+function storedRekey() {
+  try { return window.localStorage.getItem(REKEY_KEY); } catch { return null; }
+}
+function forgetRekey() {
+  try { window.localStorage.removeItem(REKEY_KEY); } catch { /* storage unavailable */ }
+}
+
+// The membership under its new key; false to try again later; or why the
+// entry can't be kept ("left" says nothing: it left on purpose).
+async function rekey(membership: Membership, newKey: string): Promise<Membership | false | "gone" | "moved" | "left"> {
+  try {
+    const response = await fetch("/api/leaderboard/member", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: membership.id, key: membership.key, newKey }) });
+    if (response.ok) {
+      const moved = { ...membership, key: newKey };
+      store.write(moved);
+      forgetRekey();
+      return moved;
+    }
+    const outcome = (await notYours(response)) ? "moved" : response.status === 404 ? "gone" : response.status === 410 ? "left" : null;
+    if (!outcome) return false;
+    store.write(null);
+    forgetRekey();
+    return outcome;
+  } catch {
+    return false;
+  }
+}
 
 // Bumped after each sync the server accepts, so an open board refetches and
 // shows the new score (the sync runs a moment after a charge is logged).
@@ -125,10 +166,18 @@ function rememberSynced(fingerprint: string) {
 }
 
 // Resolves to "gone" (also nothing to retry) when the server no longer has
-// this entry, so the caller can say so.
-export async function syncLeaderboard(zone: Zone, charges: Charge[]): Promise<boolean | "gone"> {
-  const membership = store.getSnapshot();
+// this entry, or "moved" when another phone took it over, so the caller can
+// say so.
+export async function syncLeaderboard(zone: Zone, charges: Charge[]): Promise<boolean | "gone" | "moved"> {
+  let membership = store.getSnapshot();
   if (!membership) return true;
+  const newKey = storedRekey();
+  if (newKey && newKey !== membership.key) {
+    const result = await rekey(membership, newKey);
+    if (result === false || result === "gone" || result === "moved") return result;
+    if (result === "left") return true;
+    membership = result;
+  } else if (newKey) forgetRekey();
   const fingerprint = syncFingerprint(membership, zone, charges);
   try {
     const last = JSON.parse(window.localStorage.getItem(SYNCED_KEY) ?? "null") as { fingerprint?: string; at?: number } | null;
@@ -138,6 +187,9 @@ export async function syncLeaderboard(zone: Zone, charges: Charge[]): Promise<bo
     const response = await submit(membership, zone, charges);
     // 410: this entry already left (e.g. from another tab), so forget it here too.
     if (response.status === 410) { store.write(null); return true; }
+    // 403: the key no longer matches, so another phone restored a backup and
+    // took the entry over. It's theirs now; forget it here.
+    if (await notYours(response)) { store.write(null); return "moved"; }
     // 404, or 409 for a record that expired (RETENTION_S on the server) while
     // someone else took its name: syncing again can't bring it back. Forget it
     // here, and remove it in case the server does still hold it after all.
@@ -210,6 +262,7 @@ export async function leaveLeaderboard() {
   if (!entries.length) return true;
   store.write(null);
   forgetPendingJoin();
+  forgetRekey();
   return leaveEntries(entries);
 }
 

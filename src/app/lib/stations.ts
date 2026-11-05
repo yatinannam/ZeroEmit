@@ -146,7 +146,6 @@ export function stationsAround(snapshot: unknown[], origin: LatLon, radiusKm = S
   return { stations, farther: stations.length ? [] : nearest.slice(0, FARTHER_STATIONS) };
 }
 
-// Google Maps' own search for chargers, for when OpenStreetMap has few.
 // The networks (operators) among `stations`, most common first: most mapped
 // chargers name one, so this is the filter that's useful almost everywhere.
 export function networksIn(stations: Station[], max = 6): string[] {
@@ -163,6 +162,7 @@ export function connectorsIn(stations: Station[]): string[] {
   return [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([connector]) => connector);
 }
 
+// Google Maps' own search for chargers, for when OpenStreetMap has few.
 export function chargerSearchUrl(near: string) {
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`EV charging station near ${near}`)}`;
 }

@@ -178,7 +178,7 @@ export function LogScreen({ quick = false }: { quick?: boolean }) {
               return <button key={charge.id} className={`card activity-item log-item log-${timing}`} onClick={() => setSelected(charge)}>
                 <span className="round-icon"><Icon name="bolt" size={19}/></span>
                 <span className="activity-text"><strong>{charge.energyKwh} kWh{charge.percentTo !== undefined && <small> · {charge.percentFrom}% → {charge.percentTo}%</small>}</strong><span>{dayHeading(charge.loggedAt)}, {formatTimeOfDay(charge.chargedAt)}{charge.city !== city ? ` · ${charge.city}` : ""}</span></span>
-                <b>+{pointsForCharge(charge)}{TIMING_TAGS[timing] && <small> {TIMING_TAGS[timing]}</small>}</b>
+                <b>+{pointsForCharge(charge)}<span className="sr-only"> points</span>{TIMING_TAGS[timing] && <small> {TIMING_TAGS[timing]}</small>}</b>
               </button>;
             })}
           </div>;
