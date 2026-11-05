@@ -241,7 +241,9 @@ export function TopBar({ onChooseLocation }: { onChooseLocation: () => void }) {
     return () => { timers.forEach(window.clearTimeout); timeline.kill(); chip.remove(); ring.style.transitionDelay = ""; ring.style.removeProperty("stroke-dashoffset"); target.classList.remove("level-up"); };
   }, [points, ready, tier.name]);
 
-  const boltClass = ["brand-bolt", level && `bolt-${level}`, cleanNow && "now", playIntro && "intro"].filter(Boolean).join(" ");
+  // Prefixed class names: a bare "intro" picked up the onboarding screen's
+  // `.intro { display:flex; min-height:100svh }` and stretched the bar.
+  const boltClass = ["brand-bolt", level && `bolt-${level}`, cleanNow && "bolt-now", playIntro && "bolt-intro"].filter(Boolean).join(" ");
   return <header className="top-app-bar">
     <button type="button" className="top-location" aria-label={hydrated && place ? `Location, ${place.name}. Change location` : "Choose location"} onClick={onChooseLocation}>
       <Icon name="pin" size={17}/><span ref={city} className="top-location-name">{cityName}</span>{hydrated && <Icon name="chevron-down" size={14}/>}

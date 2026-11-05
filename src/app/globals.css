@@ -402,9 +402,9 @@ a.station-row { border-radius:12px; color:inherit; text-decoration:none; }a.stat
 .brand-bolt.bolt-low { color:var(--good); }
 .brand-bolt.bolt-average { color:var(--warn); }
 .brand-bolt.bolt-high { color:var(--muted); }
-.brand-bolt.now { animation:bolt-glow 3.2s ease-in-out infinite; }
+.brand-bolt.bolt-now { animation:bolt-glow 3.2s ease-in-out infinite; }
 @keyframes bolt-glow { 50% { filter:drop-shadow(0 0 5px currentColor); } }
-.brand-bolt.intro path { stroke-dasharray:1; stroke-dashoffset:1; fill-opacity:0; animation:bolt-draw .7s .2s ease-out forwards, bolt-fill .3s .8s ease-out forwards; }
+.brand-bolt.bolt-intro path { stroke-dasharray:1; stroke-dashoffset:1; fill-opacity:0; animation:bolt-draw .7s .2s ease-out forwards, bolt-fill .3s .8s ease-out forwards; }
 @keyframes bolt-draw { to { stroke-dashoffset:0; } }
 @keyframes bolt-fill { to { fill-opacity:1; } }
 .top-avatar { overflow:visible; width:34px !important; height:34px !important; font-size:13px; }
@@ -417,8 +417,8 @@ a.station-row { border-radius:12px; color:inherit; text-decoration:none; }a.stat
 @keyframes ring-flash { 30% { stroke-width:5; filter:drop-shadow(0 0 6px var(--primary)); } }
 .points-fly { position:fixed; left:0; top:0; z-index:40; padding:6px 12px; border-radius:999px; color:var(--on-primary); background:var(--primary); font-size:15px; font-weight:700; box-shadow:0 6px 18px rgb(0 0 0 / 18%); pointer-events:none; }
 @media (prefers-reduced-motion:reduce) {
-  .brand-bolt.intro path { animation:none; stroke-dashoffset:0; fill-opacity:1; }
-  .brand-bolt.now { animation:none; filter:drop-shadow(0 0 3px currentColor); }
+  .brand-bolt.bolt-intro path { animation:none; stroke-dashoffset:0; fill-opacity:1; }
+  .brand-bolt.bolt-now { animation:none; filter:drop-shadow(0 0 3px currentColor); }
   .top-location-name.enter { animation:none; }
   .avatar-ring-arc { transition:none; }
   .top-avatar.level-up .avatar-ring-arc { animation:none; }
