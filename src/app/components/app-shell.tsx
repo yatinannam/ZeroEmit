@@ -148,6 +148,11 @@ export function TabBar() {
 let introPlayed = false;
 let shownCity: string | null = null;
 let lastPoints: number | null = null;
+// Read-then-replace in plain functions: inside a component the React
+// Compiler treated `const before = lastPoints` as an alias of the module
+// variable, so the comparison after `lastPoints = points` saw the new value.
+function swapLastPoints(points: number) { const before = lastPoints; lastPoints = points; return before; }
+function swapShownCity(name: string) { const before = shownCity; shownCity = name; return before; }
 
 const RING_R = 20;
 const RING_C = 2 * Math.PI * RING_R;
@@ -187,10 +192,9 @@ export function TopBar({ onChooseLocation }: { onChooseLocation: () => void }) {
 
   // A new city slides in; the same city on the next page doesn't.
   useLayoutEffect(() => {
-    if (!hydrated || shownCity === cityName) return;
-    const first = shownCity === null;
-    shownCity = cityName;
-    if (first && !playIntro) return;
+    if (!hydrated) return;
+    const before = swapShownCity(cityName);
+    if (before === cityName || (before === null && !playIntro)) return;
     const element = city.current;
     if (!element || reducedMotion()) return;
     element.classList.remove("enter");
@@ -202,8 +206,7 @@ export function TopBar({ onChooseLocation }: { onChooseLocation: () => void }) {
   // appears to the avatar, then the ring fills; a new level flashes the ring.
   useLayoutEffect(() => {
     if (!ready) return;
-    const before = lastPoints;
-    lastPoints = points;
+    const before = swapLastPoints(points);
     if (before === null || points <= before) return;
     const ring = arc.current;
     const target = avatar.current;
