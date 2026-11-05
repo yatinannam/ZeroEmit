@@ -85,7 +85,7 @@ export function Dashboard() {
         {intensityDiff !== null && <p className="personal-note">{intensityDiff === 0 ? "About the same as your usual charging window." : `${Math.abs(intensityDiff)} gCO₂/kWh ${intensityDiff < 0 ? "lower" : "higher"} than your usual charging window.`}</p>}
         <div className="hero-actions">
           <Link className="forecast-button" href="/forecast/plan"><Icon name="plug" size={18}/> Plan a charge</Link>
-          <Link className="forecast-button" href="/forecast">Forecast <Icon name="arrow" size={18}/></Link>
+          <Link className="forecast-button" href="/forecast"><Icon name="chart" size={18}/> Forecast</Link>
         </div>
       </section>
 

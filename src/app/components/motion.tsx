@@ -19,8 +19,8 @@ export function reducedMotion() {
 
 // Smooth wheel scrolling on desktop (touch keeps the phone's native scroll),
 // driven from GSAP's ticker so scrolling and tweens share one frame loop.
-// Also eases each screen in after a tab change; the first screen isn't
-// animated, since it's already painted by the time the page hydrates.
+// A new screen appears at once, like a native tab switch: fading it in left
+// it blank for a moment while the phone was busy rendering it.
 export function MotionRoot() {
   const pathname = usePathname();
   const lenis = useRef<Lenis | null>(null);
@@ -51,14 +51,6 @@ export function MotionRoot() {
     // restarting is how Lenis exposes that).
     lenis.current?.stop();
     lenis.current?.start();
-    const main = document.querySelector("main.dashboard-content");
-    if (!main || reducedMotion()) return;
-    // Quick, so a tap feels answered at once; the tab bar's pill carries the
-    // motion between tabs.
-    const ctx = gsap.context(() => {
-      gsap.from([...main.children].slice(0, 6), { y: 6, autoAlpha: 0, duration: 0.24, ease: "power2.out", stagger: 0.02, clearProps: "transform,opacity,visibility" });
-    });
-    return () => ctx.revert();
   }, [pathname]);
 
   return null;

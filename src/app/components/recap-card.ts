@@ -71,10 +71,10 @@ export async function drawRecapCard(recap: Recap, name: string): Promise<Blob> {
 
   // Four tiles: charges, energy (or CO₂), best-window share, Eco points.
   const tiles: [string, string][] = [
-    ["CHARGES", String(recap.count)],
-    co2Led ? ["ENERGY", `${formatKwh(recap.kwh)} kWh`] : ["CO₂ AVOIDED", `${recap.co2Kg.toFixed(1)} kg`],
-    ["BEST WINDOWS", recap.bestShare === null ? "—" : `${Math.round(recap.bestShare * 100)}%`],
-    ["ECO POINTS", String(recap.points)],
+    ["Charges", String(recap.count)],
+    co2Led ? ["Energy", `${formatKwh(recap.kwh)} kWh`] : ["CO₂ avoided", `${recap.co2Kg.toFixed(1)} kg`],
+    ["Best windows", recap.bestShare === null ? "—" : `${Math.round(recap.bestShare * 100)}%`],
+    ["Eco points", String(recap.points)],
   ];
   const gap = 28;
   const tileW = (W - PAD * 2 - gap) / 2;
@@ -85,7 +85,7 @@ export async function drawRecapCard(recap: Recap, name: string): Promise<Blob> {
     ctx.beginPath();
     ctx.roundRect(x, y, tileW, 220, 32);
     ctx.fill();
-    text(label, x + 36, y + 66, 600, 28, C.mint);
+    text(label, x + 36, y + 68, 600, 34, C.mint);
     let valueSize = 84;
     while (valueSize > 48 && width(value, 700, valueSize) > tileW - 72) valueSize -= 4;
     text(value, x + 36, y + 170, 700, valueSize, C.white);
