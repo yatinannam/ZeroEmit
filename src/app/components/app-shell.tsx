@@ -48,7 +48,7 @@ export function TabBar() {
 
   // A drag let go: the pill springs from under the finger to its tab.
   useLayoutEffect(() => {
-    if (!dragging) pill.current?.style.removeProperty("transform");
+    if (!dragging) pill.current?.style.removeProperty("translate");
   }, [dragging]);
 
   if (pathname === "/recap") return null;
@@ -87,7 +87,7 @@ export function TabBar() {
     const first = all[0];
     // The pill's centre follows the finger, kept between the first and last tab.
     const offset = Math.min(Math.max(event.clientX - first.width / 2, first.left), all[all.length - 1].left) - first.left;
-    pill.current.style.transform = `translateX(${offset}px)`;
+    pill.current.style.translate = `${offset}px -50%`;
     const index = nearest(event.clientX);
     if (index !== heldIndex) {
       hold(index);
