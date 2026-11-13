@@ -302,7 +302,7 @@ The public Overpass API was too slow from India (up to 20 s, or rate-limited), s
 | `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` | Scheduled push | Generate with `npx web-push generate-vapid-keys`; the public key is inlined at build time |
 | `CRON_SECRET` | `/api/push/run`, admin route | Same value in Vercel and as a GitHub Actions secret |
 
-Copy `.env.example` to `.env.local` for local development and fill in your own keys; `.env.example` is public, so it carries no keys. Without Redis, the leaderboard and scheduled push return 503 and their UI hides itself. Without VAPID keys, "best time" alerts fall back to an in-app check while the app is open.
+Copy `.env.example` to `.env.local` for local development and fill in your own keys. Keys belong only in `.env.local` and Vercel's environment variables (`.env*` is gitignored, `.env.example` included). Without Redis, the leaderboard and scheduled push return 503 and their UI hides itself. Without VAPID keys, "best time" alerts fall back to an in-app check while the app is open.
 
 ## Development
 
