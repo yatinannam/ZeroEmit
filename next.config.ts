@@ -2,6 +2,9 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   reactCompiler: true,
+  // Versions the service worker per deploy (see public/sw.js): Vercel's
+  // deployment id, else the commit, else the build's start time.
+  env: { SW_VERSION: process.env.VERCEL_DEPLOYMENT_ID || process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 12) || Date.now().toString(36) },
   // The dev badge sits over the Home tab on phones; compile/runtime errors still surface without it.
   devIndicators: false,
   async headers() {

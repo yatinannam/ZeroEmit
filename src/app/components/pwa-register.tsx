@@ -10,7 +10,8 @@ export function PwaRegister() {
     listenForInstallPrompt();
     if (!("serviceWorker" in navigator)) return;
     if (process.env.NODE_ENV !== "production") { navigator.serviceWorker.getRegistrations().then((registrations) => registrations.forEach((registration) => registration.unregister())).catch(() => undefined); return; }
-    navigator.serviceWorker.register("/sw.js").catch(() => undefined);
+    // The deploy id in the URL makes each deploy install a fresh worker, which drops the last deploy's cached pages (see sw.js).
+    navigator.serviceWorker.register(`/sw.js?v=${encodeURIComponent(process.env.SW_VERSION ?? "0")}`).catch(() => undefined);
   }, []);
   return null;
 }

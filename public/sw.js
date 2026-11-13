@@ -1,11 +1,20 @@
-// Bump the version whenever caching behaviour changes — activate deletes
-// every cache that doesn't match, so stale entries from old builds go away.
-const CACHE_NAME = "zeroemit-v3";
+// Pages are cached per deploy: the page registers this worker as
+// /sw.js?v=<deploy id> (pwa-register.tsx), so every deploy installs a new
+// worker whose page cache starts fresh, and activate deletes the old one. A
+// page kept from an earlier deploy would point at build files that deploy has
+// since deleted, and load unstyled and dead. Bump PAGE_CACHE_PREFIX whenever
+// caching behaviour changes.
+const BUILD = new URL(self.location.href).searchParams.get("v") || "0";
+const PAGE_CACHE_PREFIX = "zeroemit-pages-v4-";
+const CACHE_NAME = PAGE_CACHE_PREFIX + BUILD;
 const APP_SHELL = ["/", "/manifest.webmanifest", "/icons/zeroemit.svg", "/icons/icon-192.png"];
+// Every invite code, recap period and forecast day is its own URL, so the page
+// cache is capped too (the app shell is never trimmed).
+const MAX_PAGE_ENTRIES = 40;
 // Build assets (/_next/static) get their own cache. Their names change with
-// every deploy while sw.js doesn't, so old builds' files would pile up
-// forever: only the newest MAX_STATIC_ENTRIES are kept (a build has a few
-// dozen, so the current one and the last couple stay available offline).
+// every deploy, so old builds' files would pile up forever: only the newest
+// MAX_STATIC_ENTRIES are kept (a build has a few dozen, so the current one
+// and the last couple stay available offline).
 const STATIC_CACHE = "zeroemit-static-v1";
 const MAX_STATIC_ENTRIES = 150;
 
@@ -14,6 +23,13 @@ async function trimStaticCache() {
   const cache = await caches.open(STATIC_CACHE);
   const keys = await cache.keys();
   await Promise.all(keys.slice(0, Math.max(0, keys.length - MAX_STATIC_ENTRIES)).map((key) => cache.delete(key)));
+}
+
+async function trimPageCache() {
+  const cache = await caches.open(CACHE_NAME);
+  const shell = new Set(APP_SHELL.map((path) => new URL(path, self.location.origin).href));
+  const pages = (await cache.keys()).filter((key) => !shell.has(key.url));
+  await Promise.all(pages.slice(0, Math.max(0, pages.length - MAX_PAGE_ENTRIES)).map((key) => cache.delete(key)));
 }
 
 // Build assets cached by earlier versions alongside the pages move to their
@@ -33,7 +49,8 @@ async function moveStaticAssets() {
   }
 }
 
-self.addEventListener("install", (event) => { event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL))); self.skipWaiting(); });
+// "reload" skips the browser's HTTP cache, so the shell is this deploy's.
+self.addEventListener("install", (event) => { event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL.map((path) => new Request(path, { cache: "reload" }))))); self.skipWaiting(); });
 self.addEventListener("activate", (event) => {
   event.waitUntil(moveStaticAssets()
     .then(() => caches.keys())
@@ -41,6 +58,13 @@ self.addEventListener("activate", (event) => {
     .then(trimStaticCache));
   self.clients.claim();
 });
+
+// Offline: the page itself, else the same screen under another query string
+// (/log for /log?quick=1, the shortcut and the notification action), else Home.
+async function cachedPage(request) {
+  const options = { cacheName: CACHE_NAME };
+  return (await caches.match(request, options)) || (await caches.match(request, { ...options, ignoreSearch: true })) || (await caches.match("/", options)) || Response.error();
+}
 
 // How long a page load waits on a stalled connection before a cached copy
 // (if there is one) is shown instead.
@@ -64,7 +88,7 @@ self.addEventListener("fetch", (event) => {
       const copy = response.clone();
       const write = isStatic
         ? caches.open(STATIC_CACHE).then((cache) => cache.put(request, copy)).then(trimStaticCache)
-        : caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
+        : caches.open(CACHE_NAME).then((cache) => cache.put(request, copy)).then(trimPageCache);
       // Too late to extend the event once a cached page already answered; the write still finishes.
       try { event.waitUntil(write); } catch { /* event already settled */ }
     }
@@ -79,8 +103,8 @@ self.addEventListener("fetch", (event) => {
     return;
   }
   // Resolves only when a cached copy exists; otherwise the network keeps the page.
-  const cachedAfterTimeout = new Promise((resolve) => setTimeout(() => { caches.match(request).then((hit) => { if (hit) resolve(hit); }); }, NAVIGATION_TIMEOUT_MS));
-  event.respondWith(Promise.race([network(), cachedAfterTimeout]).catch(async () => (await caches.match(request)) || (await caches.match("/")) || Response.error()));
+  const cachedAfterTimeout = new Promise((resolve) => setTimeout(() => { caches.match(request, { cacheName: CACHE_NAME }).then((hit) => { if (hit) resolve(hit); }); }, NAVIGATION_TIMEOUT_MS));
+  event.respondWith(Promise.race([network(), cachedAfterTimeout]).catch(() => cachedPage(request)));
 });
 
 // Scheduled notifications from the server (src/app/lib/server/push-scheduler.ts):
