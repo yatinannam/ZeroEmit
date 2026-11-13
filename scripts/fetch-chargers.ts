@@ -11,7 +11,7 @@ import { compactChargers, INDIA_CHARGERS_QUERY, type ChargerElement } from "../s
 const FILE = new URL("../src/app/lib/server/chargers-india.json", import.meta.url);
 
 const saved = process.argv[2];
-const answer: unknown = saved ? JSON.parse(readFileSync(saved, "utf8")) : await firstOverpassAnswer(OVERPASS_SERVERS, INDIA_CHARGERS_QUERY, { timeoutMs: 200_000 });
+const answer: unknown = saved ? JSON.parse(readFileSync(saved, "utf8")) : await firstOverpassAnswer(OVERPASS_SERVERS, INDIA_CHARGERS_QUERY, { timeoutMs: 15 * 60_000, log: (line) => console.error(line) });
 if (answer === null) {
   console.error("No Overpass server returned the chargers. Try again later.");
   process.exit(1);

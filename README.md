@@ -333,7 +333,7 @@ Before pushing, run `bun test`, `bunx tsc --noEmit`, `bun run lint` and `bun run
 
 ## Operations
 
-- **Charger snapshot:** `chargers-refresh.yml` runs `bun scripts/fetch-chargers.ts` every Monday at 03:00 IST and commits the snapshot if it changed, which redeploys the app. The script queries several Overpass servers at once, and keeps the old snapshot if none answers or if the new one has 20% fewer chargers. When the servers are busy, run the query in `INDIA_CHARGERS_QUERY` (`src/app/lib/stations.ts`) on overpass-turbo.eu and pass the saved answer to `bun run chargers`.
+- **Charger snapshot:** `chargers-refresh.yml` runs `bun scripts/fetch-chargers.ts` every Monday and Thursday at 03:00 IST and commits the snapshot if it changed, which redeploys the app. The script asks the Overpass servers in `lib/server/overpass.ts` at once and takes the first good answer; a busy server (429, 5xx, an HTML page or a cut-short query) is asked again after 30 s, 90 s and 180 s, within 15 minutes overall, and every failed attempt is logged with its reason. It keeps the old snapshot if none answers or if the new one has 20% fewer chargers. When the servers are busy, run the query in `INDIA_CHARGERS_QUERY` (`src/app/lib/stations.ts`) on overpass-turbo.eu and pass the saved answer to `bun run chargers`.
 - **Moderation:** remove a leaderboard entry by name. Add `"maxPoints": 0` to remove only that name's entries with at most that many points, such as a leftover duplicate.
 
   ```bash

@@ -1,13 +1,16 @@
 # Refreshes the bundled snapshot of India's public EV chargers from
 # OpenStreetMap once a week and commits it if anything changed; the push
-# redeploys the app. Public Overpass servers are sometimes busy, so a failed
-# run just keeps the current snapshot until the next one (or run it by hand
-# from the Actions tab).
+# redeploys the app. Public Overpass servers are often busy: the script
+# retries each one for up to 15 minutes and logs why each attempt failed, a
+# failed run keeps the current snapshot, and a second weekly run (Thursdays)
+# means one bad night doesn't cost a week. It can also be run by hand from
+# the Actions tab.
 name: Refresh charger snapshot
 
 on:
   schedule:
     - cron: "30 21 * * 0" # Mondays 03:00 IST
+    - cron: "30 21 * * 3" # Thursdays 03:00 IST
   workflow_dispatch:
 
 permissions:
@@ -16,7 +19,7 @@ permissions:
 jobs:
   refresh:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2

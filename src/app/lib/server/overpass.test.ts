@@ -42,3 +42,60 @@ describe("partial answers", () => {
     expect(await firstOverpassAnswer(["a", "b"], "query", { fetchImpl, timeoutMs: 1000 })).toEqual({ elements: [{ id: 2 }] });
   });
 });
+
+describe("retries", () => {
+  // Each endpoint answers its planned steps in turn, then repeats the last one.
+  function sequenceFetch(plan: Record<string, { status?: number; body?: unknown; text?: string }[]>) {
+    const calls: Record<string, number> = {};
+    const fetchImpl = (async (url: string) => {
+      const steps = plan[url];
+      const step = steps[Math.min(calls[url] ?? 0, steps.length - 1)];
+      calls[url] = (calls[url] ?? 0) + 1;
+      return new Response(step.text ?? JSON.stringify(step.body ?? { elements: [] }), { status: step.status ?? 200 });
+    }) as unknown as typeof fetch;
+    return { fetchImpl, calls };
+  }
+
+  test("a busy server (502, 429) is asked again after a pause, and each failure is logged with its reason", async () => {
+    const { fetchImpl, calls } = sequenceFetch({ a: [{ status: 502, text: "<html><body>Bad Gateway</body></html>" }, { status: 429 }, { body: { elements: [{ id: 3 }] } }] });
+    const lines: string[] = [];
+    expect(await firstOverpassAnswer(["a"], "query", { fetchImpl, timeoutMs: 2000, retryDelaysMs: [10, 10], log: (line) => lines.push(line) })).toEqual({ elements: [{ id: 3 }] });
+    expect(calls.a).toBe(3);
+    expect(lines).toHaveLength(2);
+    expect(lines[0]).toContain("attempt 1");
+    expect(lines[0]).toContain("HTTP 502: Bad Gateway");
+    expect(lines[1]).toContain("HTTP 429");
+  });
+
+  test("a rejected query (400) isn't retried", async () => {
+    const { fetchImpl, calls } = sequenceFetch({ a: [{ status: 400, text: "parse error" }] });
+    expect(await firstOverpassAnswer(["a"], "query", { fetchImpl, timeoutMs: 2000, retryDelaysMs: [10, 10] })).toBeNull();
+    expect(calls.a).toBe(1);
+  });
+
+  test("an HTML page with a 200 counts as busy", async () => {
+    const { fetchImpl, calls } = sequenceFetch({ a: [{ text: "<html>Too many requests</html>" }, { body: { elements: [] } }] });
+    expect(await firstOverpassAnswer(["a"], "query", { fetchImpl, timeoutMs: 2000, retryDelaysMs: [10] })).toEqual({ elements: [] });
+    expect(calls.a).toBe(2);
+  });
+
+  test("a retry that would start after the deadline isn't waited for", async () => {
+    const { fetchImpl, calls } = sequenceFetch({ a: [{ status: 504 }] });
+    const started = Date.now();
+    expect(await firstOverpassAnswer(["a"], "query", { fetchImpl, timeoutMs: 200, retryDelaysMs: [5000] })).toBeNull();
+    expect(Date.now() - started).toBeLessThan(150);
+    expect(calls.a).toBe(1);
+  });
+
+  test("a request that hangs past its own limit is retried", async () => {
+    let call = 0;
+    const fetchImpl = ((_url: string, init?: RequestInit) => new Promise<Response>((resolve, reject) => {
+      call += 1;
+      if (call > 1) return resolve(new Response(JSON.stringify({ elements: [{ id: 4 }] })));
+      init?.signal?.addEventListener("abort", () => reject(new DOMException("aborted", "AbortError")));
+    })) as typeof fetch;
+    const lines: string[] = [];
+    expect(await firstOverpassAnswer(["a"], "query", { fetchImpl, timeoutMs: 2000, attemptTimeoutMs: 50, retryDelaysMs: [10], log: (line) => lines.push(line) })).toEqual({ elements: [{ id: 4 }] });
+    expect(lines[0]).toContain("no answer within");
+  });
+});
