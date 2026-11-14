@@ -57,11 +57,38 @@ function forgetPendingJoin() {
   try { window.localStorage.removeItem(PENDING_JOIN_KEY); } catch { /* storage unavailable */ }
 }
 
+// Bumped by every leave (Leave, or "Delete my data"), so a join or sync whose
+// answer lands afterwards doesn't write the membership back here.
+let leaveEpoch = 0;
+// Joins and syncs still waiting on the server. A leave waits for them before
+// sending its removal, so none of them can put the entry back after it.
+const inFlight = new Set<Promise<unknown>>();
+function tracked<T>(work: Promise<T>) {
+  inFlight.add(work);
+  const settle = () => { inFlight.delete(work); };
+  void work.then(settle, settle);
+  return work;
+}
+
+type JoinResult = { ok: true; rank: number; points: number } | { ok: false; error: string };
+
+// A join that was on its way when the device left: the server may have saved
+// it, so it's taken off again instead of being written back here.
+async function leftDuringJoin(entry: PendingLeave): Promise<JoinResult> {
+  await leaveAlso([entry]);
+  return { ok: false, error: "You left the leaderboard before that went through." };
+}
+
 // Joins, or (already a member) renames this device's entry: the server treats
 // a new name under the same id and key as a rename, with the same rules as
 // joining (valid, and not held by anyone else this month). `points` is this
 // month's score as the server counted it.
-export async function joinLeaderboard(name: string, zone: Zone, charges: Charge[]): Promise<{ ok: true; rank: number; points: number } | { ok: false; error: string }> {
+export function joinLeaderboard(name: string, zone: Zone, charges: Charge[]): Promise<JoinResult> {
+  return tracked(join(name, zone, charges));
+}
+
+async function join(name: string, zone: Zone, charges: Charge[]): Promise<JoinResult> {
+  const epoch = leaveEpoch;
   const current = store.getSnapshot();
   const { id, key } = current ?? pendingJoin();
   const membership: Membership = { id, key, name };
@@ -69,6 +96,7 @@ export async function joinLeaderboard(name: string, zone: Zone, charges: Charge[
     const response = await submit(membership, zone, charges);
     if (!response.ok) {
       const { code } = await response.json().catch(() => ({})) as { code?: string };
+      if (leaveEpoch !== epoch) return leftDuringJoin({ id, key });
       const suggestion = alternativeName(name);
       const error = code === "name" ? "That name can't be used. Try another one."
         : code === "name-taken" ? `That name is already on this month's leaderboard. Try another${suggestion ? `, like "${suggestion}"` : ""}.`
@@ -76,12 +104,14 @@ export async function joinLeaderboard(name: string, zone: Zone, charges: Charge[
       return { ok: false, error };
     }
     const body = await response.json() as { rank: number; points?: number };
+    if (leaveEpoch !== epoch) return leftDuringJoin({ id, key });
     store.write(membership);
     // The join already sent this score; don't send it again straight away.
     rememberSynced(syncFingerprint(membership, zone, charges));
     forgetPendingJoin();
     return { ok: true, rank: body.rank, points: body.points ?? 0 };
   } catch {
+    if (leaveEpoch !== epoch) return leftDuringJoin({ id, key });
     return { ok: false, error: "Couldn't reach the server. Check your connection." };
   }
 }
@@ -116,10 +146,14 @@ function forgetRekey() {
 }
 
 // The membership under its new key; false to try again later; or why the
-// entry can't be kept ("left" says nothing: it left on purpose).
-async function rekey(membership: Membership, newKey: string): Promise<Membership | false | "gone" | "moved" | "left"> {
+// entry can't be kept ("left" says nothing: it left on purpose). Left while
+// the swap was on its way (`epoch` moved on): the entry may be under either
+// key now, so it's removed under the new one too, and nothing is written back.
+async function rekey(membership: Membership, newKey: string, epoch: number): Promise<Membership | false | "gone" | "moved" | "left"> {
+  const leftMeanwhile = async () => { await leaveAlso([{ id: membership.id, key: newKey }]); return "left" as const; };
   try {
     const response = await fetch("/api/leaderboard/member", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: membership.id, key: membership.key, newKey }) });
+    if (leaveEpoch !== epoch) return leftMeanwhile();
     if (response.ok) {
       const moved = { ...membership, key: newKey };
       store.write(moved);
@@ -127,12 +161,13 @@ async function rekey(membership: Membership, newKey: string): Promise<Membership
       return moved;
     }
     const outcome = (await notYours(response)) ? "moved" : response.status === 404 ? "gone" : response.status === 410 ? "left" : null;
+    if (leaveEpoch !== epoch) return leftMeanwhile();
     if (!outcome) return false;
     store.write(null);
     forgetRekey();
     return outcome;
   } catch {
-    return false;
+    return leaveEpoch !== epoch ? leftMeanwhile() : false;
   }
 }
 
@@ -168,12 +203,17 @@ function rememberSynced(fingerprint: string) {
 // Resolves to "gone" (also nothing to retry) when the server no longer has
 // this entry, or "moved" when another phone took it over, so the caller can
 // say so.
-export async function syncLeaderboard(zone: Zone, charges: Charge[]): Promise<boolean | "gone" | "moved"> {
+export function syncLeaderboard(zone: Zone, charges: Charge[]): Promise<boolean | "gone" | "moved"> {
+  return tracked(sync(zone, charges));
+}
+
+async function sync(zone: Zone, charges: Charge[]): Promise<boolean | "gone" | "moved"> {
+  const epoch = leaveEpoch;
   let membership = store.getSnapshot();
   if (!membership) return true;
   const newKey = storedRekey();
   if (newKey && newKey !== membership.key) {
-    const result = await rekey(membership, newKey);
+    const result = await rekey(membership, newKey, epoch);
     if (result === false || result === "gone" || result === "moved") return result;
     if (result === "left") return true;
     membership = result;
@@ -185,6 +225,10 @@ export async function syncLeaderboard(zone: Zone, charges: Charge[]): Promise<bo
   } catch { /* unreadable: just send */ }
   try {
     const response = await submit(membership, zone, charges);
+    // Left while this was on its way: nothing to write back (it may be a new
+    // membership by now). The leave removes this entry after this settles,
+    // and the server won't let a sync put back an entry that left.
+    if (leaveEpoch !== epoch) { await leaveAlso([{ id: membership.id, key: membership.key }]); return true; }
     // 410: this entry already left (e.g. from another tab), so forget it here too.
     if (response.status === 410) { store.write(null); return true; }
     // 403: the key no longer matches, so another phone restored a backup and
@@ -238,13 +282,36 @@ async function sendLeave(entry: PendingLeave) {
   }
 }
 
+// Matched on id and key: one entry can be queued under its old and its new
+// key (a key swap in progress), and only one of them still works.
+const sameEntry = (a: PendingLeave, b: PendingLeave) => a.id === b.id && a.key === b.key;
+
+function queueLeaves(entries: PendingLeave[]) {
+  const queued = pendingLeaves.getSnapshot();
+  pendingLeaves.write([...queued, ...entries.filter((entry) => !queued.some((other) => sameEntry(other, entry)))]);
+}
+
+// Tries each removal now and drops the ones that went through from the queue;
+// whether all went through.
+async function sendLeaves(entries: PendingLeave[]) {
+  const outcomes = await Promise.all(entries.map(sendLeave));
+  const done = entries.filter((_, index) => outcomes[index]);
+  pendingLeaves.write(pendingLeaves.getSnapshot().filter((pending) => !done.some((entry) => sameEntry(entry, pending))));
+  return outcomes.every(Boolean);
+}
+
 // Queues each entry's removal, then tries it now; whether all went through.
 async function leaveEntries(entries: PendingLeave[]) {
-  pendingLeaves.write([...pendingLeaves.getSnapshot(), ...entries]);
-  const outcomes = await Promise.all(entries.map(sendLeave));
-  const done = new Set(entries.filter((_, index) => outcomes[index]).map((entry) => entry.id));
-  pendingLeaves.write(pendingLeaves.getSnapshot().filter((pending) => !done.has(pending.id)));
-  return outcomes.every(Boolean);
+  queueLeaves(entries);
+  return sendLeaves(entries);
+}
+
+// For a join or sync that was on its way when the device left: removes these
+// too, unless they're still queued (the leave sends those once this settles).
+async function leaveAlso(entries: PendingLeave[]) {
+  const queued = pendingLeaves.getSnapshot();
+  const fresh = entries.filter((entry) => !queued.some((other) => sameEntry(other, entry)));
+  if (fresh.length) await leaveEntries(fresh);
 }
 
 // Forgets the entry on this device at once, so the UI updates; the removal is
@@ -252,24 +319,30 @@ async function leaveEntries(entries: PendingLeave[]) {
 // whether it went through now.
 // A join the server saved but whose answer never arrived exists only as the
 // pending join's id and key, so that one is removed too ("Delete my data"
-// must not leave it public).
+// must not leave it public). So is the entry under a key swap still pending:
+// a swap whose answer was lost may have gone through.
 export async function leaveLeaderboard() {
+  leaveEpoch += 1;
   const membership = store.getSnapshot();
-  const entries = [membership, storedPendingJoin()]
+  const newKey = storedRekey();
+  const entries = [membership, membership && newKey ? { id: membership.id, key: newKey } : null, storedPendingJoin()]
     .filter((entry) => entry !== null)
     .map(({ id, key }) => ({ id, key }))
-    .filter((entry, index, list) => list.findIndex((other) => other.id === entry.id) === index);
+    .filter((entry, index, list) => list.findIndex((other) => sameEntry(other, entry)) === index);
   if (!entries.length) return true;
   store.write(null);
   forgetPendingJoin();
   forgetRekey();
-  return leaveEntries(entries);
+  // Queued before waiting, so a page closed meanwhile still finishes it on
+  // its next visit. Sent once any join or sync on its way has settled, so
+  // none of them can put the entry back (or move it to its new key) after.
+  queueLeaves(entries);
+  await Promise.allSettled([...inFlight]);
+  return sendLeaves(entries);
 }
 
 export async function retryPendingLeave() {
   const pending = pendingLeaves.getSnapshot();
   if (!pending.length) return;
-  const outcomes = await Promise.all(pending.map(sendLeave));
-  const done = new Set(pending.filter((_, index) => outcomes[index]).map((entry) => entry.id));
-  pendingLeaves.write(pendingLeaves.getSnapshot().filter((entry) => !done.has(entry.id)));
+  await sendLeaves(pending);
 }

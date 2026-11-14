@@ -240,6 +240,7 @@ Zone snapshots are cached in memory (60 s) and in Redis (`zone:<zone>`, 24 h TTL
 - Members with 0 points are left out of ranks, totals and leaderboard pushes.
 - Member records expire after 70 days without a sync. A sync that gets 404/409 clears local membership and tells the user they can rejoin.
 - A leave sets `lb:removed:<id>`, and a sync checks it twice: before it starts and again inside its transaction (`EXISTS`). A leave that landed in between means the sync just put the entry back, so a second round trip takes it off the boards again (and frees the name if the sync claimed it), and the sync gets 410 like any sync after leaving.
+- On the device, Leave and Delete my data forget the entry at once and queue its removal (under a pending key swap's new key too, since a swap whose answer was lost may have gone through). The removal is sent once any join or sync already on its way has been answered, and an answer that lands after a leave never writes the membership back: the entry it answered for is removed as well. Queued removals are matched on id and key, so one that went through under the old key doesn't drop the other.
 
 ### Groups (`lib/server/groups.ts`, `lib/groups.ts`)
 

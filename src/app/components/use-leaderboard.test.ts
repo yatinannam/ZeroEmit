@@ -10,14 +10,15 @@ Object.assign(globalThis, {
     removeEventListener() {},
   },
 });
-// A queued answer: a status (body { rank: 1 }), "offline", or a status with its own body.
-let statuses: (number | "offline" | { status: number; body: unknown })[] = [];
+// A queued answer: a status (body { rank: 1 }), "offline", or a status with its
+// own body, answered only once `after` resolves (a request still on its way).
+let statuses: (number | "offline" | { status: number; body: unknown; after?: Promise<void> })[] = [];
 const requests: { method: string; body: string }[] = [];
 globalThis.fetch = (async (_url: string | URL | Request, init?: RequestInit) => {
   requests.push({ method: init?.method ?? "GET", body: String(init?.body ?? "") });
   const status = statuses.shift() ?? 200;
   if (status === "offline") throw new TypeError("Failed to fetch");
-  if (typeof status === "object") return new Response(JSON.stringify(status.body), { status: status.status });
+  if (typeof status === "object") { await status.after; return new Response(JSON.stringify(status.body), { status: status.status }); }
   return new Response(JSON.stringify({ rank: 1 }), { status });
 }) as typeof fetch;
 
@@ -179,6 +180,53 @@ describe("a backup restored on another phone", () => {
     statuses = [{ status: 403, body: { error: "Forbidden" } }];
     expect(await syncLeaderboard("western", [])).toBe(false);
     expect(joined()).not.toBeNull();
+  });
+});
+
+describe("an answer that lands after leaving", () => {
+  const REKEY = "zeroemit-leaderboard-rekey";
+  const NEW_KEY = "11111111-1111-4111-8111-111111111111";
+  const held = () => { let answer!: () => void; const after = new Promise<void>((resolve) => { answer = resolve; }); return { after, answer }; };
+
+  test("a join doesn't write the membership back, and the removal goes out after it", async () => {
+    await leaveLeaderboard();
+    requests.length = 0;
+    const { after, answer } = held();
+    statuses = [{ status: 200, body: { rank: 1, points: 0 }, after }];
+    const join = joinLeaderboard("Asha", "western", []);
+    const { id, key } = JSON.parse(storage.get("zeroemit-leaderboard-pending-join") ?? "null");
+    statuses = [200];
+    const leave = leaveLeaderboard(); // "Delete my data" while the join is on its way
+    answer();
+    expect(await join).toEqual({ ok: false, error: "You left the leaderboard before that went through." });
+    expect(await leave).toBe(true);
+    expect(joined()).toBeNull();
+    expect(requests.map((request) => [request.method, JSON.parse(request.body)])).toEqual([["POST", expect.objectContaining({ id, key })], ["DELETE", { id, key }]]);
+    expect(JSON.parse(storage.get(PENDING) ?? "[]")).toEqual([]);
+  });
+
+  test("a key swap doesn't write the membership back or send the score, and the entry is removed under both keys", async () => {
+    const { id, key } = joined();
+    storage.set(REKEY, NEW_KEY);
+    const { after, answer } = held();
+    statuses = [{ status: 200, body: { ok: true }, after }];
+    const sync = syncLeaderboard("western", []);
+    statuses = [403, 200]; // the swap went through, so the old key no longer works
+    const leave = leaveLeaderboard();
+    answer();
+    expect(await sync).toBe(true);
+    expect(await leave).toBe(true);
+    expect(joined()).toBeNull();
+    expect(requests.map((request) => [request.method, JSON.parse(request.body)])).toEqual([["PATCH", { id, key, newKey: NEW_KEY }], ["DELETE", { id, key }], ["DELETE", { id, key: NEW_KEY }]]);
+    expect(JSON.parse(storage.get(PENDING) ?? "[]")).toEqual([]);
+  });
+
+  test("of an entry queued under two keys, the one that didn't go through stays queued", async () => {
+    const { id } = joined();
+    storage.set(REKEY, NEW_KEY);
+    statuses = [403, 502];
+    expect(await leaveLeaderboard()).toBe(false);
+    expect(JSON.parse(storage.get(PENDING) ?? "null")).toEqual([{ id, key: NEW_KEY }]);
   });
 });
 
