@@ -318,7 +318,9 @@ a.station-row { border-radius:12px; color:inherit; text-decoration:none; }a.stat
 .forecast-chart-tip { fill:var(--ink); }.forecast-chart-tip-text { fill:var(--card); font-size:11px; font-weight:700; }
 .connector-filter .connector-option { display:inline-flex; align-items:center; gap:4px; }
 .intensity { flex-wrap:wrap; row-gap:6px; }.intensity strong { white-space:nowrap; }
-.profile-recap-actions .forecast-button { gap:6px; padding:0 8px; font-size:15px; white-space:nowrap; }
+.profile-recap-actions { grid-template-columns:repeat(2, minmax(0, 1fr)); }.profile-recap-actions .forecast-button { gap:6px; padding:0 8px; font-size:15px; white-space:nowrap; }
+/* Two buttons side by side on a 360px phone: a step smaller, so "Share all-time" stays inside the card's padding. */
+@media (max-width:380px) { .profile-recap-actions .forecast-button { gap:4px; padding:0 4px; font-size:14px; } }
 /* Tab bar pill: slides between tabs, follows a finger dragged along the bar (components/app-shell.tsx).
    Its offset is in `translate`, applied before `scale`; in `transform` the press lift would scale the offset and push the pill sideways. */
 .nav-pill { display:none; }
