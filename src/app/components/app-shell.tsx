@@ -13,6 +13,7 @@ import { useCharges } from "./use-charges";
 import { getLatestGrid, subscribeLatestGrid } from "./use-grid-data";
 import { useHydrated } from "./use-hydrated";
 import { useStoredLocation } from "./use-location";
+import { useMinute } from "./use-minute";
 import { useProfile } from "./use-profile";
 
 // Profile lives on the top bar's avatar, so the tab bar has room for
@@ -180,10 +181,13 @@ export function TopBar({ onChooseLocation }: { onChooseLocation: () => void }) {
   const { current: tier, next } = currentRewardTier(points);
   const progress = next ? (points - tier.threshold) / (next.threshold - tier.threshold) : 1;
   const ringLabel = next ? `${Math.round(progress * 100)}% of the way to ${next.name}` : `top level, ${tier.name}`;
+  // The clock passed in, so the colour and glow move on with the minute
+  // (memoised on `here` alone, the glow outlived the clean window).
+  const now = useMinute();
   const here = grid && place && grid.state === place.state ? grid : null;
-  const reading = liveReading(here);
+  const reading = liveReading(here, now);
   const level = here && reading ? intensityLevel(reading.carbonIntensity, hourlyPattern(here.forecast)) : null;
-  const cleanNow = Boolean(planNext24(here).windows[0]?.start.isNow);
+  const cleanNow = Boolean(planNext24(here, now).windows[0]?.start.isNow);
   const cityName = hydrated ? place?.name ?? "Choose city" : "";
   // Read before the effect below sets it, so only the first bar plays it.
   // Kept in state: read straight off the module, the React Compiler left it
