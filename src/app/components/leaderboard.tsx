@@ -100,6 +100,7 @@ function NameModal({ currentName, onClose, onDone }: { currentName?: string; onC
   const { profile, updateProfile } = useProfile();
   const { charges } = useCharges();
   const [place] = useStoredLocation();
+  // Cleared as soon as the name is edited: it described the name tried before.
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const renaming = currentName !== undefined;
@@ -122,7 +123,7 @@ function NameModal({ currentName, onClose, onDone }: { currentName?: string; onC
 
   return <Modal title={renaming ? "Change your display name" : "Join the leaderboard"} onClose={onClose} onSubmit={submit}>
     {!renaming && <p>Other ZeroEmit users will see your display name, your grid region, and this month&apos;s Eco points and CO₂ avoided. Nothing else is shown to anyone. If scheduled notifications are on, the server also links your entry to them (your city, streak and weekly totals) to tell you about your rank.</p>}
-    <label>Display name<input name="name" type="text" defaultValue={renaming ? currentName : displayNameFrom(profile.name)} placeholder="e.g. Asha" minLength={2} maxLength={20} autoComplete="nickname" required/></label>
+    <label>Display name<input name="name" type="text" defaultValue={renaming ? currentName : displayNameFrom(profile.name)} placeholder="e.g. Asha" minLength={2} maxLength={20} autoComplete="nickname" required onChange={() => setError(null)}/></label>
     {error && <p className="form-error" role="alert">{error}</p>}
     <button className="primary-button" type="submit" disabled={busy}>{busy ? (renaming ? "Saving…" : "Joining…") : renaming ? "Save name" : "Join"}</button>
   </Modal>;

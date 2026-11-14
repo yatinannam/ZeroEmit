@@ -235,7 +235,7 @@ Zone snapshots are cached in memory (60 s) and in Redis (`zone:<zone>`, 24 h TTL
 ### Leaderboard (`lib/server/leaderboard.ts`, `lib/leaderboard.ts`)
 
 - The server re-scores every submission from the charges themselves (`scoreMonth`). It judges timing against its own grid pattern, counts at most 2 charges a day and 100 a month, and caps intensities at 2000 g/kWh. A client can't fake a bonus.
-- Display names are 1–20 characters and unique per month, ignoring case and spacing (`lb:<month>:names`, `HSETNX`). Names taken by others get a suggestion like "Asha 2".
+- Display names are 1–20 characters and unique per month, ignoring case and spacing (`lb:<month>:names`, `HSETNX`). Names taken by others get a suggestion like "Asha 2". The join and rename sheets clear that error as soon as the name is edited.
 - Members with 0 points are left out of ranks, totals and leaderboard pushes.
 - Member records expire after 70 days without a sync. A sync that gets 404/409 clears local membership and tells the user they can rejoin.
 
