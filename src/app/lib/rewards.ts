@@ -1,5 +1,5 @@
 import type { Charge } from "../components/use-charges";
-import { TIMING_BONUS } from "./timing";
+import { TIMING_BONUS, type ChargeTiming } from "./timing";
 import { DAY_MS, IST_OFFSET_MS, istHourOfDay } from "./grid";
 
 export const POINTS_PER_CHARGE = 10;
@@ -30,17 +30,24 @@ function legacyGreen(charge: Charge): boolean {
     : charge.carbonIntensity !== null && charge.carbonIntensity <= GREEN_CHARGE_FALLBACK_THRESHOLD;
 }
 
+// The charge's timing when it's one the app writes. Anything else (a
+// hand-edited "superb" or "constructor") counts as none, rather than turn
+// points into NaN or text.
+export const knownTiming = (charge: Pick<Charge, "timing">): ChargeTiming | undefined => (typeof charge.timing === "string" && Object.hasOwn(TIMING_BONUS, charge.timing) ? charge.timing : undefined);
+
 // A "green" charge is one in one of the day's best windows for the region
 // (lib/timing.ts); charges from before timing keep the old absolute rule.
 export function isGreenCharge(charge: Charge): boolean {
-  return charge.timing ? charge.timing === "best" : legacyGreen(charge);
+  const timing = knownTiming(charge);
+  return timing ? timing === "best" : legacyGreen(charge);
 }
 
 // 10 for logging, plus the timing bonus (+10 best window, +5 cleaner hour).
 // Nothing under MIN_POINTS_KWH.
 export function pointsForCharge(charge: Charge): number {
   if (!earnsPoints(charge)) return 0;
-  return POINTS_PER_CHARGE + (charge.timing ? TIMING_BONUS[charge.timing] : legacyGreen(charge) ? GREEN_CHARGE_BONUS : 0);
+  const timing = knownTiming(charge);
+  return POINTS_PER_CHARGE + (timing ? TIMING_BONUS[timing] : legacyGreen(charge) ? GREEN_CHARGE_BONUS : 0);
 }
 
 export function totalPoints(charges: Charge[]): number {

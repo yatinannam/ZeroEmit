@@ -1,7 +1,7 @@
 import type { Charge } from "../components/use-charges";
 import { istDayKey, istHourOfDay } from "./grid";
 import { ZONE_LABELS, type Zone } from "./places";
-import { baselineFromPattern, GREEN_CHARGE_BONUS, isGreenCharge, MAX_CHARGE_KWH, MIN_POINTS_KWH, pointsForCharge, POINTS_PER_CHARGE, UNTIMED_CHARGE_BASELINE } from "./rewards";
+import { baselineFromPattern, GREEN_CHARGE_BONUS, isGreenCharge, knownTiming, MAX_CHARGE_KWH, MIN_POINTS_KWH, pointsForCharge, POINTS_PER_CHARGE, UNTIMED_CHARGE_BASELINE } from "./rewards";
 import { chargeTiming, TIMING_BONUS, type ChargeTiming } from "./timing";
 
 // Rules shared by the app (building what it sends) and the server (which
@@ -38,7 +38,7 @@ export function toLeaderboardCharges(charges: Charge[], month: string): Leaderbo
   return inMonth
     .filter((charge) => kept.has(charge))
     .slice(0, MAX_SUBMITTED_CHARGES)
-    .map((charge) => ({ date: istDayKey(charge.loggedAt), kwh: charge.energyKwh, intensity: charge.carbonIntensity, green: isGreenCharge(charge), hour: istHourOfDay(Date.parse(charge.loggedAt)), timing: charge.timing ?? null }));
+    .map((charge) => ({ date: istDayKey(charge.loggedAt), kwh: charge.energyKwh, intensity: charge.carbonIntensity, green: isGreenCharge(charge), hour: istHourOfDay(Date.parse(charge.loggedAt)), timing: knownTiming(charge) ?? null }));
 }
 
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);

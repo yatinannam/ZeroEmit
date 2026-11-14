@@ -116,4 +116,12 @@ describe("buildRecap", () => {
     expect(recap.usualTime).toBeNull();
     expect(recap.busiestWeekday).toBeNull();
   });
+
+  test("a timing the app never writes counts as untimed, with no key of its own", () => {
+    const odd = (timing: string) => charge("2026-10-03T17:30:00Z", { timing: timing as Charge["timing"] });
+    const recap = buildRecap([odd("superb"), odd("constructor"), charge("2026-10-04T17:30:00Z", { timing: "best" })], "2026-10")!;
+    expect(recap.timing).toEqual({ best: 1, cleaner: 0, other: 0, untimed: 2 });
+    expect(recap.points).toBe(40);
+    expect(recap.bestShare).toBe(1);
+  });
 });

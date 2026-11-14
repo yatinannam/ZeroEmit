@@ -112,7 +112,7 @@ Main keys, all prefixed `zeroemit-`:
 
 | Key | Holds |
 | --- | --- |
-| `charges` | Charge records: `energyKwh`, `chargedAt`, `city`, `carbonIntensity`, `intensitySource`, `timing` (`best`/`cleaner`/`other`), `baselineIntensity`, `percentFrom`/`percentTo` (when logged by battery %), `loggedAt` |
+| `charges` | Charge records: `energyKwh`, `chargedAt`, `city`, `carbonIntensity`, `intensitySource`, `timing` (`best`/`cleaner`/`other`), `baselineIntensity`, `percentFrom`/`percentTo` (when logged by battery %), `loggedAt`. When read, any other `timing` is dropped (the charge counts as untimed) and a `chargedAt` that isn't a time from 00:00 to 23:59 is rebuilt from `loggedAt` |
 | `profile` | `name`, `vehicle`, `vehicleKey` (a preset or `other`), `batteryKwh`, `pricePerKwh`, `joinedAt` |
 | `location` | Chosen `{ name, state }`; `null` means first launch |
 | `notification-prefs` | Per-kind switches |

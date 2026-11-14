@@ -3,7 +3,7 @@ import { chargeCost, DEFAULT_PRICE_PER_KWH } from "./cost";
 import { impactEquivalents } from "./equivalents";
 import { IST_OFFSET_MS, IST_TIME_ZONE } from "./grid";
 import { istMonthKey } from "./leaderboard";
-import { achievements, currentRewardTier, estimatedCarbonSavedGrams, longestStreakDays, totalPoints } from "./rewards";
+import { achievements, currentRewardTier, estimatedCarbonSavedGrams, knownTiming, longestStreakDays, totalPoints } from "./rewards";
 
 // The monthly (or yearly) recap: a story of how a stretch of charging went,
 // built on the device from its own charge history. Periods are IST months
@@ -116,7 +116,8 @@ function busiestWeekday(charges: Charge[]) {
 
 function timingCounts(charges: Charge[]): TimingCounts {
   const counts: TimingCounts = { best: 0, cleaner: 0, other: 0, untimed: 0 };
-  for (const charge of charges) counts[charge.timing ?? "untimed"] += 1;
+  // An unknown timing counts as untimed rather than add a key of its own.
+  for (const charge of charges) counts[knownTiming(charge) ?? "untimed"] += 1;
   return counts;
 }
 

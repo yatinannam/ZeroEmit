@@ -137,6 +137,16 @@ describe("points with timing (option A)", () => {
     expect(pointsForCharge(charge(1, 12, 600))).toBe(10);
   });
 
+  test("a timing the app never writes counts as none, so points stay a number", () => {
+    for (const timing of ["superb", "constructor", "__proto__", "toString"]) {
+      const odd = { ...charge(1, 12, 600), timing } as unknown as Charge;
+      expect(pointsForCharge(odd)).toBe(10);
+      expect(isGreenCharge(odd)).toBe(false);
+    }
+    expect(pointsForCharge({ ...charge(1, 12, 400), timing: "constructor" } as unknown as Charge)).toBe(15); // the old green rule
+    expect(totalPoints([{ ...charge(1, 12, 600), timing: "superb" } as unknown as Charge, timed("best")])).toBe(30);
+  });
+
   test("a green charge is one in a best window once timing is known", () => {
     expect(isGreenCharge(timed("best", 600))).toBe(true);
     expect(isGreenCharge(timed("other", 400))).toBe(false);

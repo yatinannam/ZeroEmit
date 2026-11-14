@@ -3,7 +3,7 @@ import { useCallback, useSyncExternalStore } from "react";
 import { useHydrated } from "./use-hydrated";
 import { createLocalStorageStore } from "./local-storage-store";
 import { LEGACY_LABELS, placeLabel } from "../lib/places";
-import type { ChargeTiming } from "../lib/timing";
+import { TIMING_BONUS, type ChargeTiming } from "../lib/timing";
 
 // `loggedAt` is when the charge happened (the date + time entered in the log
 // form) — streaks and monthly totals count by it, so a charge backfilled for
@@ -27,14 +27,22 @@ const EMPTY: Charge[] = [];
 export const LEGACY_LOGGED_AT = new Date(0).toISOString();
 // Charges from before location search stored "Chennai, India"-style labels;
 // relabel them so they still match the current place ("Chennai, Tamil Nadu").
-function normalizeCharge(raw: Charge): Charge {
+export function normalizeCharge(raw: Charge): Charge {
   const legacyPlace = LEGACY_LABELS[raw.city];
   const charge = legacyPlace ? { ...raw, city: placeLabel(legacyPlace) } : raw;
   const dated = typeof charge.loggedAt === "string" && !Number.isNaN(Date.parse(charge.loggedAt)) ? charge : { ...charge, loggedAt: LEGACY_LOGGED_AT };
   // The time of day ("HH:MM") and intensity feed every screen's formatting;
   // a damaged one is rebuilt or dropped rather than crash the app.
-  const timed = typeof dated.chargedAt === "string" && /^\d{1,2}:\d{2}$/.test(dated.chargedAt) ? dated : { ...dated, chargedAt: timeOfDay(new Date(dated.loggedAt)) };
+  const timed = typeof dated.chargedAt === "string" && /^([01]?\d|2[0-3]):[0-5]\d$/.test(dated.chargedAt) ? dated : { ...dated, chargedAt: timeOfDay(new Date(dated.loggedAt)) };
   const measured = Number.isFinite(timed.carbonIntensity) || timed.carbonIntensity === null ? timed : { ...timed, carbonIntensity: null };
+  // A timing the app never writes ("superb", or "constructor" in a hand-edited
+  // backup) would make points NaN or text and every leaderboard sync fail;
+  // the charge counts as untimed instead.
+  if (measured.timing !== undefined && !(typeof measured.timing === "string" && Object.hasOwn(TIMING_BONUS, measured.timing))) {
+    const { timing, ...rest } = measured;
+    void timing;
+    return normalizeCharge(rest);
+  }
   const { percentFrom: from, percentTo: to } = measured;
   const percentValid = typeof from === "number" && typeof to === "number" && Number.isInteger(from) && Number.isInteger(to) && from >= 0 && to <= 100 && to > from;
   if ((from !== undefined || to !== undefined) && !percentValid) {
