@@ -136,7 +136,9 @@ button:active, a:active { opacity:.65; }
 :root[data-theme="dark"] .segmented button.active { color:var(--primary); background:var(--accent-soft); box-shadow:inset 0 0 0 1.5px rgb(136 217 130 / 55%); }
 @media (prefers-color-scheme:dark) { :root:not([data-theme="light"]) .segmented button.active { color:var(--primary); background:var(--accent-soft); box-shadow:inset 0 0 0 1.5px rgb(136 217 130 / 55%); } }
 .segmented button, .station-origin .text-button { min-height:44px; }
-.page-header h1 { font-size:28px; }.secondary-intro { margin-top:8px; font-size:15px; }.eyebrow { text-transform:uppercase; }
+.page-header h1 { font-size:28px; }.secondary-intro { margin-top:8px; font-size:15px; }
+/* 360px suits a phone's title; on desktop the column is 800px wide, so titles get room to run. */
+@media (min-width:1000px) { .page-header h1 { max-width:640px; } }.eyebrow { text-transform:uppercase; }
 .modal h2 { font-weight:600; }
 .data-status { padding:4px 0; border:0; background:transparent; }
 .toggle-list-off { opacity:.5; }
