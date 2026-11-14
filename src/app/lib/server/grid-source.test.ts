@@ -4,7 +4,7 @@ import { fakeRedis, fakeRedisModule, resetFakeRedis } from "./test-redis";
 mock.module("./redis", () => fakeRedisModule);
 process.env.INDIA_ENERGY_ATLAS_API_KEY = "test-key";
 delete process.env.ELECTRICITY_MAPS_API_KEY;
-const { getGridData, resetGridSourceMemory, ATLAS_DAILY_BUDGET } = await import("./grid-source");
+const { getGridData, isFresh, resetGridSourceMemory, ATLAS_DAILY_BUDGET } = await import("./grid-source");
 
 // A zone response: 14 days of hourly readings ending an hour ago, newest first.
 const zonePayload = () => ({ data: { items: Array.from({ length: 336 }, (_, i) => ({ timestamp: new Date(Date.now() - (i + 1) * 3_600_000).toISOString(), carbon_intensity_gco2_kwh: 500 + (i % 24), total_generation_mw: 80_000 })) } });
@@ -71,5 +71,26 @@ describe("India Energy Atlas quota", () => {
     const result = await getGridData("maharashtra");
     expect(result.data).toBeUndefined();
     expect(calls).toHaveLength(0);
+  });
+});
+
+describe("current reading", () => {
+  // A snapshot fetched 10 minutes ago whose newest reading is `readingAgeMs` old.
+  const snapshot = (readingAgeMs: number) => ({ latest: { carbon_intensity_gco2_kwh: 510, timestamp: new Date(Date.now() - readingAgeMs).toISOString() }, pattern: Array(24).fill(520), fetchedAt: Date.now() - 10 * 60_000 });
+
+  test("a just-fetched snapshot whose reading is over 3 hours old isn't 'right now'", async () => {
+    expect(isFresh(snapshot(2 * 3_600_000))).toBe(true);
+    expect(isFresh(snapshot(4 * 3_600_000))).toBe(false);
+    expect(isFresh({ ...snapshot(0), latest: null })).toBe(false);
+    fakeRedis.strings.set("zone:southern", JSON.stringify(snapshot(4 * 3_600_000)));
+    const result = await getGridData("tamil-nadu");
+    expect(calls).toHaveLength(0);
+    expect(result.data?.forecastIsTypical).toBe(true);
+    expect(result.data?.current).toBeUndefined();
+  });
+
+  test("a reading under 3 hours old in a recent snapshot still is", async () => {
+    fakeRedis.strings.set("zone:southern", JSON.stringify(snapshot(2 * 3_600_000)));
+    expect((await getGridData("tamil-nadu")).data?.current?.carbonIntensity).toBe(510);
   });
 });

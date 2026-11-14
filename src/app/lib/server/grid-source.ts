@@ -1,4 +1,4 @@
-import { HOUR_MS, istDayKey, istHourStart, IST_TIME_ZONE, type ForecastPoint, type GridData } from "../grid";
+import { HOUR_MS, istDayKey, istHourStart, IST_TIME_ZONE, readingCovers, type ForecastPoint, type GridData } from "../grid";
 import { STATES, type Zone } from "../places";
 import { redis, redisConfigured } from "./redis";
 
@@ -49,7 +49,8 @@ const forecastCache = new Map<string, { expiresAt: number; forecast: ForecastPoi
 // refreshes a region at a time, and a counter in Redis stops all calls at
 // ATLAS_DAILY_BUDGET per IST day. When a refresh isn't possible, the last
 // good snapshot is served: its typical pattern stays valid for hours, and its
-// reading counts as "right now" while it's under LATEST_MAX_AGE_MS old.
+// reading counts as "right now" while it's under LATEST_MAX_AGE_MS old (and
+// the reading itself under 3 hours; see isFresh).
 const ZONE_DATA_HISTORY_HOURS = 336; // 14 days, for the typical-pattern average
 const ZONE_REFRESH_MS = 60 * 60_000;
 const LATEST_MAX_AGE_MS = 90 * 60_000;
@@ -211,8 +212,11 @@ export async function getZoneSnapshot(zone: Zone, { allowUpstream, maxAgeMs = ZO
 }
 
 // "Latest" older than this is no longer treated as the current reading.
-export function isFresh(snapshot: ZoneSnapshot, maxAgeMs = LATEST_MAX_AGE_MS) {
-  return Date.now() - snapshot.fetchedAt < maxAgeMs;
+// The reading's own stamp counts too (the client's 3-hour readingCovers): a
+// provider that keeps answering without new hours leaves a just-fetched
+// snapshot holding an hours-old reading.
+export function isFresh(snapshot: ZoneSnapshot, maxAgeMs = LATEST_MAX_AGE_MS, now = Date.now()) {
+  return now - snapshot.fetchedAt < maxAgeMs && Boolean(snapshot.latest && readingCovers({ datetime: snapshot.latest.timestamp }, now));
 }
 
 // Projects the typical-day pattern onto real clock hours, from the top of the

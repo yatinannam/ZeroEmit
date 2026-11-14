@@ -231,7 +231,7 @@ All day/week/month boundaries (streaks, Profile's month totals) and Peak Dodger'
 3. `ELECTRICITY_MAPS_API_KEY` is an optional, coarser fallback.
 4. Without any provider the API returns `available: false` and the UI shows "unavailable"; nothing is made up.
 
-Zone snapshots are cached in memory (60 s) and in Redis (`zone:<zone>`, 24 h TTL) and refreshed upstream at most hourly. `atlas:lock:<zone>` (30 s) stops parallel refreshes. `atlas:calls:<IST day>` stops all upstream calls after 90 per day (`ATLAS_DAILY_BUDGET`), to stay inside the trial key's 100/day.
+Zone snapshots are cached in memory (60 s) and in Redis (`zone:<zone>`, 24 h TTL) and refreshed upstream at most hourly. A snapshot's reading is only passed on as current (by the API and the push scheduler) while the snapshot is under 90 minutes old and the reading itself under 3 hours old, so a provider that keeps answering without new hours can't make an old reading look like "now". `atlas:lock:<zone>` (30 s) stops parallel refreshes. `atlas:calls:<IST day>` stops all upstream calls after 90 per day (`ATLAS_DAILY_BUDGET`), to stay inside the trial key's 100/day.
 
 ### Leaderboard (`lib/server/leaderboard.ts`, `lib/leaderboard.ts`)
 
