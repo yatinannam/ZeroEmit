@@ -137,7 +137,19 @@ describe("labels", () => {
     expect(isNightStart(at("2026-11-05T00:30:00Z"))).toBe(false); // 6:00 am IST
     expect(isNightStart(T0)).toBe(false);
     // 2:25 am on the 5th: 9:30 pm on the 4th. 11 pm on the 4th: 9:30 pm that evening.
-    expect(bedtimeBefore(at("2026-11-04T20:55:00Z"))).toBe(at("2026-11-04T16:00:00Z"));
-    expect(bedtimeBefore(at("2026-11-04T17:30:00Z"))).toBe(at("2026-11-04T16:00:00Z"));
+    expect(bedtimeBefore(at("2026-11-04T20:55:00Z"), T0)).toEqual({ at: at("2026-11-04T16:00:00Z"), beforeBed: true });
+    expect(bedtimeBefore(at("2026-11-04T17:30:00Z"), T0)).toEqual({ at: at("2026-11-04T16:00:00Z"), beforeBed: true });
+  });
+  test("a night start planned after 9:30 pm is never reminded about in the past", () => {
+    const at = (iso: string) => Date.parse(`${iso}+05:30`);
+    // 10:30 pm for 1 am: 9:30 pm has gone, so 12:50 am.
+    expect(bedtimeBefore(at("2026-11-05T01:00:00"), at("2026-11-04T22:30:00"))).toEqual({ at: at("2026-11-05T00:50:00"), beforeBed: false });
+    // 10:55 pm for 11 pm: 10:50 pm has gone too, so in a minute.
+    expect(bedtimeBefore(at("2026-11-04T23:00:00"), at("2026-11-04T22:55:00"))).toEqual({ at: at("2026-11-04T22:56:00"), beforeBed: false });
+    // At 9:30 pm on the dot it's no longer ahead.
+    expect(bedtimeBefore(at("2026-11-05T01:00:00"), at("2026-11-04T21:30:00")).beforeBed).toBe(false);
+    expect(bedtimeBefore(at("2026-11-05T01:00:00"), at("2026-11-04T21:29:00"))).toEqual({ at: at("2026-11-04T21:30:00"), beforeBed: true });
+    // 12:30 am for 3 am: 2:50 am, not last evening's 9:30 pm.
+    expect(bedtimeBefore(at("2026-11-05T03:00:00"), at("2026-11-05T00:30:00"))).toEqual({ at: at("2026-11-05T02:50:00"), beforeBed: false });
   });
 });

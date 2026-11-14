@@ -127,10 +127,14 @@ export function isNightStart(timestamp: number) {
   return hour >= 22 || hour < 6;
 }
 
-// When to remind about a night start: 9:30 pm IST the evening before it.
-export function bedtimeBefore(start: number) {
+// When to remind about a night start: 9:30 pm IST the evening before it
+// (`beforeBed`). Planned after that (10:30 pm for a 1 am start), 9:30 pm has
+// gone, and a reminder in the past never fires: then 10 minutes before the
+// start, or in a minute if that has gone too.
+export function bedtimeBefore(start: number, now: number) {
   const evening = nextOccurrence("21:30", start - 24 * HOUR_MS)!;
-  return evening < start ? evening : evening - 24 * HOUR_MS;
+  const bedtime = evening < start ? evening : evening - 24 * HOUR_MS;
+  return bedtime > now ? { at: bedtime, beforeBed: true } : { at: Math.max(now + 60_000, start - 10 * 60_000), beforeBed: false };
 }
 
 // "today", "tonight" (6 pm onwards today), or "tomorrow", IST.

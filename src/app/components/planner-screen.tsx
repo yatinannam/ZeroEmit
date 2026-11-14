@@ -117,6 +117,7 @@ export function PlannerScreen() {
     const cleaner = result.cleanerPercent ? `, ${result.cleanerPercent}% cleaner than plugging in straight away` : "";
     // A night start is reminded about at bedtime, to set a timer, not to get up.
     const night = isNightStart(result.start);
+    const reminder = bedtimeBefore(result.start, now);
     const startTime = formatHour(new Date(result.start).toISOString());
     downloadIcs(chargingWindowIcs({
       kind: "plan",
@@ -127,8 +128,8 @@ export function PlannerScreen() {
       gridLabel: ZONE_LABELS[zoneOf(place)],
       summary: night ? `EV charger starts at ${startTime}` : "Plug in your EV",
       description: `The cleanest time to add ${formatKwh(kwh)} kWh before ${formatHour(new Date(readyBy).toISOString())} on the ${ZONE_LABELS[zoneOf(place)]}: about ${Math.round(result.average)} gCO₂/kWh on average${cleaner}. Planned with ZeroEmit: https://zero-emit.vercel.app`,
-      alarm: night ? `Before bed: plug in and set your EV to start charging at ${startTime}` : "Plug in your EV in 10 minutes",
-      alarmMinutesBefore: night ? (result.start - bedtimeBefore(result.start)) / 60_000 : 10,
+      alarm: night ? `${reminder.beforeBed ? "Before bed: plug" : "Plug"} in and set your EV to start charging at ${startTime}` : "Plug in your EV in 10 minutes",
+      alarmMinutesBefore: night ? (result.start - reminder.at) / 60_000 : 10,
     }, now), "zeroemit-charge-plan.ics");
     showToast("Calendar event downloaded. Open it to add the reminder.");
   }
@@ -193,6 +194,12 @@ function announcement(plan: Plan | null, now: number) {
   return "";
 }
 
+// Planned after 9:30 pm, the reminder can't come at bedtime: say when it does.
+function reminderNote({ at, beforeBed }: { at: number; beforeBed: boolean }) {
+  const time = formatHour(new Date(at).toISOString());
+  return beforeBed ? `The calendar reminder comes at ${time}, so you can set the timer before bed.` : `The calendar reminder comes at ${time}, since 9:30 pm has passed.`;
+}
+
 type ResultProps = {
   plan: Plan | null; waiting: boolean; error: string; retry: () => void; kwh: number | null; kw: number; now: number; readyBy: number | null; typical: boolean;
   timing: ReturnType<typeof chargeTiming> | null; chartPoints: ForecastPoint[]; onCalendar: (plan: Extract<Plan, { kind: "plan" }>) => void;
@@ -233,7 +240,7 @@ function PlanResult({ plan, waiting, error, retry, kwh, kw, now, readyBy, typica
     {bonus > 0 && <p className="chip-caption"><span className="chip">+{bonus} bonus</span> {timing === "best" ? "Starts in one of the day's cleanest windows." : "Starts at a cleaner-than-average hour."} Log the charge afterwards to earn it.</p>}
     {!plan.startsNow && <>
       <button type="button" className="text-button calendar-button" onClick={() => onCalendar(plan)}><Icon name="calendar" size={16}/> Add to calendar</button>
-      <p className="personal-note">{night ? "The calendar reminder comes at 9:30 pm, so you can set the timer before bed." : `Or set your car or charger to start at ${startTime}.`}</p>
+      <p className="personal-note">{night ? reminderNote(bedtimeBefore(plan.start, now)) : `Or set your car or charger to start at ${startTime}.`}</p>
     </>}
     {typical && <p className="personal-note">Based on your region&apos;s typical day, from the last two weeks of grid data.</p>}
   </>;
