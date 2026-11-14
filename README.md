@@ -262,12 +262,12 @@ GitHub Actions calls `/api/push/run` every 15 minutes from 06:30 to 22:15 IST; a
 
 - refreshes at most 2 zones from upstream, and only when their data is over an hour old;
 - plans each subscriber's notifications:
-  - "best time" reminders, about 35 minutes before a clean window and at 9 pm for tonight's;
+  - "best time" reminders, about 35 minutes before a clean window (or while it's on, if no run came before it) and from 8 to 10 pm for tonight's;
   - the morning digest;
-  - streak reminders, which open `/log?quick=1` with a "Log a charge" action;
+  - streak reminders from 8 to 10 pm, which open `/log?quick=1` with a "Log a charge" action;
   - leaderboard changes (the month-end result goes out from 7 am on the 1st, or on the 2nd if no run got through, and opens last month's recap);
-  - badge nudges and the Sunday recap;
-- records sent "marks" per day or month in `push:state`, so nothing repeats;
+  - badge nudges (6 to 9 pm, one an evening) and the Sunday recap (6 to 10 pm);
+- records sent "marks" per day or month in `push:state`, so nothing repeats (the time slots are a few hours wide because scheduled runs can be hours late, and the marks keep each to one push);
 - sends with a concurrency of 20, never from 22:00 to 07:00 IST;
 - removes subscriptions that weren't refreshed for 90 days, and any the push service reports as gone.
 

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
-import type { ForecastPoint } from "../grid";
+import { mergeLiveReading, type ForecastPoint } from "../grid";
 import type { StoredSubscription } from "./push";
 import type { Standing } from "./leaderboard";
 import { fakeRedis, fakeRedisModule, resetFakeRedis } from "./test-redis";
@@ -108,6 +108,15 @@ describe("leaderboard: month-end result", () => {
 describe("badge nudge", () => {
   const badge = { key: "green-10", hint: "1 more green charge to unlock Green Regular." };
 
+  test("6 to 9 pm, so a late run still sends it, but once an evening", () => {
+    expect(bodies(plan(sub({ badge }), undefined, ist("2026-10-14T20:50:00")))).toEqual([badge.hint]);
+    expect(bodies(plan(sub({ badge }), undefined, ist("2026-10-14T21:00:00")))).toEqual([]);
+    expect(bodies(plan(sub({ badge }), undefined, ist("2026-10-14T22:30:00")))).toEqual([]);
+    // A second run after it went out, even for a badge that's now closer.
+    expect(bodies(plan(sub({ badge, sent: { badges: { "green-10": "2026-10-14" } } }), undefined, ist("2026-10-14T19:40:00")))).toEqual([]);
+    expect(bodies(plan(sub({ badge: { key: "streak-7", hint: "1 more day" }, lastChargeDay: "2026-10-14", sent: { badges: { "green-10": "2026-10-14" } } }), undefined, ist("2026-10-14T19:40:00")))).toEqual([]);
+  });
+
   test("6 pm hour, at most once every 3 days per badge", () => {
     const result = plan(sub({ badge }), undefined, ist("2026-10-14T18:30:00"));
     expect(result.planned[0].payload).toMatchObject({ title: "Almost there", body: badge.hint, url: "/rewards" });
@@ -135,6 +144,14 @@ describe("weekly recap", () => {
     expect(bodies(plan(sub({ week: { weekStart: "2026-10-12", charges: 0, co2Kg: 0, greenPercent: 0 } }), undefined, sunday))).toEqual([]);
     expect(bodies(plan(sub({ week: { weekStart: "2026-10-12", charges: 2, co2Kg: 1, greenPercent: 50 } }), undefined, ist("2026-10-17T18:30:00")))).toEqual([]);
   });
+
+  test("until 10 pm, so a late run still sends it, then never in quiet hours", () => {
+    const week = { weekStart: "2026-10-12", charges: 2, co2Kg: 1, greenPercent: 50 };
+    expect(bodies(plan(sub({ week }), undefined, ist("2026-10-18T21:50:00")))).toEqual(["This week: 2 charges, 1.0 kg CO₂ avoided, 50% green."]);
+    expect(bodies(plan(sub({ week, sent: { weekly: "2026-10-18" } }), undefined, ist("2026-10-18T21:50:00")))).toEqual([]);
+    expect(bodies(plan(sub({ week }), undefined, ist("2026-10-18T22:00:00")))).toEqual([]);
+    expect(bodies(plan(sub({ week }), undefined, ist("2026-10-18T17:59:00")))).toEqual([]);
+  });
 });
 
 describe("best-time reminders", () => {
@@ -144,6 +161,36 @@ describe("best-time reminders", () => {
     const result = plan(sub({ prefs: { ...sub().prefs, bestTime: true } }), { points, dayFloor: 400, liveIsGreen: false }, now);
     const night = result.planned.find((item) => item.payload.tag === "zeroemit-night");
     expect(night?.payload.actions).toEqual([{ action: "log", title: "Log a charge" }]);
+  });
+
+  // A day where only 1–3 pm is clean, planned the way a run does: hours
+  // already over are dropped.
+  const day: ForecastPoint[] = Array.from({ length: 24 }, (_, i) => ({ datetime: new Date(ist("2026-10-14T07:00:00") + i * 3_600_000).toISOString(), carbonIntensity: i === 6 || i === 7 ? 200 : 600 }));
+  const bestTime = sub({ prefs: { ...sub().prefs, bestTime: true } });
+  const titlesAt = (local: string, extra: Partial<StoredSubscription> = {}) => {
+    const now = ist(local);
+    return plan({ ...bestTime, ...extra }, { points: mergeLiveReading({ forecast: day }, now), dayFloor: 200, liveIsGreen: false }, now).planned.map((item) => item.payload.title);
+  };
+
+  test("a run that comes late, still before the window starts, sends it; one after the window has ended doesn't", () => {
+    expect(titlesAt("2026-10-14T12:00:00")).toEqual([]); // an hour ahead: a later run will send it
+    expect(titlesAt("2026-10-14T12:50:00")).toEqual(["Clean charging window at 1:00 pm"]);
+    expect(titlesAt("2026-10-14T13:20:00")).toEqual(["Good time to charge now"]);
+    expect(titlesAt("2026-10-14T15:10:00")).toEqual([]);
+    expect(titlesAt("2026-10-14T13:20:00", { sent: { day: "2026-10-14" } })).toEqual([]);
+  });
+
+  test("tonight's best time from 8 pm, so a late run still sends it, once, and never in quiet hours", () => {
+    const night = (local: string, extra: Partial<StoredSubscription> = {}) => {
+      const now = ist(local);
+      const points: ForecastPoint[] = Array.from({ length: 30 }, (_, i) => ({ datetime: new Date(ist("2026-10-14T19:00:00") + i * 3_600_000).toISOString(), carbonIntensity: 500 }));
+      return plan({ ...bestTime, ...extra }, { points: mergeLiveReading({ forecast: points }, now), dayFloor: 400, liveIsGreen: false }, now).planned.filter((item) => item.payload.tag === "zeroemit-night").length;
+    };
+    expect(night("2026-10-14T19:59:00")).toBe(0);
+    expect(night("2026-10-14T20:05:00")).toBe(1);
+    expect(night("2026-10-14T21:55:00")).toBe(1);
+    expect(night("2026-10-14T21:55:00", { sent: { night: "2026-10-14" } })).toBe(0);
+    expect(night("2026-10-14T22:05:00")).toBe(0);
   });
 });
 
@@ -202,6 +249,14 @@ describe("streak reminder", () => {
     const streak = result.planned.find((item) => item.payload.tag === "zeroemit-streak");
     expect(streak?.payload).toMatchObject({ title: "Keep your 4-day streak", url: "/log?quick=1", actions: [{ action: "log", title: "Log a charge" }] });
   });
+
+  test("8 to 10 pm, once, and never in quiet hours", () => {
+    const streak = (local: string, extra: Partial<StoredSubscription> = {}) => bodies(plan(sub({ prefs: { ...sub().prefs, streakReminders: true }, streak: 4, lastChargeDay: "2026-10-13", ...extra }), undefined, ist(local)));
+    expect(streak("2026-10-14T19:59:00")).toEqual([]);
+    expect(streak("2026-10-14T21:55:00")).toEqual(["Log today's charge before midnight to keep it going."]);
+    expect(streak("2026-10-14T21:55:00", { sent: { streak: "2026-10-14" } })).toEqual([]);
+    expect(streak("2026-10-14T22:00:00")).toEqual([]);
+  });
 });
 
 describe("scheduler runs", () => {
@@ -230,5 +285,12 @@ describe("scheduler runs", () => {
     expect(await runPushSchedule(ist("2026-11-01T08:10:00"))).toMatchObject({ sent: 0 });
     expect(await runPushSchedule(ist("2026-11-02T08:10:00"))).toMatchObject({ sent: 0 });
     expect(sentTitles()).toEqual(["October's leaderboard is final"]);
+  });
+
+  test("a run in quiet hours sends nothing, even with an evening push still due", async () => {
+    await subscribe(ist("2026-10-18T22:05:00"), { week: { weekStart: "2026-10-12", charges: 2, co2Kg: 1, greenPercent: 50 } });
+    expect(await runPushSchedule(ist("2026-10-18T22:05:00"))).toMatchObject({ skipped: "Quiet hours (10 pm – 7 am IST)" });
+    expect(await runPushSchedule(ist("2026-10-18T21:40:00"))).toMatchObject({ sent: 1 });
+    expect(sentTitles()).toEqual(["Your week in ZeroEmit"]);
   });
 });

@@ -122,7 +122,9 @@ function planProgress(sub: StoredSubscription, now: number): Planned[] {
   const sunday = new Date(now + IST_OFFSET_MS).getUTCDay() === 0;
   // This week's Monday: the device's totals count only if they're this week's.
   const monday = istDayKey(now - 6 * 24 * HOUR_MS);
-  if (sunday && hour >= 18 && hour < 20 && sub.week?.weekStart === monday && sub.week.charges > 0 && sub.sent.weekly !== today) {
+  // The evening gates are a few hours wide because scheduled runs can be
+  // hours late; the sent marks keep each to one push.
+  if (sunday && hour >= 18 && hour < 22 && sub.week?.weekStart === monday && sub.week.charges > 0 && sub.sent.weekly !== today) {
     const { charges, co2Kg, greenPercent } = sub.week;
     return [{ payload: { title: "Your week in ZeroEmit", body: `This week: ${charges} charge${charges === 1 ? "" : "s"}, ${co2Kg.toFixed(1)} kg CO₂ avoided, ${greenPercent}% green.`, url: "/profile", tag: "zeroemit-weekly" }, marks: ["weekly"] }];
   }
@@ -132,8 +134,10 @@ function planProgress(sub: StoredSubscription, now: number): Planned[] {
   // only holds while the streak is alive (a charge today or yesterday).
   const yesterday = istDayKey(now - 24 * HOUR_MS);
   const stillTrue = !sub.badge?.key.startsWith("streak-") || sub.lastChargeDay === today || sub.lastChargeDay === yesterday;
-  // One evening push at most: none after this Sunday's recap went out.
-  if (hour === 18 && sub.badge && stillTrue && daysSince >= BADGE_NUDGE_EVERY_DAYS && sub.sent.weekly !== today) {
+  // One evening push at most: none after this Sunday's recap went out, or
+  // after another badge's nudge today.
+  const nudgedToday = Object.values(sub.sent.badges ?? {}).includes(today);
+  if (hour >= 18 && hour < 21 && sub.badge && stillTrue && daysSince >= BADGE_NUDGE_EVERY_DAYS && sub.sent.weekly !== today && !nudgedToday) {
     return [{ payload: { title: "Almost there", body: sub.badge.hint, url: "/rewards", tag: "zeroemit-badge" }, marks: [], badge: sub.badge.key }];
   }
   return [];
@@ -196,7 +200,8 @@ function planGrid(sub: StoredSubscription, zonePlan: ZonePlan | undefined, now: 
     });
   }
 
-  if (sub.prefs.bestTime && hour === 21 && sent.night !== today && nightWindow) {
+  // 20:00–21:59 rather than only the 9 pm hour, so a late run still sends it.
+  if (sub.prefs.bestTime && hour >= 20 && hour < 22 && sent.night !== today && nightWindow) {
     planned.push({
       payload: {
         title: "Tonight's cleanest time to charge",
