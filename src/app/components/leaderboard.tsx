@@ -64,7 +64,8 @@ function LeaderboardItem({ row }: { row: LeaderboardRow }) {
     <span className={`leaderboard-rank${row.rank <= 3 ? ` leaderboard-top${row.rank}` : ""}`}>{row.rank}</span>
     <span className="leaderboard-name">
       <strong>{row.name}{row.isMe && " (you)"}</strong>
-      <small>{ZONE_LABELS[row.zone].replace(/ grid$/, "")} · {row.co2Kg.toFixed(1)} kg CO₂ avoided</small>
+      {/* "avoided" is for screen readers only: shown, it cut off or wrapped on phones and left the rows uneven. */}
+      <small>{ZONE_LABELS[row.zone].replace(/ grid$/, "")} · {row.co2Kg.toFixed(1)} kg CO₂<span className="sr-only"> avoided</span></small>
     </span>
     <b className="leaderboard-points">{row.points}<small> pts</small></b>
   </li>;
@@ -194,7 +195,7 @@ export function LeaderboardScreen() {
         {membership
           ? <button className="forecast-button action-button" onClick={() => setLeaveOpen(true)}>Leave the leaderboard</button>
           : <button className="primary-button" onClick={() => setJoinOpen(true)}>Join the leaderboard</button>}
-        <p className="personal-note">Rankings use Eco points from the charges people log, counting up to 2 charges a day.</p>
+        <p className="personal-note">Rankings use Eco points from the charges people log, counting up to 2 charges a day. The kg figure is the CO₂ each driver&apos;s timing avoided.</p>
       </>}
     </main>
     <BottomNav/>
