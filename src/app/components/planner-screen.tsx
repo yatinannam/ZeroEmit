@@ -5,7 +5,7 @@ import { useState } from "react";
 import { formatHour, formatHourParts, HOUR_MS, istHourOfDay, liveReading, mergeLiveReading, type ForecastPoint } from "../lib/grid";
 import { bedtimeBefore, CHARGERS, chargerKw, dayWord, formatDuration, isNightStart, nextOccurrence, planCharge, type Plan } from "../lib/planner";
 import { chargeTiming, hourlyPattern, TIMING_BONUS } from "../lib/timing";
-import { averageEnergyKwh } from "../lib/personalization";
+import { averageEnergyKwh, formatTimeOfDay } from "../lib/personalization";
 import { earnsPoints } from "../lib/rewards";
 import { kwhForPercent, parsePercent } from "../lib/vehicles";
 import { useProfile } from "./use-profile";
@@ -174,7 +174,12 @@ export function PlannerScreen() {
 
           <div className="planner-field">
             <label htmlFor="planner-ready-by">Ready by</label>
-            <input id="planner-ready-by" type="time" value={timeDraft ?? settings.readyBy} onChange={(event) => changeTime(event.target.value)} onBlur={() => setTimeDraft(null)} aria-describedby="planner-time-hint"/>
+            {/* Half-hour steps written like the rest of the app ("7:00 am"); a time
+                input showed the phone's own format ("07:00 AM"). A saved time
+                off the half hour stays in the list. */}
+            <select id="planner-ready-by" value={timeDraft ?? settings.readyBy} onChange={(event) => changeTime(event.target.value)} onBlur={() => setTimeDraft(null)} aria-describedby="planner-time-hint">
+              {readyTimes(settings.readyBy).map((time) => <option key={time} value={time}>{formatTimeOfDay(time)}</option>)}
+            </select>
             <small id="planner-time-hint">{readyBy ? `Done by ${whenLabel(readyBy, now)}` : now ? "Pick a time." : " "}</small>
           </div>
         </section>
@@ -205,6 +210,12 @@ type ResultProps = {
   timing: ReturnType<typeof chargeTiming> | null; chartPoints: ForecastPoint[]; onCalendar: (plan: Extract<Plan, { kind: "plan" }>) => void;
 };
 
+// Every half hour of the day, plus a saved time between them.
+const HALF_HOURS = Array.from({ length: 48 }, (_, index) => `${String(Math.floor(index / 2)).padStart(2, "0")}:${index % 2 ? "30" : "00"}`);
+function readyTimes(saved: string) {
+  return HALF_HOURS.includes(saved) ? HALF_HOURS : [...HALF_HOURS, saved].sort();
+}
+
 function PlanResult({ plan, waiting, error, retry, kwh, kw, now, readyBy, typical, timing, chartPoints, onCalendar }: ResultProps) {
   const title = <h2 id="plan-result-title">Best time to plug in</h2>;
   if (waiting) return <>{title}<div className="time-range"><strong className="loading-value">Loading…</strong></div><div className="chart-skeleton" aria-hidden="true"/></>;
@@ -234,7 +245,8 @@ function PlanResult({ plan, waiting, error, retry, kwh, kw, now, readyBy, typica
     <dl className="plan-stats">
       <div><dt>Planned</dt><dd>{Math.round(plan.average)} <small>g/kWh</small></dd></div>
       <div><dt>If now</dt><dd>{Math.round(plan.nowAverage)} <small>g/kWh</small></dd></div>
-      <div><dt>Saved</dt><dd>{plan.savedGrams >= 50 ? <>{(plan.savedGrams / 1000).toFixed(1)} <small>kg CO₂</small></> : "—"}</dd></div>
+      {/* A dash read as missing data: say why there's nothing to save. */}
+      <div><dt>Saved</dt><dd>{plan.savedGrams >= 50 ? <>{(plan.savedGrams / 1000).toFixed(1)} <small>kg CO₂</small></> : <span className="plan-stat-note">{plan.startsNow ? "Now is cleanest" : "Under 0.1 kg"}</span>}</dd></div>
     </dl>
     {chartPoints.length >= 2 && <ForecastChart points={chartPoints} highlight={null} span={{ start: plan.start, end: plan.end }}/>}
     {bonus > 0 && <p className="chip-caption"><span className="chip">+{bonus} bonus</span> {timing === "best" ? "Starts in one of the day's cleanest windows." : "Starts at a cleaner-than-average hour."} Log the charge afterwards to earn it.</p>}
