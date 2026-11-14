@@ -72,7 +72,8 @@ const titleCase = (text: string) => (text === text.toLowerCase() ? text.replace(
 export function normalizeOperator(raw: string | null): string | null {
   if (!raw) return null;
   const key = aliasKey(raw);
-  return key in OPERATOR_ALIASES ? OPERATOR_ALIASES[key] : titleCase(raw);
+  // Own keys only: `in` would find "constructor" on every object.
+  return Object.hasOwn(OPERATOR_ALIASES, key) ? OPERATOR_ALIASES[key] : titleCase(raw);
 }
 
 // A name that only says what it is ("Electric Vehicle Charging Station") is

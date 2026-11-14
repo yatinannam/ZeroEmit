@@ -193,6 +193,14 @@ describe("normalizeOperator", () => {
     expect(normalizeOperator("Electric Vehicle Charging Station")).toBeNull();
     expect(normalizeOperator(null)).toBeNull();
   });
+
+  test("an operator named like a built-in object key is kept as typed", () => {
+    expect(normalizeOperator("constructor")).toBe("Constructor");
+    expect(normalizeOperator("Constructor")).toBe("Constructor");
+    expect(normalizeOperator("__proto__")).toBe("__proto__");
+    const [station] = parseOverpass({ elements: [{ type: "node", id: 1, lat: 18.52, lon: 73.86, tags: { operator: "constructor" } }] }, PUNE);
+    expect(station).toMatchObject({ name: "Constructor", operator: "Constructor" });
+  });
 });
 
 describe("compassDirection", () => {
