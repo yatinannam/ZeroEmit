@@ -121,7 +121,6 @@ export async function submitMember(input: MemberInput, now = Date.now(), ip: str
   const month = istMonthKey(now);
   const sameMonth = existing !== null && existing.month === month;
   const claim = nameClaim(input.name);
-  const oldClaim = sameMonth ? nameClaim(existing.name) : null;
   const renamed = existing !== null && nameClaim(existing.name) !== claim;
   // Joining, or renaming, needs a name nobody else holds this month. A member
   // carrying on into a new month under the same name keeps syncing either way.
@@ -131,6 +130,10 @@ export async function submitMember(input: MemberInput, now = Date.now(), ip: str
     const won = await redis<number>("HSETNX", namesKey(month), claim, input.id);
     if (!won && (await redis<string | null>("HGET", namesKey(month), claim)) !== input.id) return { ok: false, status: 409 };
   }
+  // A rename frees the old name only if it's this member's: one carried over
+  // from last month may sync on under a name someone else claimed this month.
+  const oldClaim = sameMonth && renamed ? nameClaim(existing.name) : null;
+  const freeOld = oldClaim !== null && (await redis<string | null>("HGET", namesKey(month), oldClaim)) === input.id ? oldClaim : null;
   const { points, co2Kg } = scoreMonth(input.charges, month, istDayKey(now), pattern);
   const scoredAt = sameMonth && existing.points === points ? existing.scoredAt : now;
   const record: MemberRecord = { name: input.name, zone: input.zone, keyHash, month, points, co2Kg, scoredAt, updatedAt: now };
@@ -145,7 +148,7 @@ export async function submitMember(input: MemberInput, now = Date.now(), ip: str
     ["EXPIRE", boardKey(month, input.zone), RETENTION_S],
     ["SET", memberKey(input.id), JSON.stringify(record), "EX", RETENTION_S],
     // Claim the name (no-op if already ours); a rename frees the old one.
-    ...(oldClaim !== null && oldClaim !== claim ? [["HDEL", namesKey(month), oldClaim]] : []),
+    ...(freeOld !== null ? [["HDEL", namesKey(month), freeOld]] : []),
     ["HSETNX", namesKey(month), claim, input.id],
     ["EXPIRE", namesKey(month), RETENTION_S],
   ];

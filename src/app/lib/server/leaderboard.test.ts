@@ -329,6 +329,16 @@ describe("renaming", () => {
     expect(await submitMember(member(1, 2, { name: "Ravi" }), NOW + 1000)).toEqual({ ok: false, status: 409 });
     expect((await submitMember(member(2, 2, { name: "Meera" }), NOW + 1000)).ok).toBe(true);
   });
+
+  test("doesn't free a name someone else holds this month", async () => {
+    const september = Date.parse("2026-09-20T06:30:00.000Z");
+    await submitMember({ ...member(1, 0, { name: "Asha" }), charges: [{ date: "2026-09-20", kwh: 20, intensity: 600, green: false }] }, september); // A: September's Asha
+    await submitMember(member(2, 1, { name: "Asha" }), NOW); // B claims October's "Asha"
+    expect((await submitMember(member(1, 2, { name: "Asha" }), NOW + 1000)).ok).toBe(true); // A carries on as Asha
+    expect((await submitMember(member(1, 2, { name: "Asha K" }), NOW + 2000)).ok).toBe(true); // A renames
+    expect(fakeRedis.hashes.get("lb:2026-10:names")?.get("asha")).toBe(uuid(2));
+    expect(await submitMember(member(3, 1, { name: "Asha" }), NOW + 3000)).toEqual({ ok: false, status: 409 }); // C can't take B's name
+  });
 });
 
 describe("tiny charges", () => {
