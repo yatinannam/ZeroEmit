@@ -89,4 +89,19 @@ describe("restorePlan", () => {
     expect(JSON.parse(plan.set[PENDING])).toEqual([{ id: "a", key: "a-key" }, { id: "b", key: "b-key" }]);
     expect(plan.remove).toEqual([]);
   });
+
+  test("one entry waiting to leave under two keys keeps both", () => {
+    const backup = makeBackup([[PENDING, JSON.stringify([{ id: "a", key: "a-old" }])]], NOW);
+    const plan = restorePlan({ [PENDING]: JSON.stringify([{ id: "a", key: "a-new" }, { id: "a", key: "a-old" }]) }, backup, "fresh");
+    expect(JSON.parse(plan.set[PENDING])).toEqual([{ id: "a", key: "a-old" }, { id: "a", key: "a-new" }]);
+  });
+
+  test("this device's entry, left behind mid key swap, is queued to leave under both keys", () => {
+    const current = { "zeroemit-leaderboard": membership("new"), [REKEY]: "swapped-key" };
+    // Replaced by the backup's entry, or by no entry at all.
+    for (const backup of [makeBackup([["zeroemit-leaderboard", membership("old")]], NOW), makeBackup([], NOW)]) {
+      const plan = restorePlan(current, backup, "fresh");
+      expect(JSON.parse(plan.set[PENDING])).toEqual([{ id: "new", key: "new-key" }, { id: "new", key: "swapped-key" }]);
+    }
+  });
 });

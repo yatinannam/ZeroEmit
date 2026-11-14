@@ -76,9 +76,12 @@ const entries = (raw: string | undefined) => { const value = json(raw); return (
 // `current` (its own keys and values): the backup's data, the device-only
 // keys kept, and everything else of ZeroEmit's removed.
 // - Removals still waiting to reach the server, this device's and the
-//   backup's, are all kept: each holds the only copy of its key.
+//   backup's, are all kept: each holds the only copy of its key. One entry
+//   can wait under two keys (old and new, mid key swap), so both are kept.
 // - A leaderboard entry this device had that the backup doesn't is queued to
 //   leave, so it isn't left on the public board with nobody holding its key.
+//   With a key swap still pending, under the new key too: the swap may
+//   already have gone through, and the restore drops it.
 // - The backup's entry moves to `newKey` on the next sync, so the phone the
 //   backup came from can no longer remove or overwrite it. If this device
 //   already holds that entry, it keeps its own (newer) key instead.
@@ -88,8 +91,11 @@ export function restorePlan(current: Record<string, string>, backup: Backup, new
   const [mine] = entries(current[MEMBERSHIP_KEY]);
   const [theirs] = entries(set[MEMBERSHIP_KEY]);
   const leaving = [...entries(set[PENDING_LEAVE_KEY]), ...entries(current[PENDING_LEAVE_KEY])];
-  if (mine && mine.id !== theirs?.id) leaving.push(mine);
-  const unique = leaving.filter((entry, index) => leaving.findIndex((other) => other.id === entry.id) === index).map(({ id, key }) => ({ id, key }));
+  if (mine && mine.id !== theirs?.id) {
+    leaving.push(mine);
+    if (current[REKEY_KEY]) leaving.push({ id: mine.id, key: current[REKEY_KEY] });
+  }
+  const unique = leaving.filter((entry, index) => leaving.findIndex((other) => other.id === entry.id && other.key === entry.key) === index).map(({ id, key }) => ({ id, key }));
   if (unique.length) set[PENDING_LEAVE_KEY] = JSON.stringify(unique);
   if (theirs && mine?.id === theirs.id) set[MEMBERSHIP_KEY] = current[MEMBERSHIP_KEY];
   else if (theirs) set[REKEY_KEY] = newKey;
