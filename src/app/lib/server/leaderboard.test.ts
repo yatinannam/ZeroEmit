@@ -111,6 +111,21 @@ describe("submitMember + readLeaderboard", () => {
     expect((await submitMember(member(23, 1), NOW + 3_600_000, "203.0.113.7")).ok).toBe(true); // next hour
   });
 
+  test("joins refused for a taken name don't count against the address", async () => {
+    await submitMember(member(1, 1, { name: "Asha" }), NOW, "198.51.100.1");
+    for (let n = 2; n <= 30; n += 1) expect(await submitMember(member(n, 1, { name: "Asha" }), NOW, "203.0.113.7")).toEqual({ ok: false, status: 409 });
+    for (let n = 31; n <= 50; n += 1) expect((await submitMember(member(n, 1), NOW, "203.0.113.7")).ok).toBe(true);
+    expect(await submitMember(member(51, 1), NOW, "203.0.113.7")).toEqual({ ok: false, status: 429 });
+  });
+
+  test("every rate counter gets its expiry with the count, even if an earlier one was lost", async () => {
+    const hour = Math.floor(NOW / 3_600_000);
+    fakeRedis.strings.set(`lb:rate:${uuid(1)}:${hour}`, "1"); // counted before, but its expiry never set
+    await submitMember(member(1, 1), NOW, "203.0.113.7");
+    expect(fakeRedis.ttls.get(`lb:rate:${uuid(1)}:${hour}`)).toBe(3600);
+    expect(fakeRedis.ttls.get(`lb:new:203.0.113.7:${hour}`)).toBe(3600);
+  });
+
   test("a new month starts a fresh board; last month's set keeps its entry", async () => {
     const september = Date.parse("2026-09-20T06:30:00.000Z");
     await submitMember({ ...member(1, 0), charges: [{ date: "2026-09-20", kwh: 20, intensity: 600, green: false }] }, september);

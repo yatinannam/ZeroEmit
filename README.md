@@ -211,7 +211,7 @@ All day/week/month boundaries use IST (`istDayKey`, `istMonthKey`).
 | `GET /api/grid?state=` | none | Current intensity, 24-hour forecast or typical pattern for the state's zone | `s-maxage=300, swr=600`; 400 for an unknown state |
 | `GET /api/stations?state=&city=` or `&lat=&lon=` | none | Up to 20 chargers within 30 km; `farther` holds the nearest 3 when none are in range | `s-maxage=86400` |
 | `GET /api/leaderboard?scope=all\|<zone>&me=` | none | Top 50 for the month, plus the caller's standing when `me` is given | `s-maxage=10, swr=30` without `me`, `no-store` with it |
-| `POST /api/leaderboard/member` | same-origin + `id`/`key` | Join, sync score or rename | 20 new members per IP per hour, 30 updates per member per hour; 409 `name-taken` |
+| `POST /api/leaderboard/member` | same-origin + `id`/`key` | Join, sync score or rename | 20 new members per IP per hour (a join refused as `name-taken` doesn't count), 30 updates per member per hour; 409 `name-taken` |
 | `PATCH /api/leaderboard/member` | same-origin + `id`/`key`/`newKey` | Move the entry to a new key after a restore (repeatable) | 30 per member per hour; 403 `not-yours`, 404, 410 |
 | `DELETE /api/leaderboard/member` | same-origin + `id`/`key` | Leave | |
 | `GET /api/leaderboard/groups?code=[&me=]` | none | A group's board this month, plus `group: { code, name, members }`; 404 `no-group` | `s-maxage=10, swr=30` without `me`, `no-store` with it; 30 unknown codes per IP per hour, then 429 |
@@ -291,7 +291,7 @@ The public Overpass API was too slow from India (up to 20 s, or rate-limited), s
 | `lb:<month>:g:<code>` | sorted set | The group's board that month |
 | `lb:mgroups:<id>` | hash | The groups a member is in (code to join time) |
 | `lb:gnew:<id>`, `lb:gjoin:<id>`, `lb:gmiss:<ip>:<hour>` | counters | Group create and join rate limits; unknown codes looked up per address |
-| `lb:new:<ip>`, `lb:rate:<id>` | counters | Leaderboard rate limits |
+| `lb:new:<ip>`, `lb:rate:<id>` | counters | Leaderboard rate limits, one key per hour (`:<hour>`); each count sets the key's 1 h expiry in the same transaction |
 | `push:subs` | hash | Subscriptions, prefs and summaries, keyed by an endpoint hash |
 | `push:state` | hash | Scheduler marks, so pushes aren't repeated |
 | `push:new:<ip>`, `push:rate:<id>` | counters | Subscription rate limits |

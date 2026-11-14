@@ -96,12 +96,19 @@ const nameClaim = (name: string) => name.replace(/[‌‍]/g, "").toLowerCase().
 const REMOVED_MARKER_S = 24 * 60 * 60;
 
 // Counts one more event in this hour's bucket; true while still within `limit`.
-// Shared with push subscriptions (./push).
+// Shared with push subscriptions (./push). The expiry is set in the same
+// transaction as the count, so no counter is ever left without one (each
+// hour has its own key, so pushing the expiry back changes no limit).
+const hourlyKey = (name: string, now: number) => `${name}:${Math.floor(now / 3_600_000)}`;
 export async function withinHourlyLimit(name: string, limit: number, now: number) {
-  const key = `${name}:${Math.floor(now / 3_600_000)}`;
-  const count = await redis<number>("INCR", key);
-  if (count === 1) await redis("EXPIRE", key, 3600);
-  return count <= limit;
+  const key = hourlyKey(name, now);
+  const [count] = await redisTransaction([["INCR", key], ["EXPIRE", key, 3600]]);
+  return (count as number) <= limit;
+}
+// Takes back one event withinHourlyLimit counted (it didn't happen after all).
+async function uncountHourly(name: string, now: number) {
+  const key = hourlyKey(name, now);
+  await redisTransaction([["DECR", key], ["EXPIRE", key, 3600]]);
 }
 
 // `ip` is the caller's address. New members are capped per address, so a
@@ -115,7 +122,10 @@ export async function submitMember(input: MemberInput, now = Date.now(), ip: str
   const existing = rawMember ? JSON.parse(rawMember) as MemberRecord : null;
   const keyHash = hashKey(input.key);
   if (existing && !sameHash(existing.keyHash, keyHash)) return { ok: false, status: 403 };
-  if (!existing && ip && !(await withinHourlyLimit(`lb:new:${ip}`, NEW_MEMBERS_PER_ADDRESS_PER_HOUR, now))) return { ok: false, status: 429 };
+  // Counted now and taken back if the name turns out to be taken, so a class
+  // on one Wi-Fi trying names that are already on the board doesn't use it up.
+  const newFrom = !existing && ip ? `lb:new:${ip}` : null;
+  if (newFrom && !(await withinHourlyLimit(newFrom, NEW_MEMBERS_PER_ADDRESS_PER_HOUR, now))) return { ok: false, status: 429 };
   if (!(await withinHourlyLimit(`lb:rate:${input.id}`, UPDATES_PER_HOUR, now))) return { ok: false, status: 429 };
 
   const month = istMonthKey(now);
@@ -128,7 +138,10 @@ export async function submitMember(input: MemberInput, now = Date.now(), ip: str
   // the same moment can't both get it.
   if (!existing || renamed) {
     const won = await redis<number>("HSETNX", namesKey(month), claim, input.id);
-    if (!won && (await redis<string | null>("HGET", namesKey(month), claim)) !== input.id) return { ok: false, status: 409 };
+    if (!won && (await redis<string | null>("HGET", namesKey(month), claim)) !== input.id) {
+      if (newFrom) await uncountHourly(newFrom, now);
+      return { ok: false, status: 409 };
+    }
   }
   // A rename frees the old name only if it's this member's: one carried over
   // from last month may sync on under a name someone else claimed this month.

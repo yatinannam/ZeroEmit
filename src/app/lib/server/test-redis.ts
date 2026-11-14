@@ -4,15 +4,18 @@
 const strings = new Map<string, string>();
 const zsets = new Map<string, Map<string, number>>();
 const hashes = new Map<string, Map<string, string>>();
+// Seconds each key was last given by EXPIRE (no clock: tests only check one was set).
+const ttls = new Map<string, number>();
 
 // `beforeRoundTrip` runs before each call or transaction (with its commands),
 // so a test can land another request in the middle of one.
-export const fakeRedis = { strings, zsets, hashes, roundTrips: 0, beforeRoundTrip: null as ((commands: (string | number)[][]) => Promise<void> | void) | null };
+export const fakeRedis = { strings, zsets, hashes, ttls, roundTrips: 0, beforeRoundTrip: null as ((commands: (string | number)[][]) => Promise<void> | void) | null };
 
 export function resetFakeRedis() {
   strings.clear();
   zsets.clear();
   hashes.clear();
+  ttls.clear();
   fakeRedis.roundTrips = 0;
   fakeRedis.beforeRoundTrip = null;
 }
@@ -26,11 +29,12 @@ function run(command: (string | number)[]): unknown {
   switch (name) {
     case "GET": return strings.get(key) ?? null;
     case "SET": if (args.includes("NX") && strings.has(key)) return null; strings.set(key, args[0]); return "OK";
-    case "DEL": return strings.delete(key) || hashes.delete(key) || zsets.delete(key) ? 1 : 0;
+    case "DEL": ttls.delete(key); return strings.delete(key) || hashes.delete(key) || zsets.delete(key) ? 1 : 0;
     case "EXISTS": return [key, ...args].filter((k) => strings.has(k) || hashes.has(k) || zsets.has(k)).length;
     case "MGET": return [key, ...args].map((k) => strings.get(k) ?? null);
     case "INCR": { const next = Number(strings.get(key) ?? 0) + 1; strings.set(key, String(next)); return next; }
-    case "EXPIRE": return 1;
+    case "DECR": { const next = Number(strings.get(key) ?? 0) - 1; strings.set(key, String(next)); return next; }
+    case "EXPIRE": ttls.set(key, Number(args[0])); return 1;
     case "ZADD": { const set = zsets.get(key) ?? new Map<string, number>(); set.set(args[1], Number(args[0])); zsets.set(key, set); return 1; }
     case "ZREM": return zsets.get(key)?.delete(args[0]) ? 1 : 0;
     case "ZCARD": return zsets.get(key)?.size ?? 0;
