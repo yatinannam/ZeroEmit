@@ -168,7 +168,7 @@ button:active, a:active { opacity:.65; }
 .profile-edit-empty, .profile-edit-empty svg { color:var(--primary); }
 .profile-avatar-block h1 { margin-top:0; }
 /* First launch: hidden until the welcome intro covers it (see theme-boot.ts) */
-:root[data-first-run] .mobile-app { visibility:hidden; }
+:root[data-first-run] .mobile-app, :root[data-first-run] .tab-bar { visibility:hidden; }
 /* Log form: where the charge will be saved, with a way to change it */
 .modal .form-location { display:flex; flex-wrap:wrap; align-items:center; gap:4px; margin:0; font-size:13px; }.form-location .text-button { padding:0 4px; font-size:inherit; }
 /* Rewards, How to earn: rows that lead somewhere are whole-row links */
