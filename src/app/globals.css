@@ -367,8 +367,11 @@ a.station-row { border-radius:12px; color:inherit; text-decoration:none; }a.stat
 .charger-map .leaflet-control-zoom.leaflet-bar a { width:44px; height:44px; line-height:44px; font-size:20px; }
 .charger-map .leaflet-bar { border:0; border-radius:12px; overflow:hidden; box-shadow:0 2px 10px rgb(20 40 20 / 18%); }
 .charger-map .leaflet-bar a { color:var(--ink); background:var(--card); border-bottom-color:var(--variant); }
-.charger-map .leaflet-control-attribution { color:var(--muted); background:color-mix(in srgb, var(--card) 85%, transparent); }
-.charger-map .leaflet-control-attribution a { color:var(--primary); }
+/* .leaflet-container in these selectors: leaflet.css loads after this file, so equal-weight rules lost to its blue links and white attribution box. */
+.charger-map.leaflet-container .leaflet-control-attribution { color:var(--muted); background:color-mix(in srgb, var(--card) 85%, transparent); }
+.charger-map.leaflet-container .charger-popup a { color:#0d631b; }
+.charger-map.leaflet-container a.leaflet-popup-close-button { width:40px; height:40px; font:22px/40px Arial, sans-serif; }.charger-map .leaflet-popup-content { margin-right:36px; }
+.charger-map.leaflet-container .leaflet-control-attribution a { color:var(--primary); }
 .charger-map .leaflet-tile-container img.leaflet-tile { mix-blend-mode:normal; width:256.5px !important; height:256.5px !important; }
 /* 6: the impact table fits a 360px phone */
 .impact-card > * { min-width:0; }
