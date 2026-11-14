@@ -10,7 +10,7 @@ export type Permission = "granted" | "denied" | "default" | "unsupported";
 const listeners = new Set<() => void>();
 function notifyPermissionChange() { listeners.forEach((listener) => listener()); }
 
-function subscribe(listener: () => void) {
+export function subscribeToPermission(listener: () => void) {
   listeners.add(listener);
   // Also pick up a permission change made in browser settings while open.
   let status: PermissionStatus | null = null;
@@ -32,7 +32,7 @@ function permissionNow(): Permission {
 // Notification.permission during render would differ between the server and
 // a client that has already granted it — a hydration mismatch.
 export function useNotificationPermission() {
-  return useSyncExternalStore(subscribe, permissionNow, () => "default" as Permission);
+  return useSyncExternalStore(subscribeToPermission, permissionNow, () => "default" as Permission);
 }
 
 export function useNotificationsEnabled() {
@@ -130,11 +130,18 @@ function isIosBrowserTab() {
   return ios && !window.matchMedia("(display-mode: standalone)").matches;
 }
 
+export const DISMISSED_MESSAGE = "You closed the prompt without choosing, so notifications are still off. Tap Turn on to try again.";
+
 export async function requestNotificationPermission(): Promise<{ granted: boolean; message: string }> {
   // iOS only exposes notifications to web apps added to the Home Screen.
   if (!("Notification" in window)) return { granted: false, message: isIosBrowserTab() ? "On iPhone, add ZeroEmit to your Home Screen (Share, then Add to Home Screen) and open it from there to turn on notifications." : "This browser does not support notifications." };
   if (Notification.permission === "granted") return { granted: true, message: "Notifications are already on for this device." };
   const permission = Notification.permission === "default" ? await Notification.requestPermission() : Notification.permission;
+  // Whatever the answer, screens showing the permission update now: not every
+  // browser fires the permission "change" event for an answer to the prompt.
+  notifyPermissionChange();
+  // Dismissed without an answer: it can still be asked, so no trip to settings.
+  if (permission === "default") return { granted: false, message: DISMISSED_MESSAGE };
   if (permission !== "granted") return { granted: false, message: "Notifications are blocked for this site. Allow them in your browser's site settings, then try again." };
   // Allowing them is asking for them: after a reset left every kind off, the
   // usual ones come back on.
@@ -142,6 +149,5 @@ export async function requestNotificationPermission(): Promise<{ granted: boolea
   try { window.localStorage.setItem(REMINDER_KEY, "true"); } catch { /* storage unavailable */ }
   // A permission grant is silent, so send one real notification to prove it works end to end.
   await display("ZeroEmit notifications are on", { body: "You'll get the best times to charge, charge confirmations and rewards here.", tag: "zeroemit-enabled", data: { url: "/" } });
-  notifyPermissionChange();
   return { granted: true, message: "Notifications are on. You should see a confirmation now." };
 }
