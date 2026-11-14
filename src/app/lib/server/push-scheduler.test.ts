@@ -1,8 +1,19 @@
-import { describe, expect, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
 import type { ForecastPoint } from "../grid";
 import type { StoredSubscription } from "./push";
-import { plan } from "./push-scheduler";
 import type { Standing } from "./leaderboard";
+import { fakeRedis, fakeRedisModule, resetFakeRedis } from "./test-redis";
+
+// Every push handed to the push service, and how it answers (throw to fail).
+const pushes: { endpoint: string; payload: { title: string; tag: string }; options: { TTL: number } }[] = [];
+let pushAnswer: () => void = () => undefined;
+mock.module("./redis", () => fakeRedisModule);
+mock.module("web-push", () => ({ default: {
+  setVapidDetails: () => undefined,
+  sendNotification: async (subscription: { endpoint: string }, payload: string, options: { TTL: number }) => { pushAnswer(); pushes.push({ endpoint: subscription.endpoint, payload: JSON.parse(payload), options }); return {}; },
+} }));
+const { plan, runPushSchedule } = await import("./push-scheduler");
+const { listSubscriptions, saveSubscription } = await import("./push");
 
 // IST wall-clock time as a timestamp.
 const ist = (local: string) => Date.parse(`${local}+05:30`);
@@ -67,14 +78,25 @@ describe("leaderboard: reaching #1", () => {
 });
 
 describe("leaderboard: month-end result", () => {
-  test("on the 1st, 9 am to noon, once", () => {
+  test("on the 1st from 7 am, once", () => {
     const now = ist("2026-11-01T09:30:00");
     const result = plan(sub(), undefined, now, { current: null, lastMonth: standing(2, { total: 14, co2Kg: 61 }) });
     expect(result.planned[0].payload).toMatchObject({ title: "October's leaderboard is final", body: "You finished #2 of 14, with 61.0 kg CO₂ avoided. See your October recap.", url: "/recap?period=2026-10" });
     expect(result.planned[0].marks).toEqual(["monthEnd"]);
     expect(bodies(plan(sub({ sent: { monthEnd: "2026-11" } }), undefined, now, { current: null, lastMonth: standing(2) }))).toEqual([]);
-    expect(bodies(plan(sub(), undefined, ist("2026-11-01T12:00:00"), { current: null, lastMonth: standing(2) }))).toEqual([]);
-    expect(bodies(plan(sub(), undefined, ist("2026-11-02T09:30:00"), { current: null, lastMonth: standing(2) }))).toEqual([]);
+    expect(bodies(plan(sub(), undefined, ist("2026-11-01T07:00:00"), { current: null, lastMonth: standing(2) }))).toHaveLength(1);
+    expect(bodies(plan(sub(), undefined, ist("2026-11-01T21:59:00"), { current: null, lastMonth: standing(2) }))).toHaveLength(1);
+    expect(bodies(plan(sub(), undefined, ist("2026-11-01T06:59:00"), { current: null, lastMonth: standing(2) }))).toEqual([]);
+    expect(bodies(plan(sub(), undefined, ist("2026-11-01T22:00:00"), { current: null, lastMonth: standing(2) }))).toEqual([]);
+  });
+
+  test("still on the 2nd if no run got through on the 1st, but not later", () => {
+    const result = plan(sub(), undefined, ist("2026-11-02T15:00:00"), { current: null, lastMonth: standing(2, { total: 14, co2Kg: 61 }) });
+    expect(result.planned[0].payload).toMatchObject({ title: "October's leaderboard is final", url: "/recap?period=2026-10" });
+    expect(bodies(plan(sub({ sent: { monthEnd: "2026-11" } }), undefined, ist("2026-11-02T15:00:00"), { current: null, lastMonth: standing(2) }))).toEqual([]);
+    expect(bodies(plan(sub(), undefined, ist("2026-11-03T09:30:00"), { current: null, lastMonth: standing(2) }))).toEqual([]);
+    // Last month is the one before, whatever its length.
+    expect(plan(sub(), undefined, ist("2026-03-02T08:00:00"), { current: null, lastMonth: standing(2) }).planned[0].payload).toMatchObject({ title: "February's leaderboard is final", url: "/recap?period=2026-02" });
   });
 
   test("leaves out CO2 when it isn't known", () => {
@@ -179,5 +201,34 @@ describe("streak reminder", () => {
     const result = plan(sub({ prefs: { ...sub().prefs, streakReminders: true }, streak: 4, lastChargeDay: "2026-10-13" }), undefined, ist("2026-10-14T20:15:00"));
     const streak = result.planned.find((item) => item.payload.tag === "zeroemit-streak");
     expect(streak?.payload).toMatchObject({ title: "Keep your 4-day streak", url: "/log?quick=1", actions: [{ action: "log", title: "Log a charge" }] });
+  });
+});
+
+describe("scheduler runs", () => {
+  const realFetch = globalThis.fetch;
+  beforeEach(() => {
+    resetFakeRedis();
+    pushes.length = 0;
+    pushAnswer = () => undefined;
+    // No grid provider in these runs: they're about what's sent, not the grid.
+    globalThis.fetch = (async () => { throw new Error("offline in tests"); }) as unknown as typeof fetch;
+  });
+  afterEach(() => { globalThis.fetch = realFetch; });
+
+  // The keys are deliberately invalid, so a real web-push could never send.
+  const subscribe = (now: number, extra: Partial<StoredSubscription> = {}) => saveSubscription(sub({ subscription: { endpoint: "https://fcm.googleapis.com/fcm/send/run-test", keys: { p256dh: "p", auth: "a" } }, ...extra }), null, now);
+  const sentTitles = () => pushes.map((push) => push.payload.title);
+
+  test("the month-end result goes out on a 07:45 run on the 1st, and a second run doesn't repeat it", async () => {
+    const first = ist("2026-11-01T07:45:00");
+    await subscribe(first);
+    fakeRedis.zsets.set("lb:2026-10:all", new Map([[LB_ID, 120.5], ["00000000-0000-4000-8000-000000000002", 300.5]]));
+    fakeRedis.strings.set(`lb:member:${LB_ID}`, JSON.stringify({ name: "Asha", zone: "western", keyHash: "x", month: "2026-10", points: 120, co2Kg: 9.5, scoredAt: 0, updatedAt: 0 }));
+    expect(await runPushSchedule(first)).toMatchObject({ sent: 1, failed: 0 });
+    expect(pushes[0].payload).toMatchObject({ title: "October's leaderboard is final", tag: "zeroemit-month-end" });
+    expect((await listSubscriptions())[0].sent.monthEnd).toBe("2026-11");
+    expect(await runPushSchedule(ist("2026-11-01T08:10:00"))).toMatchObject({ sent: 0 });
+    expect(await runPushSchedule(ist("2026-11-02T08:10:00"))).toMatchObject({ sent: 0 });
+    expect(sentTitles()).toEqual(["October's leaderboard is final"]);
   });
 });

@@ -265,7 +265,7 @@ GitHub Actions calls `/api/push/run` every 15 minutes from 06:30 to 22:15 IST; a
   - "best time" reminders, about 35 minutes before a clean window and at 9 pm for tonight's;
   - the morning digest;
   - streak reminders, which open `/log?quick=1` with a "Log a charge" action;
-  - leaderboard changes (the month-end result opens last month's recap);
+  - leaderboard changes (the month-end result goes out from 7 am on the 1st, or on the 2nd if no run got through, and opens last month's recap);
   - badge nudges and the Sunday recap;
 - records sent "marks" per day or month in `push:state`, so nothing repeats;
 - sends with a concurrency of 20, never from 22:00 to 07:00 IST;

@@ -59,7 +59,7 @@ async function loadZones(zones: Zone[]) {
 type MarkKey = Exclude<keyof SentMarkers, "badges">;
 // `badge` is the badge key to record as nudged once it's delivered.
 export type Planned = { payload: PushPayload; marks: MarkKey[]; badge?: string };
-// This month's and (on the 1st) last month's leaderboard standing, loaded
+// This month's and (on the 1st and 2nd) last month's leaderboard standing, loaded
 // only for subscribers who joined and have "Leaderboard updates" on.
 export type Standings = { current: Standing | null; lastMonth: Standing | null };
 
@@ -68,25 +68,30 @@ export type Standings = { current: Standing | null; lastMonth: Standing | null }
 const markValue = (mark: MarkKey, now: number) => (mark === "top" || mark === "monthEnd" ? istMonthKey(now) : istDayKey(now));
 const LOG_ACTION = [{ action: "log", title: "Log a charge" }];
 const BADGE_NUDGE_EVERY_DAYS = 3;
+// Last month's result goes out from 07:00 on the 1st, or on the 2nd if no run
+// got through on the 1st: scheduled runs can be hours late or dropped, and
+// the daily Vercel cron lands around 08:00. The month mark stops a repeat.
+const monthEndDue = (now: number) => /-0[12]$/.test(istDayKey(now)) && istHourOfDay(now) >= 7 && istHourOfDay(now) < 22;
+// The same clock time on last month's final day.
+const lastMonthTime = (now: number) => now - Number(istDayKey(now).slice(8)) * 24 * HOUR_MS;
 
-// Leaderboard news: last month's final result on the 1st, being overtaken
+// Leaderboard news: last month's final result on the 1st (or 2nd), being overtaken
 // (once a day), or reaching #1 (once a month). Also returns the rank to
 // remember for next time.
 function planLeaderboard(sub: StoredSubscription, standings: Standings, now: number) {
   const planned: Planned[] = [];
   const month = istMonthKey(now);
   const today = istDayKey(now);
-  const hour = istHourOfDay(now);
   // Without a point a member isn't on the board, so has no rank to report
   // (boardStandings already leaves them out; this keeps plan() honest too).
   const current = standings.current && standings.current.points > 0 ? standings.current : null;
   const lastMonth = standings.lastMonth && standings.lastMonth.points > 0 ? standings.lastMonth : null;
 
-  if (lastMonth && today.endsWith("-01") && hour >= 9 && hour < 12 && sub.sent.monthEnd !== month) {
-    const monthName = new Intl.DateTimeFormat("en-IN", { month: "long", timeZone: IST_TIME_ZONE }).format(new Date(now - 24 * HOUR_MS));
+  if (lastMonth && monthEndDue(now) && sub.sent.monthEnd !== month) {
+    const monthName = new Intl.DateTimeFormat("en-IN", { month: "long", timeZone: IST_TIME_ZONE }).format(new Date(lastMonthTime(now)));
     const co2 = lastMonth.co2Kg === null ? "" : `, with ${lastMonth.co2Kg.toFixed(1)} kg CO₂ avoided`;
     // Opens last month's recap story, which ends with a card to share.
-    planned.push({ payload: { title: `${monthName}'s leaderboard is final`, body: `You finished #${lastMonth.rank} of ${lastMonth.total}${co2}. See your ${monthName} recap.`, url: `/recap?period=${istMonthKey(now - 24 * HOUR_MS)}`, tag: "zeroemit-month-end" }, marks: ["monthEnd"] });
+    planned.push({ payload: { title: `${monthName}'s leaderboard is final`, body: `You finished #${lastMonth.rank} of ${lastMonth.total}${co2}. See your ${monthName} recap.`, url: `/recap?period=${istMonthKey(lastMonthTime(now))}`, tag: "zeroemit-month-end" }, marks: ["monthEnd"] });
   }
 
   if (current) {
@@ -219,12 +224,10 @@ function planGrid(sub: StoredSubscription, zonePlan: ZonePlan | undefined, now: 
 // lookup just skips leaderboard news this run.
 async function loadBoards(subs: StoredSubscription[], now: number) {
   const ids = subs.filter((sub) => sub.leaderboardId && sub.prefs.leaderboard).map((sub) => sub.leaderboardId!);
-  const hour = istHourOfDay(now);
-  const monthEndWindow = istDayKey(now).endsWith("-01") && hour >= 9 && hour < 12;
   try {
     const [current, lastMonth] = await Promise.all([
       boardStandings(istMonthKey(now), ids),
-      monthEndWindow ? boardStandings(istMonthKey(now - 24 * HOUR_MS), ids) : new Map<string, Standing>(),
+      monthEndDue(now) ? boardStandings(istMonthKey(lastMonthTime(now)), ids) : new Map<string, Standing>(),
     ]);
     return { current, lastMonth };
   } catch {
