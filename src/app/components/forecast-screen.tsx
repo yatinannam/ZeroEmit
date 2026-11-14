@@ -1,6 +1,6 @@
 "use client";
 
-import { useLayoutEffect, useRef, useState } from "react";
+import { Suspense, useLayoutEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import gsap from "gsap";
 import { formatUpdatedAt, formatWindow, liveReading, planByDay, planNext24, relativeDay, underWay, type ChargeWindow } from "../lib/grid";
@@ -24,12 +24,22 @@ type Day = "next" | "today" | "tomorrow";
 const DAYS: { key: Day; label: string }[] = [{ key: "next", label: "Next 24 h" }, { key: "today", label: "Today" }, { key: "tomorrow", label: "Tomorrow" }];
 const DAY_PATHS: Record<Day, string> = { next: "/forecast", today: "/forecast?day=today", tomorrow: "/forecast?day=tomorrow" };
 
-export function ForecastScreen() {
-  const { place, ready, locationOpen, openLocation, closeLocation, chooseLocation } = useLocationPicker();
-  // The day lives in the URL alone: a tab tap back to plain /forecast must
-  // show the next 24 hours even though this screen's state survives that navigation.
+// The page is prerendered, so a tab tap shows it straight from the
+// prefetch instead of waiting on the server; the day in the URL is read on
+// the device. Until then (only a cold load of ?day=) the next 24 hours show.
+export function ForecastPageContent() {
+  return <Suspense fallback={<ForecastScreen day="next"/>}><ForecastForUrl/></Suspense>;
+}
+
+// The day lives in the URL alone: a tab tap back to plain /forecast must
+// show the next 24 hours even though this screen's state survives that navigation.
+function ForecastForUrl() {
   const requestedDay = useSearchParams().get("day");
-  const day: Day = requestedDay === "tomorrow" || requestedDay === "today" ? requestedDay : "next";
+  return <ForecastScreen day={requestedDay === "tomorrow" || requestedDay === "today" ? requestedDay : "next"}/>;
+}
+
+export function ForecastScreen({ day }: { day: Day }) {
+  const { place, ready, locationOpen, openLocation, closeLocation, chooseLocation } = useLocationPicker();
   const [notice, setNotice] = useState<{ text: string; ok: boolean } | null>(null);
   const notifsOn = useNotificationsEnabled();
   const { data, loading, error, refresh } = useGridData(ready ? place.state : null);

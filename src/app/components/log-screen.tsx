@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, MouseEvent, useEffect, useEffectEvent, useState } from "react";
-import { useRouter } from "next/navigation";
+import { FormEvent, MouseEvent, Suspense, useEffect, useEffectEvent, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { DAY_MS, intensityAt, istHourOfDay } from "../lib/grid";
 import { chargeTiming, defaultChargeMoment, hourlyPattern, localDate, type ChargeTiming } from "../lib/timing";
 import { chargeCost, formatRupees } from "../lib/cost";
@@ -32,10 +32,20 @@ const PAGE_SIZE = 50;
 // What each charge's chip says next to its points: how it was timed.
 const TIMING_TAGS: Record<string, string> = { best: "Best", cleaner: "Cleaner", other: "", untimed: "", small: "" };
 
-// `quick`: opened from a notification's "Log a charge" button, so open the
-// form straight away, set to right now.
-export function LogScreen({ quick = false }: { quick?: boolean }) {
+// Reads ?quick=1 on the device, so the page itself can be prerendered (a tab
+// tap shows it at once instead of waiting on the server).
+function QuickLogRequest({ onQuick }: { onQuick: () => void }) {
+  const quick = useSearchParams().get("quick") === "1";
+  const request = useEffectEvent(onQuick);
+  useEffect(() => { if (quick) request(); }, [quick]);
+  return null;
+}
+
+// ?quick=1: opened from a notification's "Log a charge" button (or a "Log a
+// charge" link), so open the form straight away, set to right now.
+export function LogScreen() {
   const router = useRouter();
+  const [quick, setQuick] = useState(false);
   const { profile } = useProfile();
   const { place, ready, location: city, locationOpen, openLocation, closeLocation, chooseLocation } = useLocationPicker();
   // `energy` is set only when the form comes back after a location change,
@@ -99,7 +109,7 @@ export function LogScreen({ quick = false }: { quick?: boolean }) {
   // Open once, then drop ?quick=1 so a refresh or Back doesn't reopen it.
   // Waits for a place (`ready`): on first launch the setup screen comes first,
   // and a form opened behind it would trap the keyboard there.
-  const openQuickForm = useEffectEvent(() => { openForm(true); router.replace("/log", { scroll: false }); });
+  const openQuickForm = useEffectEvent(() => { setQuick(false); openForm(true); router.replace("/log", { scroll: false }); });
   useEffect(() => {
     if (!quick || !ready) return;
     const timer = setTimeout(openQuickForm, 0);
@@ -171,6 +181,7 @@ export function LogScreen({ quick = false }: { quick?: boolean }) {
   }
 
   return <div className="mobile-app">
+    <Suspense fallback={null}><QuickLogRequest onQuick={() => setQuick(true)}/></Suspense>
     <TopBar onChooseLocation={openLocation}/>
     <main className="dashboard-content">
       <PageHeader eyebrow="Charging history" title="Your charging impact." intro="Keep track of every charge and the emissions you avoided."/>

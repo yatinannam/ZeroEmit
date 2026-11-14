@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useEffect, useEffectEvent, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useEffectEvent, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import gsap from "gsap";
 import { formatRupees, DEFAULT_PRICE_PER_KWH } from "../lib/cost";
 import { equivalentsSentence } from "../lib/equivalents";
@@ -260,6 +260,17 @@ function Story({ slides, label, onClose }: { slides: Slide[]; label: string; onC
 
 // /recap?period=2026-10 (or a year, "2026"). Without one, the recap people
 // most likely came for (see defaultPeriod). `closeTo`: where Close goes.
+// The page is prerendered and its query read on the device. The fallback is
+// the same "Loading" frame the screen shows until the charges are read.
+export function RecapPageContent() {
+  return <Suspense fallback={<RecapScreen requested={null} closeTo="/profile"/>}><RecapForUrl/></Suspense>;
+}
+
+function RecapForUrl() {
+  const params = useSearchParams();
+  return <RecapScreen requested={params.get("period")} closeTo={params.get("from") === "home" ? "/" : "/profile"}/>;
+}
+
 export function RecapScreen({ requested, closeTo }: { requested: string | null; closeTo: string }) {
   const router = useRouter();
   const { charges, ready } = useCharges();

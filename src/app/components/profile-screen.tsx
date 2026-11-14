@@ -1,8 +1,8 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, Suspense, useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { chargesInMonth, currentStreakDays, estimatedCarbonSavedGrams, impactSummary, totalPoints } from "../lib/rewards";
 import { LEGACY_LOGGED_AT, useCharges } from "./use-charges";
 import { useProfile } from "./use-profile";
@@ -28,6 +28,17 @@ import { LEAVE_PENDING_MESSAGE, LEFT_MESSAGE } from "./leaderboard";
 import { CountUp } from "./motion";
 import { forgetChargerLocation } from "./use-charger-location";
 import { resetPlannerSettings } from "./use-planner-settings";
+import { lastMonthKey } from "../lib/recap";
+
+// ?share=last-month came from month-end notifications sent before the recap
+// replaced the share card: it opens last month's recap, which ends with one.
+// Read on the device, so the page itself is prerendered.
+function LegacyShareRedirect() {
+  const share = useSearchParams().get("share");
+  const router = useRouter();
+  useEffect(() => { if (share === "last-month") router.replace(`/recap?period=${lastMonthKey()}`); }, [share, router]);
+  return null;
+}
 
 // The Profile & vehicle field to focus: the one the user tapped to fill in.
 type EditField = "name" | "vehicle" | "price";
@@ -170,6 +181,7 @@ export function ProfileScreen() {
   ];
 
   return <div className="mobile-app">
+    <Suspense fallback={null}><LegacyShareRedirect/></Suspense>
     <TopBar onChooseLocation={openLocation}/>
     <main className="dashboard-content">
       <section className="profile-avatar-block">

@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useEffect, useEffectEvent, useState, type FormEvent } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useEffectEvent, useState, type FormEvent, type ReactNode } from "react";
 import { formatGroupCode, groupInvitePath, MAX_GROUPS_PER_MEMBER, parseGroupCode, validateGroupName, type GroupBoardResponse, type MyGroup } from "../lib/groups";
 import { displayNameFrom, validateDisplayName } from "../lib/leaderboard";
 import { zoneOf } from "../lib/places";
@@ -207,16 +207,34 @@ export function GroupScreen({ rawCode, joining }: { rawCode: string | null; join
 }
 
 // /rewards/groups with no code: just the list.
-export function GroupsHub() {
+// The page is prerendered and its query read on the device: a group's code
+// (?code=, or ?join= from an invite) shows that board, else the device's list.
+export function GroupsPageContent() {
+  return <Suspense fallback={<GroupsShell><section className="card stat-card groups-card" aria-busy="true"><div className="card activity-item skeleton-item" aria-hidden="true"/></section></GroupsShell>}><GroupsForUrl/></Suspense>;
+}
+
+function GroupsForUrl() {
+  const params = useSearchParams();
+  const join = params.get("join");
+  const raw = join ?? params.get("code");
+  return raw === null ? <GroupsHub/> : <GroupScreen rawCode={raw} joining={join !== null}/>;
+}
+
+// Top bar, back link and header, around the device's groups or a placeholder.
+function GroupsShell({ children }: { children: ReactNode }) {
   const { place, locationOpen, openLocation, closeLocation, chooseLocation } = useLocationPicker();
   return <div className="mobile-app">
     <TopBar onChooseLocation={openLocation}/>
     <main className="dashboard-content">
       <Link className="back-link" href="/rewards"><Icon name="arrow-left" size={18}/> Rewards</Link>
       <PageHeader eyebrow="Group challenges" title="Charge cleaner with your crew." intro="Invite-only monthly boards for a class, an office or a housing society."/>
-      <GroupsCard/>
+      {children}
     </main>
     <BottomNav/>
     {locationOpen && <LocationModal current={place} onClose={closeLocation} onChoose={chooseLocation}/>}
   </div>;
+}
+
+export function GroupsHub() {
+  return <GroupsShell><GroupsCard/></GroupsShell>;
 }

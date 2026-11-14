@@ -3,7 +3,7 @@ import { LogScreen } from "../components/log-screen";
 
 export const metadata: Metadata = { title: "Charging history" };
 
-export default async function LogPage({ searchParams }: PageProps<"/log">) {
-  const { quick } = await searchParams;
-  return <LogScreen quick={quick === "1"}/>;
+// Prerendered, so a tab tap shows it at once; ?quick=1 is read on the device.
+export default function LogPage() {
+  return <LogScreen/>;
 }
