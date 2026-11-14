@@ -6,12 +6,29 @@
 // and pass the file: `bun run chargers path/to/answer.json`.
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { firstOverpassAnswer, OVERPASS_SERVERS } from "../src/app/lib/server/overpass";
-import { compactChargers, INDIA_CHARGERS_QUERY, type ChargerElement } from "../src/app/lib/stations";
+import { compactChargers, INDIA_LATITUDE_BANDS, indiaChargersBandQuery, type ChargerElement } from "../src/app/lib/stations";
 
 const FILE = new URL("../src/app/lib/server/chargers-india.json", import.meta.url);
 
 const saved = process.argv[2];
-const answer: unknown = saved ? JSON.parse(readFileSync(saved, "utf8")) : await firstOverpassAnswer(OVERPASS_SERVERS, INDIA_CHARGERS_QUERY, { timeoutMs: 15 * 60_000, log: (line) => console.error(line) });
+// Band by band (see INDIA_LATITUDE_BANDS), one after another so no server
+// gets more than one query at a time. All bands or nothing: a missing band
+// would drop its chargers from the app.
+async function download(): Promise<unknown> {
+  const deadline = Date.now() + 20 * 60_000;
+  const elements: unknown[] = [];
+  let timestamp: string | undefined;
+  for (const band of INDIA_LATITUDE_BANDS) {
+    const answer = await firstOverpassAnswer(OVERPASS_SERVERS, indiaChargersBandQuery(band), { timeoutMs: Math.max(60_000, deadline - Date.now()), attemptTimeoutMs: 90_000, log: (line) => console.error(line) }) as { elements: unknown[]; osm3s?: { timestamp_osm_base?: string } } | null;
+    if (answer === null) { console.error(`No answer for ${band[0]}-${band[1]}°N.`); return null; }
+    console.log(`${band[0]}-${band[1]}°N: ${answer.elements.length} chargers`);
+    elements.push(...answer.elements);
+    timestamp ??= answer.osm3s?.timestamp_osm_base;
+  }
+  return { elements, osm3s: { timestamp_osm_base: timestamp } };
+}
+
+const answer: unknown = saved ? JSON.parse(readFileSync(saved, "utf8")) : await download();
 if (answer === null) {
   console.error("No Overpass server returned the chargers. Try again later.");
   process.exit(1);

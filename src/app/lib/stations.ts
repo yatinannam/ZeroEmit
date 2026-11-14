@@ -85,6 +85,16 @@ const stationName = (raw: string | null) => (raw && !GENERIC_NAME.test(aliasKey(
 // (`out center` gives the latter a middle point).
 export const INDIA_CHARGERS_QUERY = `[out:json][timeout:180];area["ISO3166-1"="IN"][admin_level=2]->.in;nwr["amenity"="charging_station"](area.in);out center tags;`;
 
+// The same search in latitude bands, south to north, for the weekly refresh:
+// the whole country takes a public server over a minute, and maps.mail.ru's
+// gateway gives up at 60 s (504), while each band takes 20-50 s. Bands share
+// their edges, so a charger on one can come back twice; compactChargers
+// keeps one.
+export const INDIA_LATITUDE_BANDS: [number, number][] = [[6, 13], [13, 18], [18, 22], [22, 25], [25, 28], [28, 31], [31, 38]];
+export function indiaChargersBandQuery([south, north]: [number, number]) {
+  return `[out:json][timeout:55];area["ISO3166-1"="IN"][admin_level=2]->.in;nwr["amenity"="charging_station"](area.in)(${south},68,${north},98);out center tags;`;
+}
+
 type OverpassElement = { type?: unknown; id?: unknown; lat?: unknown; lon?: unknown; center?: { lat?: unknown; lon?: unknown }; tags?: Record<string, unknown> };
 export type ChargerElement = { type: string; id: number; lat: number; lon: number; tags: Record<string, string> };
 
@@ -96,16 +106,17 @@ const KEPT_TAGS = ["name", "name:en", "operator", "brand", "opening_hours", ...C
 export function compactChargers(response: unknown): ChargerElement[] {
   const elements = (response as { elements?: unknown } | null)?.elements;
   if (!Array.isArray(elements)) return [];
-  const out: ChargerElement[] = [];
+  // Keyed by OSM type and id, so one listed twice (two bands' shared edge) is kept once.
+  const out = new Map<string, ChargerElement>();
   for (const raw of elements as OverpassElement[]) {
     const lat = typeof raw.lat === "number" ? raw.lat : raw.center?.lat;
     const lon = typeof raw.lon === "number" ? raw.lon : raw.center?.lon;
     if (typeof lat !== "number" || typeof lon !== "number" || typeof raw.type !== "string" || typeof raw.id !== "number") continue;
     const tags: Record<string, string> = {};
     for (const key of KEPT_TAGS) { const value = raw.tags?.[key]; if (typeof value === "string") tags[key] = value; }
-    out.push({ type: raw.type, id: raw.id, lat, lon, tags });
+    out.set(`${raw.type}/${raw.id}`, { type: raw.type, id: raw.id, lat, lon, tags });
   }
-  return out.sort((a, b) => a.type.localeCompare(b.type) || a.id - b.id);
+  return [...out.values()].sort((a, b) => a.type.localeCompare(b.type) || a.id - b.id);
 }
 
 // One charger is often mapped several times (a point per socket, or a point

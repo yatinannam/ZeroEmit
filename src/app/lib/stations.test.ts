@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { addChargerUrl, chargerOrigin, chargerSearchUrl, compactChargers, compassDirection, directionsUrl, distanceKm, INDIA_CHARGERS_QUERY, nearbyStations, normalizeOperator, parseOverpass, roundCoordinate, stationsAround, connectorsIn, networksIn } from "./stations";
+import { addChargerUrl, chargerOrigin, chargerSearchUrl, compactChargers, compassDirection, directionsUrl, distanceKm, INDIA_CHARGERS_QUERY, INDIA_LATITUDE_BANDS, indiaChargersBandQuery, nearbyStations, normalizeOperator, parseOverpass, roundCoordinate, stationsAround, connectorsIn, networksIn } from "./stations";
 
 const PUNE = { lat: 18.5204, lon: 73.8567 };
 
@@ -259,5 +259,22 @@ describe("connectorsIn", () => {
   test("most common first, ties by name, unlisted ones ignored", () => {
     expect(connectorsIn([station(["Type 2"]), station(["CCS2", "Type 2"]), station(["CCS2"]), station([]), station(["CHAdeMO"])])).toEqual(["CCS2", "Type 2", "CHAdeMO"]);
     expect(connectorsIn([])).toEqual([]);
+  });
+});
+
+describe("India in latitude bands", () => {
+  test("the bands cover the whole country with no gap, each asking for India's chargers in its strip", () => {
+    const bands = INDIA_LATITUDE_BANDS;
+    expect(bands[0][0]).toBeLessThanOrEqual(6.5); // Indira Point
+    expect(bands.at(-1)![1]).toBeGreaterThanOrEqual(37.1); // northern Ladakh
+    bands.slice(1).forEach(([south], index) => expect(south).toBe(bands[index][1]));
+    const query = indiaChargersBandQuery([28, 31]);
+    expect(query).toContain("(area.in)(28,68,31,98);");
+    expect(query).toContain("[timeout:55]");
+  });
+
+  test("a charger on two bands' shared edge is kept once", () => {
+    const element = { type: "node", id: 7, lat: 22, lon: 77, tags: { name: "Edge" } };
+    expect(compactChargers({ elements: [element, element] })).toHaveLength(1);
   });
 });
