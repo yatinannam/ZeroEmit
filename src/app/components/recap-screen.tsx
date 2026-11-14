@@ -274,7 +274,8 @@ export function RecapScreen({ requested, closeTo }: { requested: string | null; 
   const period = asked && !missing ? asked : missing ? null : fallback;
   const recap = period ? buildRecap(charges, period, profile.pricePerKwh ?? DEFAULT_PRICE_PER_KWH) : null;
   const name = profile.name.trim().split(/\s+/)[0] ?? "";
-  const close = () => router.push(closeTo);
+  // Replace, not push: Back from where Close lands mustn't reopen the story.
+  const close = () => router.replace(closeTo);
   const open = (key: string) => router.replace(`/recap?period=${key}${closeTo === "/" ? "&from=home" : ""}`, { scroll: false });
 
   let content: ReactNode;
