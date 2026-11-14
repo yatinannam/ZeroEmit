@@ -223,7 +223,8 @@ export function LogScreen({ quick = false }: { quick?: boolean }) {
       </> : <label>Energy added (kWh)<input name="energy" type="number" inputMode="decimal" min="0.1" max={MAX_KWH} step="0.1" defaultValue={form.energy ?? (typicalEnergy ? Math.min(typicalEnergy, MAX_KWH).toFixed(1) : "18")} required onChange={() => setFormError("")}/></label>}
       {battery === null && <p className="form-hint">Prefer battery %? <Link className="text-button" href="/profile">Pick your EV in Profile</Link></p>}
       <p className="form-location">Location: {city} · <button type="button" className="text-button" aria-label={`Change location, ${city}`} onClick={changeLocation}>Change</button></p>
-      {formError && <p className="form-error" role="alert">{formError}</p>}
+      {/* A % problem is already in red under the two fields: said again only to screen readers, not shown twice. */}
+      {formError && <p className={formError === percentProblem && form?.mode === "percent" && battery !== null ? "sr-only" : "form-error"} role="alert">{formError}</p>}
       <button className="primary-button" type="submit" disabled={savePending}>{savePending ? "Getting grid data…" : "Save charge"}</button>
     </Modal>}
 
