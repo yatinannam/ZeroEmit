@@ -160,6 +160,8 @@ export function GroupScreen({ rawCode, joining }: { rawCode: string | null; join
     const timer = setTimeout(openInvite, 0);
     return () => clearTimeout(timer);
   }, [joining, ready, group, isMember]);
+  // Already in it: no sheet, but ?join= still turns into the plain ?code= address.
+  useEffect(() => { if (joining && code && isMember === true) router.replace(`/rewards/groups?code=${code}`, { scroll: false }); }, [joining, code, isMember, router]);
 
   async function leave() {
     if (!code) return;
