@@ -66,9 +66,17 @@ export function parseBatteryKwh(raw: unknown): number | null {
 }
 
 // A whole battery % (0–100), or null.
+// 20.5 isn't rounded to 21: the form would save a level that wasn't typed,
+// and a charge keeps whole %s (use-charges.ts drops any other).
 export function parsePercent(raw: unknown): number | null {
   const value = typeof raw === "number" ? raw : typeof raw === "string" && raw.trim() ? Number(raw) : NaN;
-  return Number.isFinite(value) && value >= 0 && value <= 100 ? Math.round(value) : null;
+  return Number.isInteger(value) && value >= 0 && value <= 100 ? value : null;
+}
+
+// Whether a % typed in has a fraction (20.5), so the form can ask for a whole one.
+export function isFractionalPercent(raw: unknown): boolean {
+  const value = typeof raw === "number" ? raw : typeof raw === "string" && raw.trim() ? Number(raw) : NaN;
+  return Number.isFinite(value) && !Number.isInteger(value);
 }
 
 // kWh drawn from the grid to take a `batteryKwh` battery from `from`% to

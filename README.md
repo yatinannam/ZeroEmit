@@ -162,7 +162,7 @@ The planner answers "I need this much charge by this time: when should I plug in
 
 Most drivers know their battery %, not kWh. Profile → Profile & vehicle offers about 35 popular Indian EVs (cars, scooters and bikes, three-wheelers) with approximate usable battery sizes, or "Other" with a name and battery size typed in. Picking a preset also sets the planner's usual charger (scooter charger for two-wheelers, home socket otherwise).
 
-- With a battery size known, the log form asks "battery before / after" by default, and so does the planner unless a kWh figure was saved there before (kWh stays one tap away). A gain that works out under the minimum or over 150 kWh says which; an "Other" battery is capped at 135 kWh so 0→100% fits.
+- With a battery size known, the log form asks "battery before / after" by default, and so does the planner unless a kWh figure was saved there before (kWh stays one tap away). A gain that works out under the minimum or over 150 kWh says which, and levels are whole numbers: 20.5% gets "Use whole numbers" rather than being rounded to 21% (`parsePercent`, `isFractionalPercent`), so the live kWh and the saved charge never use a level that wasn't typed; an "Other" battery is capped at 135 kWh so 0→100% fits.
 - Picking a preset only changes the planner's charger when the one set can't be the EV's own (a scooter charger for a car, or a car charger for a scooter).
 - `kwhForPercent` converts a gain to energy from the grid: `(to − from)% × battery ÷ 0.9`, since about 10% is lost as heat on AC charging and the grid's carbon is in what the meter counts. The form shows the result live.
 - The % is saved on the charge (`percentFrom`, `percentTo`) and shown in the history; damaged values are dropped when charges are read.
@@ -198,7 +198,7 @@ A story of one month (or year) of charging, built on the device from its own his
 | Points per charge | 10 |
 | Timing bonus | +10 if the charge starts in one of the day's 3 cleanest 2-hour windows for its zone (23:00 windows wrap past midnight); +5 at a cleaner-than-average hour |
 | Minimum energy for points | 2 kWh (`MIN_POINTS_KWH`); smaller charges still count for energy totals and streaks |
-| Maximum energy per charge | 150 kWh |
+| Energy per charge | 0.1–150 kWh (`MIN_CHARGE_KWH`, `MAX_CHARGE_KWH`), kept to 0.1 kWh; the log form says which limit a figure is past (`chargeEnergyError`), and also asks for a date from today back 30 days and a time that has passed |
 | CO₂ avoided | `max(0, baseline - intensity) × kWh`; baseline is the day's average intensity for the zone (`baselineIntensity`), or 650 g/kWh for older charges without it |
 | Streak badges | Unlock from the longest streak ever (IST days), so a broken streak doesn't re-lock them |
 

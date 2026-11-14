@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { kwhForPercent, parseBatteryKwh, parsePercent, vehicleByKey, VEHICLE_GROUPS, VEHICLES } from "./vehicles";
+import { isFractionalPercent, kwhForPercent, parseBatteryKwh, parsePercent, vehicleByKey, VEHICLE_GROUPS, VEHICLES } from "./vehicles";
 
 describe("vehicles", () => {
   test("every preset has a unique key, a sensible battery and a known group", () => {
@@ -25,11 +25,25 @@ describe("vehicles", () => {
 
   test("parsing", () => {
     expect(parsePercent("20")).toBe(20);
-    expect(parsePercent("20.6")).toBe(21);
+    expect(parsePercent("20.0")).toBe(20);
+    expect(parsePercent(" 80 ")).toBe(80);
+    // Not rounded: the form asks for a whole number instead.
+    expect(parsePercent("20.6")).toBeNull();
+    expect(parsePercent("20.5")).toBeNull();
+    expect(parsePercent("-1")).toBeNull();
     expect(parsePercent("101")).toBeNull();
     expect(parsePercent("")).toBeNull();
     expect(parseBatteryKwh("40.5")).toBe(40.5);
     expect(parseBatteryKwh("0.5")).toBeNull();
     expect(parseBatteryKwh("abc")).toBeNull();
+  });
+
+  test("a % with a fraction is told apart from a blank or out-of-range one", () => {
+    expect(isFractionalPercent("20.5")).toBe(true);
+    expect(isFractionalPercent("99.9")).toBe(true);
+    expect(isFractionalPercent("20")).toBe(false);
+    expect(isFractionalPercent("20.0")).toBe(false);
+    expect(isFractionalPercent("")).toBe(false);
+    expect(isFractionalPercent("abc")).toBe(false);
   });
 });

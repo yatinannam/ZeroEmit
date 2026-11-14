@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import type { Charge } from "../components/use-charges";
 import { DAY_MS, istDayKey } from "./grid";
-import { achievements, baselineFromPattern, chargeOutcome, chargesInMonth, closestBadge, currentStreakDays, estimatedCarbonSavedGrams, impactSummary, isGreenCharge, longestStreakDays, MIN_POINTS_KWH, pointsForCharge, totalPoints, weekSummary } from "./rewards";
+import { achievements, baselineFromPattern, chargeEnergyError, chargeOutcome, chargesInMonth, closestBadge, currentStreakDays, estimatedCarbonSavedGrams, impactSummary, isGreenCharge, longestStreakDays, MIN_POINTS_KWH, pointsForCharge, totalPoints, weekSummary } from "./rewards";
 
 let nextId = 0;
 // A charge `daysAgo` IST days back at `hour`:00 IST (no later than now), 20 kWh
@@ -274,5 +274,19 @@ describe("CO2 avoided against the day's average", () => {
     expect(baselineFromPattern([600, null, 700, 650])).toBe(650);
     expect(baselineFromPattern([null, null])).toBeNull();
     expect(baselineFromPattern(null)).toBeNull();
+  });
+});
+
+describe("chargeEnergyError", () => {
+  test("a figure from 0.1 to 150 kWh can be saved, with any number of decimals", () => {
+    for (const ok of ["0.1", "18", "18.25", " 42.5 ", "150"]) expect(chargeEnergyError(ok)).toBeNull();
+  });
+
+  test("each way a figure can't be saved gets its own message", () => {
+    expect(chargeEnergyError("")).toBe("Enter the energy added, in kWh.");
+    expect(chargeEnergyError("  ")).toBe("Enter the energy added, in kWh.");
+    expect(chargeEnergyError("NaN")).toBe("Enter the energy as a number, like 18.5.");
+    for (const low of ["0", "-3", "0.04", "0.09"]) expect(chargeEnergyError(low)).toBe("Enter at least 0.1 kWh.");
+    for (const high of ["151", "150.1", "99999"]) expect(chargeEnergyError(high)).toBe("Enter 150 kWh or less, the most one charge can add.");
   });
 });

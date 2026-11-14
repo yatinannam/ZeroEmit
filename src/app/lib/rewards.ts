@@ -16,6 +16,20 @@ export const GREEN_CHARGE_BONUS = 5;
 // typo like 1800 would otherwise inflate every total and become the next
 // form's "typical" default.
 export const MAX_CHARGE_KWH = 150;
+// Smallest charge the log form accepts: a charge is kept to 0.1 kWh.
+export const MIN_CHARGE_KWH = 0.1;
+
+// What's wrong with an energy figure typed into the log form, said so the
+// driver can fix it, or null when it can be saved. More than one decimal is
+// fine: the charge is rounded to 0.1 kWh.
+export function chargeEnergyError(raw: string): string | null {
+  if (!raw.trim()) return "Enter the energy added, in kWh.";
+  const value = Number(raw);
+  if (!Number.isFinite(value)) return "Enter the energy as a number, like 18.5.";
+  if (value < MIN_CHARGE_KWH) return `Enter at least ${MIN_CHARGE_KWH} kWh.`;
+  if (value > MAX_CHARGE_KWH) return `Enter ${MAX_CHARGE_KWH} kWh or less, the most one charge can add.`;
+  return null;
+}
 // Below this a charge earns no points or timing bonus and counts toward no
 // badge or leaderboard score: a 0.1 kWh "charge" logged for points is easy to
 // repeat. It still counts in energy totals and streaks.

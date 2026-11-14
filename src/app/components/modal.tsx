@@ -17,6 +17,21 @@ const FOCUSABLE = "button:not([disabled]), [href], input:not([disabled]), select
 // it rather than leaving the page (see sheet-history.ts).
 // `initialFocus` is a selector for a field inside the dialog to focus instead,
 // for when the user opened it to type into that field (e.g. "Add your name").
+// A field's value as typed. A number field holding what isn't a number ("1e",
+// "-") reads as blank, so it comes back as "NaN" instead: never taken for a
+// field left empty (a blank price, say, means "use the typical one").
+export function typedValue(form: HTMLFormElement, name: string): string {
+  const field = form.elements.namedItem(name);
+  if (!(field instanceof HTMLInputElement)) return "";
+  return field.validity.badInput ? "NaN" : field.value;
+}
+
+// Puts the cursor in a form's field, for the first one that needs fixing.
+export function focusField(form: HTMLFormElement, name: string) {
+  const field = form.elements.namedItem(name);
+  if (field instanceof HTMLElement) field.focus();
+}
+
 export function Modal({ title, onClose, onSubmit, initialFocus, children }: { title: string; onClose: () => void; onSubmit?: (event: FormEvent<HTMLFormElement>) => void; initialFocus?: string; children: ReactNode }) {
   const backdropRef = useRef<HTMLDivElement>(null);
   const titleId = useId();

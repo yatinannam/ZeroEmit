@@ -7,7 +7,7 @@ import { DAY_MS, intensityAt, istHourOfDay } from "../lib/grid";
 import { chargeTiming, defaultChargeMoment, hourlyPattern, localDate, type ChargeTiming } from "../lib/timing";
 import { chargeCost, formatRupees } from "../lib/cost";
 import { useProfile } from "./use-profile";
-import { baselineFromPattern, chargeOutcome, earnsPoints, MAX_CHARGE_KWH as MAX_KWH, MIN_POINTS_KWH, pointsForCharge } from "../lib/rewards";
+import { baselineFromPattern, chargeEnergyError, chargeOutcome, earnsPoints, MAX_CHARGE_KWH as MAX_KWH, MIN_CHARGE_KWH, MIN_POINTS_KWH, pointsForCharge } from "../lib/rewards";
 import { sendNotification } from "./notifications";
 import { showToast } from "./toast";
 import { averageEnergyKwh, dayHeading, formatTimeOfDay, typicalChargeTime } from "../lib/personalization";
@@ -17,9 +17,9 @@ import { useLocationPicker } from "./use-location-picker";
 import { Icon } from "./icon-set";
 import { BottomNav, celebratePoints, TopBar } from "./app-shell";
 import { LocationModal } from "./location-modal";
-import { Modal } from "./modal";
+import { focusField, Modal, typedValue } from "./modal";
 import { PageHeader } from "./page-header";
-import { kwhForPercent, parsePercent } from "../lib/vehicles";
+import { isFractionalPercent, kwhForPercent, parsePercent } from "../lib/vehicles";
 import { istMonthKey } from "../lib/leaderboard";
 import { periodLabel } from "../lib/recap";
 import { impactSummary } from "../lib/rewards";
@@ -53,7 +53,8 @@ export function LogScreen() {
   // as battery % (with the EV's battery size from Profile) or as kWh.
   const [form, setForm] = useState<{ date: string; time: string; today: string; earliest: string; energy?: string; mode: "percent" | "kwh"; from: string; to: string } | null>(null);
   const [shown, setShown] = useState(PAGE_SIZE);
-  const [formError, setFormError] = useState("");
+  // `field`: the input the message is about, marked invalid until it's edited.
+  const [formError, setFormError] = useState<{ field: string; message: string } | null>(null);
   const [selected, setSelected] = useState<Charge | null>(null);
   const grid = useGridData(ready ? place.state : null);
   const { charges, ready: chargesReady, addCharge, removeCharge, restoreCharge } = useCharges();
@@ -81,8 +82,8 @@ export function LogScreen() {
   // The kWh a battery % gain works out to, shown live under the two fields.
   const percentKwh = form && battery ? kwhForPercent(battery, parsePercent(form.from) ?? NaN, parsePercent(form.to) ?? NaN) : null;
   // Each way a % gain can't be saved gets its own message.
-  const percentOk = percentKwh !== null && percentKwh >= 0.1 && percentKwh <= MAX_KWH;
-  const percentProblem = percentKwh === null ? "Enter levels from 0 to 100%, with the battery after charging above where it started." : percentKwh < 0.1 ? "That's under 0.1 kWh. Check the levels, or log it in kWh." : `That's over ${MAX_KWH} kWh. Check your EV's battery size in Profile.`;
+  const percentOk = percentKwh !== null && percentKwh >= MIN_CHARGE_KWH && percentKwh <= MAX_KWH;
+  const percentProblem = percentKwh === null ? (form && (isFractionalPercent(form.from) || isFractionalPercent(form.to)) ? "Use whole numbers for the battery levels, like 20 and 80." : "Enter levels from 0 to 100%, with the battery after charging above where it started.") : percentKwh < MIN_CHARGE_KWH ? "That's under 0.1 kWh. Check the levels, or log it in kWh." : `That's over ${MAX_KWH} kWh. Check your EV's battery size in Profile.`;
   const typicalTime = typicalChargeTime(cityCharges);
 
   // A section per month (IST, as the recap and leaderboard count them),
@@ -101,7 +102,7 @@ export function LogScreen() {
     // today once it's passed, otherwise yesterday (the common "log last
     // night's charge" case) — or, with no usual time, to right now.
     const { date, time } = defaultChargeMoment(atNow ? null : typicalTime, now);
-    setFormError("");
+    setFormError(null);
     setGridWaitOverFor(null);
     setForm({ date, time, today: localDate(now), earliest: localDate(new Date(now.getTime() - MAX_BACKDATE_DAYS * DAY_MS)), mode: battery ? "percent" : "kwh", from: "20", to: "80" });
   }
@@ -131,18 +132,28 @@ export function LogScreen() {
   function submitCharge(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (savePending) return;
-    const data = new FormData(event.currentTarget);
+    const fields = event.currentTarget;
+    // Checked top to bottom: the first field that's wrong gets the message
+    // and the cursor (the browser's own checks are off, see modal.tsx).
+    const fail = (field: string, message: string) => { setFormError({ field, message }); focusField(fields, field); };
     const byPercent = form?.mode === "percent" && battery !== null;
     const from = byPercent ? parsePercent(form.from) : null;
     const to = byPercent ? parsePercent(form.to) : null;
-    if (byPercent && (from === null || to === null || !percentOk)) { setFormError(percentProblem); return; }
-    const energy = byPercent ? percentKwh! : Number(data.get("energy"));
-    const time = String(data.get("time"));
-    const when = new Date(`${String(data.get("date"))}T${time}`).getTime();
-    if (!Number.isFinite(energy) || energy <= 0 || energy > MAX_KWH) { setFormError(`Enter between 0.1 and ${MAX_KWH} kWh.`); return; }
-    if (Number.isNaN(when)) { setFormError("Pick a valid date and time."); return; }
-    if (when > Date.now()) { setFormError("That time hasn't happened yet — pick a time in the past."); return; }
-    if (when < Date.now() - (MAX_BACKDATE_DAYS + 1) * DAY_MS) { setFormError(`Charges can be logged up to ${MAX_BACKDATE_DAYS} days back.`); return; }
+    const date = typedValue(fields, "date");
+    const time = typedValue(fields, "time");
+    const when = new Date(`${date}T${time}`).getTime();
+    // Today and the earliest day as of now, not as of opening the form.
+    const nowDate = new Date();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) { fail("date", "Enter the date you charged."); return; }
+    if (date > localDate(nowDate)) { fail("date", "That day hasn't happened yet. Pick today or an earlier day."); return; }
+    if (date < localDate(new Date(nowDate.getTime() - MAX_BACKDATE_DAYS * DAY_MS))) { fail("date", `Charges can be logged up to ${MAX_BACKDATE_DAYS} days back.`); return; }
+    if (!/^\d{2}:\d{2}/.test(time)) { fail("time", "Enter the time you charged."); return; }
+    if (Number.isNaN(when)) { fail("date", "Pick a valid date and time."); return; }
+    if (when > Date.now()) { fail("time", "That time hasn't happened yet — pick a time in the past."); return; }
+    if (byPercent && (from === null || to === null || !percentOk)) { fail(from === null ? "from" : "to", percentProblem); return; }
+    const energyError = byPercent ? null : chargeEnergyError(typedValue(fields, "energy"));
+    if (energyError) { fail("energy", energyError); return; }
+    const energy = byPercent ? percentKwh! : Number(typedValue(fields, "energy"));
     const intensity = intensityAt(grid.data, when);
     // Timing against the region's typical day; unknown without grid data.
     const pattern = grid.data?.available ? hourlyPattern(grid.data.forecast) : null;
@@ -215,28 +226,28 @@ export function LogScreen() {
 
     {form && !locationOpen && <Modal title="Log a charge" onClose={() => setForm(null)} onSubmit={submitCharge}>
       <div className="form-row">
-        <label>Date<input name="date" type="date" defaultValue={form.date} min={form.earliest} max={form.today} required onChange={() => setFormError("")}/></label>
-        <label>Time<input name="time" type="time" defaultValue={form.time} required onChange={() => setFormError("")}/></label>
+        <label>Date<input name="date" type="date" defaultValue={form.date} min={form.earliest} max={form.today} required aria-invalid={formError?.field === "date"} onChange={() => setFormError(null)}/></label>
+        <label>Time<input name="time" type="time" defaultValue={form.time} required aria-invalid={formError?.field === "time"} onChange={() => setFormError(null)}/></label>
       </div>
       {battery !== null && <div className="segmented" role="group" aria-label="Log the charge as">
         {(["percent", "kwh"] as const).map((mode) => <button key={mode} type="button" aria-pressed={form.mode === mode} className={form.mode === mode ? "active" : ""} onClick={(event) => {
           // A kWh figure typed before switching to % comes back when switching back.
           const typed = event.currentTarget.form ? new FormData(event.currentTarget.form).get("energy") : null;
-          setFormError("");
+          setFormError(null);
           setForm({ ...form, mode, energy: typed === null ? form.energy : String(typed) });
         }}>{mode === "percent" ? "Battery %" : "kWh"}</button>)}
       </div>}
       {form.mode === "percent" && battery !== null ? <>
         <div className="form-row">
-          <label>Battery before (%)<input name="from" type="number" inputMode="numeric" min="0" max="99" step="1" value={form.from} required aria-describedby="log-percent-hint" aria-invalid={!percentOk} onChange={(event) => { setFormError(""); setForm({ ...form, from: event.target.value }); }}/></label>
-          <label>Battery after (%)<input name="to" type="number" inputMode="numeric" min="1" max="100" step="1" value={form.to} required aria-describedby="log-percent-hint" aria-invalid={!percentOk} onChange={(event) => { setFormError(""); setForm({ ...form, to: event.target.value }); }}/></label>
+          <label>Battery before (%)<input name="from" type="number" inputMode="numeric" min="0" max="99" step="1" value={form.from} required aria-describedby="log-percent-hint" aria-invalid={!percentOk} onChange={(event) => { setFormError(null); setForm({ ...form, from: event.target.value }); }}/></label>
+          <label>Battery after (%)<input name="to" type="number" inputMode="numeric" min="1" max="100" step="1" value={form.to} required aria-describedby="log-percent-hint" aria-invalid={!percentOk} onChange={(event) => { setFormError(null); setForm({ ...form, to: event.target.value }); }}/></label>
         </div>
         <p id="log-percent-hint" className={percentOk ? "form-hint" : "form-hint form-error"}>{percentOk ? `About ${percentKwh} kWh from the grid for your ${battery} kWh battery (about 10% is lost as heat while charging).` : percentProblem}</p>
-      </> : <label>Energy added (kWh)<input name="energy" type="number" inputMode="decimal" min="0.1" max={MAX_KWH} step="0.1" defaultValue={form.energy ?? (typicalEnergy ? Math.min(typicalEnergy, MAX_KWH).toFixed(1) : "18")} required onChange={() => setFormError("")}/></label>}
+      </> : <label>Energy added (kWh)<input name="energy" type="number" inputMode="decimal" min="0.1" max={MAX_KWH} step="0.1" defaultValue={form.energy ?? (typicalEnergy ? Math.min(typicalEnergy, MAX_KWH).toFixed(1) : "18")} required aria-invalid={formError?.field === "energy"} onChange={() => setFormError(null)}/></label>}
       {battery === null && <p className="form-hint">Prefer battery %? <Link className="text-button" href="/profile">Pick your EV in Profile</Link></p>}
       <p className="form-location">Location: {city} · <button type="button" className="text-button" aria-label={`Change location, ${city}`} onClick={changeLocation}>Change</button></p>
       {/* A % problem is already in red under the two fields: said again only to screen readers, not shown twice. */}
-      {formError && <p className={formError === percentProblem && form?.mode === "percent" && battery !== null ? "sr-only" : "form-error"} role="alert">{formError}</p>}
+      {formError && <p className={formError.message === percentProblem && form?.mode === "percent" && battery !== null ? "sr-only" : "form-error"} role="alert">{formError.message}</p>}
       <button className="primary-button" type="submit" disabled={savePending}>{savePending ? "Getting grid data…" : "Save charge"}</button>
     </Modal>}
 

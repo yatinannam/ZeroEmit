@@ -7,7 +7,7 @@ import { bedtimeBefore, CHARGERS, chargerKw, dayWord, formatDuration, isNightSta
 import { chargeTiming, hourlyPattern, TIMING_BONUS } from "../lib/timing";
 import { averageEnergyKwh, formatTimeOfDay } from "../lib/personalization";
 import { earnsPoints } from "../lib/rewards";
-import { kwhForPercent, parsePercent } from "../lib/vehicles";
+import { isFractionalPercent, kwhForPercent, parsePercent } from "../lib/vehicles";
 import { useProfile } from "./use-profile";
 import { chargingWindowIcs, downloadIcs } from "../lib/calendar";
 import { placeLabel, ZONE_LABELS, zoneOf } from "../lib/places";
@@ -73,7 +73,7 @@ export function PlannerScreen() {
   const percentKwh = battery !== null ? kwhForPercent(battery, parsePercent(percentText.from) ?? NaN, parsePercent(percentText.to) ?? NaN) : null;
   const kwh = byPercent ? (percentKwh !== null && isPlanKwh(percentKwh) ? percentKwh : null) : kwhText.trim() && isPlanKwh(typedKwh) ? typedKwh : null;
   const percentValid = byPercent && kwh !== null;
-  const percentHint = percentKwh === null ? "Enter levels from 0 to 100%, with the wanted level above where the battery is now." : percentKwh < 0.5 ? "That's under 0.5 kWh, too little to plan. Raise the wanted level." : "That's over 150 kWh. Check your EV's battery size in Profile.";
+  const percentHint = percentKwh === null ? (isFractionalPercent(percentText.from) || isFractionalPercent(percentText.to) ? "Use whole numbers for the battery levels, like 20 and 80." : "Enter levels from 0 to 100%, with the wanted level above where the battery is now.") : percentKwh < 0.5 ? "That's under 0.5 kWh, too little to plan. Raise the wanted level." : "That's over 150 kWh. Check your EV's battery size in Profile.";
   const kw = chargerKw(settings.charger);
   const readyBy = now ? nextOccurrence(timeDraft ?? settings.readyBy, now) : null;
 
