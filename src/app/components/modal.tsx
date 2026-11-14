@@ -43,7 +43,9 @@ export function Modal({ title, onClose, onSubmit, initialFocus, children }: { ti
     function onKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") { event.preventDefault(); close(); return; }
       if (event.key !== "Tab" || !box) return;
-      const items = [...box.querySelectorAll<HTMLElement>(FOCUSABLE)];
+      // Only what Tab can reach: a roving tabindex (Appearance's theme
+      // options) parks the unselected buttons at -1, and hidden ones have no box.
+      const items = [...box.querySelectorAll<HTMLElement>(FOCUSABLE)].filter((el) => el.tabIndex >= 0 && el.getClientRects().length > 0);
       if (!items.length) return;
       const first = items[0];
       const last = items[items.length - 1];
