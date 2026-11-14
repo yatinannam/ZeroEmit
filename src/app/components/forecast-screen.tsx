@@ -38,8 +38,9 @@ export function ForecastScreen() {
   const now = useMinute();
   const plan = !now ? { points: [], windows: [] } : day === "next" ? planNext24(data, now) : planByDay(data, now)[day];
   // Over the next 24 hours a window can be today or tomorrow: say which.
+  const dayPrefix = (slot: ChargeWindow) => (day === "next" && !underWay(slot, now) ? relativeDay(Date.parse(slot.start.datetime), now) : "");
   const windowLabel = (slot: ChargeWindow) => {
-    const prefix = day === "next" && !underWay(slot, now) ? relativeDay(Date.parse(slot.start.datetime), now) : "";
+    const prefix = dayPrefix(slot);
     return `${prefix ? `${prefix}, ` : ""}${formatWindow(slot, now)}`;
   };
   const best = plan.windows[0] ?? null;
@@ -102,7 +103,7 @@ export function ForecastScreen() {
         {plan.windows.length ? <>
           {plan.windows.map((slot, index) => {
             const className = `card activity-item${index === 0 ? " activity-item-best" : ""}`;
-            const row = <><span className="round-icon"><Icon name={index === 0 ? "bolt" : "clock"} size={18}/></span><span className="activity-text"><strong>{windowLabel(slot)}</strong><span>{Math.round(slot.average)} gCO₂/kWh average</span></span><b className={index === 0 ? "tag-best" : "tag-good"}>{index === 0 ? "Best" : "Good"}</b></>;
+            const row = <><span className="round-icon"><Icon name={index === 0 ? "bolt" : "clock"} size={18}/></span><span className="activity-text"><strong>{dayPrefix(slot) && `${dayPrefix(slot)}, `}<span className="time-range">{formatWindow(slot, now)}</span></strong><span>{Math.round(slot.average)} gCO₂/kWh average</span></span><b className={index === 0 ? "tag-best" : "tag-good"}>{index === 0 ? "Best" : "Good"}</b></>;
             // Tapping a window adds it to the calendar — except one already
             // under way, which (like the hero's) has nothing left to remind about.
             return underWay(slot, now) ? <div key={slot.start.datetime} className={className}>{row}</div>
