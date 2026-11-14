@@ -12,13 +12,17 @@ export function createLocalStorageStore<T>(key: string, parse: (raw: string) => 
   function notify() { listeners.forEach((listener) => listener()); }
   function subscribe(listener: () => void) {
     listeners.add(listener);
-    window.addEventListener("storage", listener);
-    return () => { listeners.delete(listener); window.removeEventListener("storage", listener); };
+    // Another tab saved this key (or cleared storage): storage works, and its
+    // value wins over one this tab only kept in memory.
+    const onStorage = (event: StorageEvent) => { if (event.key === key || event.key === null) memoryRaw = undefined; listener(); };
+    window.addEventListener("storage", onStorage);
+    return () => { listeners.delete(listener); window.removeEventListener("storage", onStorage); };
   }
 
   // Set when storage refused a write (blocked, private mode, full): the value
   // then lives in memory for this visit, so choices like the first-run place
-  // still take effect instead of the screen ignoring the tap.
+  // still take effect instead of the screen ignoring the tap. Cleared by the
+  // next write storage accepts, or another tab's change to the key.
   let memoryRaw: string | null | undefined;
 
   function readRaw(): string | null {
@@ -43,10 +47,14 @@ export function createLocalStorageStore<T>(key: string, parse: (raw: string) => 
   }
   function getServerSnapshot(): T { return fallback; }
 
+  // Returns whether the value was saved, so a caller can say when it will be
+  // gone after a reload.
   function write(value: T) {
     const raw = serialize(value);
-    try { window.localStorage.setItem(key, raw); memoryRaw = undefined; } catch { memoryRaw = raw; /* storage unavailable/quota exceeded — kept in memory, won't persist */ }
+    let saved = true;
+    try { window.localStorage.setItem(key, raw); memoryRaw = undefined; } catch { memoryRaw = raw; saved = false; /* storage unavailable/quota exceeded — kept in memory, won't persist */ }
     notify();
+    return saved;
   }
 
   return { subscribe, getSnapshot, getServerSnapshot, write };

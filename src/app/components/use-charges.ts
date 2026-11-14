@@ -71,9 +71,8 @@ const store = createLocalStorageStore<Charge[]>(
 export function useCharges() {
   const charges = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getServerSnapshot);
   const ready = useHydrated();
-  const addCharge = useCallback((charge: Omit<Charge, "id">) => {
-    store.write([{ ...charge, id: crypto.randomUUID() }, ...store.getSnapshot()].sort(newestFirst));
-  }, []);
+  // Returns whether the charge was saved on the device (see local-storage-store.ts).
+  const addCharge = useCallback((charge: Omit<Charge, "id">) => store.write([{ ...charge, id: crypto.randomUUID() }, ...store.getSnapshot()].sort(newestFirst)), []);
   const removeCharge = useCallback((id: string) => store.write(store.getSnapshot().filter((charge) => charge.id !== id)), []);
   // Puts a just-deleted charge back as it was (Undo).
   const restoreCharge = useCallback((charge: Charge) => {

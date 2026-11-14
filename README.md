@@ -106,7 +106,7 @@ Every persisted value goes through `createLocalStorageStore` (`components/local-
 
 - caches the parsed value against the raw string, so snapshots stay referentially stable;
 - returns a fixed server snapshot, so prerendered HTML never depends on storage;
-- wraps every storage call in `try/catch`, and keeps a write in memory for the visit when storage refuses it (private mode, blocked storage, quota).
+- wraps every storage call in `try/catch`, and keeps a write in memory for the visit when storage refuses it (private mode, blocked storage, quota). `write` returns whether it was saved, so the log form warns that a charge it couldn't save will be gone after a reload. The in-memory copy gives way to the next write storage accepts, or to another tab's change to the key.
 
 Main keys, all prefixed `zeroemit-`:
 

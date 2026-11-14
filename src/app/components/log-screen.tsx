@@ -139,8 +139,10 @@ export function LogScreen({ quick = false }: { quick?: boolean }) {
     // A charge too small to earn points says so instead of "+0 points".
     const counts = earnsPoints(charge);
     const bonus = !counts ? null : timing === "best" ? "+10 for charging in one of the day's best windows" : timing === "cleaner" ? "+5 for a cleaner-than-average hour" : null;
-    addCharge(charge);
+    const stored = addCharge(charge);
     setForm(null);
+    // Storage refused it (full or blocked): it's listed for this visit only.
+    if (!stored) { showToast("Couldn't save this charge on this device, so it will be gone after a reload. Free up storage or allow this site to store data."); return; }
     const saved = counts ? `Charge saved: +${points} points` : `Charge saved. Charges under ${MIN_POINTS_KWH} kWh don't earn points`;
     const day = dayHeading(charge.loggedAt);
     const dayPhrase = day === "Today" || day === "Yesterday" ? day.toLowerCase() : `on ${day}`;
