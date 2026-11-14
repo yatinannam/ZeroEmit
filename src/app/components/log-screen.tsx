@@ -15,7 +15,7 @@ import { useGridData } from "./use-grid-data";
 import { useCharges, type Charge } from "./use-charges";
 import { useLocationPicker } from "./use-location-picker";
 import { Icon } from "./icon-set";
-import { BottomNav, TopBar } from "./app-shell";
+import { BottomNav, celebratePoints, TopBar } from "./app-shell";
 import { LocationModal } from "./location-modal";
 import { Modal } from "./modal";
 import { PageHeader } from "./page-header";
@@ -139,6 +139,9 @@ export function LogScreen({ quick = false }: { quick?: boolean }) {
     // A charge too small to earn points says so instead of "+0 points".
     const counts = earnsPoints(charge);
     const bonus = !counts ? null : timing === "best" ? "+10 for charging in one of the day's best windows" : timing === "cleaner" ? "+5 for a cleaner-than-average hour" : null;
+    // The top bar's "+N" flies on this alone (not on Undo or a restore); first,
+    // so the bar still holds the total it rises from.
+    if (counts) celebratePoints(points);
     const stored = addCharge(charge);
     setForm(null);
     // Storage refused it (full or blocked): it's listed for this visit only.

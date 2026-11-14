@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useLayoutEffect, useRef, useState, useSyncExternalStore, type CSSProperties, type MouseEvent, type PointerEvent } from "react";
+import { useEffect, useEffectEvent, useLayoutEffect, useRef, useState, useSyncExternalStore, type CSSProperties, type MouseEvent, type PointerEvent } from "react";
 import gsap from "gsap";
 import { intensityLevel, liveReading, planNext24 } from "../lib/grid";
 import { currentRewardTier, totalPoints } from "../lib/rewards";
@@ -145,15 +145,20 @@ export function TabBar() {
 // Each page renders its own top bar, so what it has already shown this
 // visit is kept here: the bolt draws itself in once when the app opens, the
 // city slides in only when it changes, and points are celebrated only when
-// they go up (not each time a page mounts).
+// a charge is logged (not each time a page mounts).
 let introPlayed = false;
 let shownCity: string | null = null;
-let lastPoints: number | null = null;
-// Read-then-replace in plain functions: inside a component the React
-// Compiler treated `const before = lastPoints` as an alias of the module
-// variable, so the comparison after `lastPoints = points` saw the new value.
-function swapLastPoints(points: number) { const before = lastPoints; lastPoints = points; return before; }
+// Read-then-replace in a plain function: inside a component the React
+// Compiler treated `const before = shownCity` as an alias of the module
+// variable, so the comparison after `shownCity = name` saw the new value.
 function swapShownCity(name: string) { const before = shownCity; shownCity = name; return before; }
+
+// The log form says when a charge earned points, and only then does the top
+// bar fly a "+N" to the avatar: inferred from the total going up, it also
+// played on Undo and on restoring a backup.
+const pointsListeners = new Set<(gained: number) => void>();
+export function celebratePoints(gained: number) { if (gained > 0) pointsListeners.forEach((listener) => listener(gained)); }
+export function onCelebratePoints(listener: (gained: number) => void) { pointsListeners.add(listener); return () => { pointsListeners.delete(listener); }; }
 
 const RING_R = 20;
 const RING_C = 2 * Math.PI * RING_R;
@@ -170,7 +175,7 @@ export function TopBar({ onChooseLocation }: { onChooseLocation: () => void }) {
   const { profile } = useProfile();
   const [place] = useStoredLocation();
   const hydrated = useHydrated();
-  const { charges, ready } = useCharges();
+  const { charges } = useCharges();
   const grid = useSyncExternalStore(subscribeLatestGrid, getLatestGrid, () => null);
   const city = useRef<HTMLSpanElement>(null);
   const avatar = useRef<HTMLAnchorElement>(null);
@@ -209,21 +214,21 @@ export function TopBar({ onChooseLocation }: { onChooseLocation: () => void }) {
     element.classList.add("enter");
   }, [hydrated, cityName, playIntro]);
 
-  // Points went up (a charge was logged): a "+N" rises from where the toast
+  // A charge was logged (celebratePoints): a "+N" rises from where the toast
   // appears to the avatar, then the ring fills; a new level flashes the ring.
-  useLayoutEffect(() => {
-    if (!ready) return;
-    const before = swapLastPoints(points);
-    if (before === null || points <= before) return;
+  // Called before the charge is added, so `points` is still the total before it.
+  const flight = useRef<(() => void) | null>(null);
+  const fly = useEffectEvent((gained: number) => {
     const ring = arc.current;
     const target = avatar.current;
     if (!ring || !target || reducedMotion()) return;
-    const levelUp = currentRewardTier(before).current.name !== tier.name;
+    flight.current?.();
+    const levelUp = currentRewardTier(points + gained).current.name !== tier.name;
     ring.style.transitionDelay = "0.7s";
     if (levelUp) ring.style.strokeDashoffset = "0";
     const chip = document.createElement("div");
     chip.className = "points-fly";
-    chip.textContent = `+${points - before}`;
+    chip.textContent = `+${gained}`;
     chip.setAttribute("aria-hidden", "true");
     document.body.append(chip);
     const to = target.getBoundingClientRect();
@@ -245,8 +250,12 @@ export function TopBar({ onChooseLocation }: { onChooseLocation: () => void }) {
         ring.style.removeProperty("transition");
       }, 2700));
     }
-    return () => { timers.forEach(window.clearTimeout); timeline.kill(); chip.remove(); ring.style.transitionDelay = ""; ring.style.removeProperty("stroke-dashoffset"); target.classList.remove("level-up"); };
-  }, [points, ready, tier.name]);
+    flight.current = () => { flight.current = null; timers.forEach(window.clearTimeout); timeline.kill(); chip.remove(); ring.style.transitionDelay = ""; ring.style.removeProperty("stroke-dashoffset"); target.classList.remove("level-up"); };
+  });
+  useEffect(() => {
+    const stop = onCelebratePoints((gained) => fly(gained));
+    return () => { stop(); flight.current?.(); };
+  }, []);
 
   // Prefixed class names: a bare "intro" picked up the onboarding screen's
   // `.intro { display:flex; min-height:100svh }` and stretched the bar.
