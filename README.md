@@ -11,7 +11,7 @@ Live at [zero-emit.vercel.app](https://zero-emit.vercel.app). The exhibition pos
 | Framework | Next.js 16 (App Router, Route Handlers), React 19 with React Compiler |
 | Language / runtime | TypeScript 5, Bun 1.3 (package manager, scripts, test runner) |
 | Styling | Tailwind CSS 4 (PostCSS) plus hand-written tokens in `src/app/globals.css`, light/dark via `prefers-color-scheme` or `data-theme` |
-| Motion | GSAP 3 (`@gsap/react`), Lenis smooth scroll; everything is skipped under `prefers-reduced-motion` |
+| Motion | GSAP 3 (`@gsap/react`), Lenis smooth scroll; everything is skipped under `prefers-reduced-motion` (Lenis isn't created, and turning the setting on or off while the app is open takes effect at once) |
 | Maps | Leaflet 1.9 with OpenStreetMap tiles |
 | Server state | Upstash Redis over its REST API (`src/app/lib/server/redis.ts`), no ORM; each call times out after 8 s and fails like any other Redis error |
 | Push | `web-push` (VAPID) |
