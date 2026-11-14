@@ -186,7 +186,10 @@ export function TopBar({ onChooseLocation }: { onChooseLocation: () => void }) {
   const cleanNow = Boolean(planNext24(here).windows[0]?.start.isNow);
   const cityName = hydrated ? place?.name ?? "Choose city" : "";
   // Read before the effect below sets it, so only the first bar plays it.
-  const playIntro = !introPlayed;
+  // Kept in state: read straight off the module, the React Compiler left it
+  // out of memo deps, so it flipped once the effect ran and the intro was
+  // dropped mid-way (and the city never slid in).
+  const [playIntro] = useState(() => !introPlayed);
 
   useLayoutEffect(() => { introPlayed = true; }, []);
 
