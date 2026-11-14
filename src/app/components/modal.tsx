@@ -4,6 +4,7 @@ import { useEffect, useEffectEvent, useId, useLayoutEffect, useRef, type FormEve
 import gsap from "gsap";
 import { Icon } from "./icon-set";
 import { lockScroll, reducedMotion, unlockScroll } from "./motion";
+import { openSheet, type SheetEntry } from "./sheet-history";
 
 const FOCUSABLE = "button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled])";
 
@@ -12,7 +13,8 @@ const FOCUSABLE = "button:not([disabled]), [href], input:not([disabled]), select
 // first input, which would pop the keyboard open on phones), Tab stays inside
 // it, Escape closes it, and focus returns to whatever opened it. A tap on the
 // backdrop closes it too, except for a form: a stray tap there would throw
-// away what was typed (the close button and Escape still work).
+// away what was typed (the close button and Escape still work). Back closes
+// it rather than leaving the page (see sheet-history.ts).
 // `initialFocus` is a selector for a field inside the dialog to focus instead,
 // for when the user opened it to type into that field (e.g. "Add your name").
 export function Modal({ title, onClose, onSubmit, initialFocus, children }: { title: string; onClose: () => void; onSubmit?: (event: FormEvent<HTMLFormElement>) => void; initialFocus?: string; children: ReactNode }) {
@@ -20,6 +22,16 @@ export function Modal({ title, onClose, onSubmit, initialFocus, children }: { ti
   const titleId = useId();
   const close = useEffectEvent(onClose);
   const focusTarget = useEffectEvent(() => initialFocus);
+  const entry = useRef<SheetEntry | null>(null);
+  // Closed with its own controls: its history entry comes off too.
+  const dismiss = () => { entry.current?.dismiss(); onClose(); };
+  const dismissOnKey = useEffectEvent(() => { entry.current?.dismiss(); onClose(); });
+
+  useEffect(() => {
+    const sheet = openSheet(() => close());
+    entry.current = sheet;
+    return () => { sheet.release(); entry.current = null; };
+  }, []);
 
   // The page behind stays put while the sheet is open (see lockScroll).
   useLayoutEffect(() => {
@@ -47,7 +59,7 @@ export function Modal({ title, onClose, onSubmit, initialFocus, children }: { ti
     const field = selector ? box?.querySelector<HTMLElement>(selector) : null;
     (field ?? box)?.focus();
     function onKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") { event.preventDefault(); close(); return; }
+      if (event.key === "Escape") { event.preventDefault(); dismissOnKey(); return; }
       if (event.key !== "Tab" || !box) return;
       // Only what Tab can reach: a roving tabindex (Appearance's theme
       // options) parks the unselected buttons at -1, and hidden ones have no box.
@@ -64,10 +76,10 @@ export function Modal({ title, onClose, onSubmit, initialFocus, children }: { ti
     return () => { document.removeEventListener("keydown", onKeyDown); previous?.focus(); };
   }, []);
 
-  const head = <div className="modal-head"><h2 id={titleId}>{title}</h2><button type="button" className="modal-close" aria-label="Close" onClick={onClose}><Icon name="close" size={18}/></button></div>;
+  const head = <div className="modal-head"><h2 id={titleId}>{title}</h2><button type="button" className="modal-close" aria-label="Close" onClick={dismiss}><Icon name="close" size={18}/></button></div>;
   const boxProps = { role: "dialog", "aria-modal": true, "aria-labelledby": titleId, tabIndex: -1, onClick: (event: React.MouseEvent) => event.stopPropagation() } as const;
 
-  return <div ref={backdropRef} className="modal-backdrop" role="presentation" onClick={onSubmit ? undefined : onClose}>
+  return <div ref={backdropRef} className="modal-backdrop" role="presentation" onClick={onSubmit ? undefined : dismiss}>
     {onSubmit
       ? <form {...boxProps} className="modal charge-form" onSubmit={onSubmit}>{head}{children}</form>
       : <section {...boxProps} className="modal">{head}{children}</section>}
