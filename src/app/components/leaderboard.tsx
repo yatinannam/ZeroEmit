@@ -49,8 +49,13 @@ export function useBoardData<T>(url: string | null, refresh: number): BoardState
   }, [url, request]);
 
   if (result?.request === request) return result.state;
-  return result?.view === url && result.state.status === "ready" ? result.state : { status: "loading" };
+  return result && sameBoard(result.view, url) && result.state.status === "ready" ? result.state : { status: "loading" };
 }
+
+// The same board whoever asks: joining adds `me=` to the URL, and showing
+// "Loading" for that collapsed the list and threw the page back to the top.
+const boardOf = (url: string | null) => url?.replace(/([?&])me=[^&]*&?/, "$1").replace(/[?&]$/, "") ?? null;
+function sameBoard(a: string | null, b: string | null) { return a !== null && boardOf(a) === boardOf(b); }
 
 // A null `scope` (the user's region, before the saved place is known) waits.
 function useBoard(scope: LeaderboardScope | null, me: string | null, refresh: number) {
