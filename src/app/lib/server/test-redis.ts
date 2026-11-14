@@ -5,13 +5,16 @@ const strings = new Map<string, string>();
 const zsets = new Map<string, Map<string, number>>();
 const hashes = new Map<string, Map<string, string>>();
 
-export const fakeRedis = { strings, zsets, hashes, roundTrips: 0 };
+// `beforeRoundTrip` runs before each call or transaction (with its commands),
+// so a test can land another request in the middle of one.
+export const fakeRedis = { strings, zsets, hashes, roundTrips: 0, beforeRoundTrip: null as ((commands: (string | number)[][]) => Promise<void> | void) | null };
 
 export function resetFakeRedis() {
   strings.clear();
   zsets.clear();
   hashes.clear();
   fakeRedis.roundTrips = 0;
+  fakeRedis.beforeRoundTrip = null;
 }
 
 const zrevOrder = (key: string) => [...(zsets.get(key) ?? new Map<string, number>()).entries()]
@@ -24,6 +27,7 @@ function run(command: (string | number)[]): unknown {
     case "GET": return strings.get(key) ?? null;
     case "SET": if (args.includes("NX") && strings.has(key)) return null; strings.set(key, args[0]); return "OK";
     case "DEL": return strings.delete(key) || hashes.delete(key) || zsets.delete(key) ? 1 : 0;
+    case "EXISTS": return [key, ...args].filter((k) => strings.has(k) || hashes.has(k) || zsets.has(k)).length;
     case "MGET": return [key, ...args].map((k) => strings.get(k) ?? null);
     case "INCR": { const next = Number(strings.get(key) ?? 0) + 1; strings.set(key, String(next)); return next; }
     case "EXPIRE": return 1;
@@ -53,6 +57,6 @@ function run(command: (string | number)[]): unknown {
 // call, and each transaction, counts as one round trip.
 export const fakeRedisModule = {
   redisConfigured: true,
-  redis: async (...command: (string | number)[]) => { fakeRedis.roundTrips += 1; return run(command); },
-  redisTransaction: async (commands: (string | number)[][]) => { fakeRedis.roundTrips += 1; return commands.map(run); },
+  redis: async (...command: (string | number)[]) => { fakeRedis.roundTrips += 1; await fakeRedis.beforeRoundTrip?.([command]); return run(command); },
+  redisTransaction: async (commands: (string | number)[][]) => { fakeRedis.roundTrips += 1; await fakeRedis.beforeRoundTrip?.(commands); return commands.map(run); },
 };

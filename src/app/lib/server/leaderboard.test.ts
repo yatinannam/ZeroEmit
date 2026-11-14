@@ -149,6 +149,21 @@ describe("removeMember", () => {
     expect((await readLeaderboard("all", null, NOW)).rows).toHaveLength(0);
   });
 
+  test("a leave that lands while a sync is in flight still takes the entry off", async () => {
+    await submitMember(member(1, 3, { name: "Asha" }), NOW);
+    // The leave commits after the sync's first read, just before its transaction.
+    fakeRedis.beforeRoundTrip = async (commands) => {
+      if (!commands.some(([name]) => name === "ZREVRANK")) return;
+      fakeRedis.beforeRoundTrip = null;
+      expect(await removeMember(uuid(1), uuid(1001))).toBe("ok");
+    };
+    expect(await submitMember(member(1, 4, { name: "Asha" }), NOW + 1000)).toEqual({ ok: false, status: 410 });
+    expect(fakeRedis.strings.has(`lb:member:${uuid(1)}`)).toBe(false);
+    expect(fakeRedis.zsets.get("lb:2026-10:all")?.has(uuid(1))).toBe(false);
+    expect(fakeRedis.zsets.get("lb:2026-10:western")?.has(uuid(1))).toBe(false);
+    expect((await submitMember(member(2, 1, { name: "Asha" }), NOW + 2000)).ok).toBe(true); // the name is free again
+  });
+
   test("removing someone who isn't there is fine", async () => {
     expect(await removeMember(uuid(5), uuid(6))).toBe("ok");
   });

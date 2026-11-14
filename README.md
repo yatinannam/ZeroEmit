@@ -239,6 +239,7 @@ Zone snapshots are cached in memory (60 s) and in Redis (`zone:<zone>`, 24 h TTL
 - Display names are 1–20 characters and unique per month, ignoring case and spacing (`lb:<month>:names`, `HSETNX`). Names taken by others get a suggestion like "Asha 2". The join and rename sheets clear that error as soon as the name is edited.
 - Members with 0 points are left out of ranks, totals and leaderboard pushes.
 - Member records expire after 70 days without a sync. A sync that gets 404/409 clears local membership and tells the user they can rejoin.
+- A leave sets `lb:removed:<id>`, and a sync checks it twice: before it starts and again inside its transaction (`EXISTS`). A leave that landed in between means the sync just put the entry back, so a second round trip takes it off the boards again (and frees the name if the sync claimed it), and the sync gets 410 like any sync after leaving.
 
 ### Groups (`lib/server/groups.ts`, `lib/groups.ts`)
 

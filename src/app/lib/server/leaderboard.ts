@@ -164,8 +164,24 @@ export async function submitMember(input: MemberInput, now = Date.now(), ip: str
     ...boardCommands,
     ...groupCommands,
     ...(groups.length ? [["EXPIRE", memberGroupsKey(input.id), RETENTION_S]] : []),
+    // The leave marker again, and who holds the name: a leave that landed
+    // after the first read means this transaction just put the entry back.
+    ["EXISTS", removedKey(input.id)],
+    ["HGET", namesKey(month), claim],
     ["ZREVRANK", boardKey(month, "all"), input.id],
   ]);
+  // Rare, so a second round trip only then: take back what this sync just
+  // wrote (the name too, if it claimed it again), as for any sync after leaving.
+  if (results.at(-3) === 1) {
+    await redisTransaction([
+      ["ZREM", boardKey(month, "all"), input.id],
+      ["ZREM", boardKey(month, input.zone), input.id],
+      ...groups.map((code) => ["ZREM", groupBoardKey(month, code), input.id]),
+      ["DEL", memberKey(input.id)],
+      ...(results.at(-2) === input.id ? [["HDEL", namesKey(month), claim]] : []),
+    ]);
+    return { ok: false, status: 410 };
+  }
   // Rare, so a second round trip only then: off the boards of groups left mid-sync.
   const left = groups.filter((_, index) => results[boardCommands.length + index * GROUP_STEPS + GROUP_STEPS - 1] === 0);
   if (left.length) await redisTransaction(left.map((code) => ["ZREM", groupBoardKey(month, code), input.id]));
