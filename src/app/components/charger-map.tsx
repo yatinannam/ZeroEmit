@@ -69,7 +69,9 @@ export function ChargerMap({ origin, stations, nearYou }: { origin: LatLon; stat
     if (framed.current === map) return;
     framed.current = map;
     const nearest = stations.slice(0, 6).map((station) => [station.lat, station.lon] as [number, number]);
-    if (nearest.length) map.fitBounds(L.latLngBounds([[origin.lat, origin.lon], ...nearest]), { padding: [28, 28], maxZoom: 15, animate: false });
+    // Extra room on the left for the zoom buttons and at the bottom for the
+    // map credit, so neither covers a pin.
+    if (nearest.length) map.fitBounds(L.latLngBounds([[origin.lat, origin.lon], ...nearest]), { paddingTopLeft: [72, 28], paddingBottomRight: [28, 40], maxZoom: 15, animate: false });
     else map.setView([origin.lat, origin.lon], 13);
   }, [current, stations, origin.lat, origin.lon]);
 
