@@ -268,7 +268,7 @@ GitHub Actions calls `/api/push/run` every 15 minutes from 06:30 to 22:15 IST; a
   - leaderboard changes (the month-end result goes out from 7 am on the 1st, or on the 2nd if no run got through, and opens last month's recap);
   - badge nudges (6 to 9 pm, one an evening) and the Sunday recap (6 to 10 pm);
 - records sent "marks" per day or month in `push:state`, so nothing repeats (the time slots are a few hours wide because scheduled runs can be hours late, and the marks keep each to one push);
-- sends with a concurrency of 20, never from 22:00 to 07:00 IST;
+- sends with a concurrency of 20, never from 22:00 to 07:00 IST, and with a TTL of up to an hour that ends by 22:00 (at least a minute), so a phone that was offline doesn't get it in quiet hours;
 - removes subscriptions that weren't refreshed for 90 days, and any the push service reports as gone.
 
 On the device, `PushSync` (`components/push-sync.tsx`) keeps the server's copy up to date. It replaces a subscription made with an earlier VAPID key (removing the old one from the server), retries a failed sync once the device is back online or the app is on screen again, and syncs again when the service worker posts `{ type: "push-subscription-changed" }`.

@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, mock, test } from "bun:test";
 import { fakeRedis, fakeRedisModule, resetFakeRedis } from "./test-redis";
 
 mock.module("./redis", () => fakeRedisModule);
-const { listSubscriptions, MAX_SUBSCRIPTIONS, parseSubscriptionBody, pruneStaleSubscriptions, removeSubscription, saveSubscription, STALE_SUBSCRIPTION_MS, updateSubscriptionState } = await import("./push");
+const { listSubscriptions, MAX_SUBSCRIPTIONS, parseSubscriptionBody, pruneStaleSubscriptions, pushTtl, removeSubscription, saveSubscription, STALE_SUBSCRIPTION_MS, updateSubscriptionState } = await import("./push");
 beforeEach(() => { resetFakeRedis(); });
 
 const base = {
@@ -140,5 +140,18 @@ describe("pruneStaleSubscriptions", () => {
     expect(kept.map((sub) => sub.subscription.endpoint)).toEqual([fresh.subscription.endpoint]);
     expect((await listSubscriptions()).map((sub) => sub.subscription.endpoint)).toEqual([fresh.subscription.endpoint]);
     expect(fakeRedis.hashes.get("push:state")?.size).toBe(1);
+  });
+});
+
+describe("pushTtl", () => {
+  const ist = (local: string) => Date.parse(`${local}+05:30`);
+
+  test("an hour at most, but never past 22:00 IST, and at least a minute", () => {
+    expect(pushTtl(ist("2026-10-14T15:00:00"))).toBe(3600);
+    expect(pushTtl(ist("2026-10-14T21:00:00"))).toBe(3600);
+    expect(pushTtl(ist("2026-10-14T21:40:00"))).toBe(1200);
+    expect(pushTtl(ist("2026-10-14T21:59:30"))).toBe(60);
+    expect(pushTtl(ist("2026-10-14T22:30:00"))).toBe(60);
+    expect(pushTtl(ist("2026-10-14T07:00:00"))).toBe(3600);
   });
 });

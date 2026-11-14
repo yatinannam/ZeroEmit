@@ -292,5 +292,7 @@ describe("scheduler runs", () => {
     expect(await runPushSchedule(ist("2026-10-18T22:05:00"))).toMatchObject({ skipped: "Quiet hours (10 pm – 7 am IST)" });
     expect(await runPushSchedule(ist("2026-10-18T21:40:00"))).toMatchObject({ sent: 1 });
     expect(sentTitles()).toEqual(["Your week in ZeroEmit"]);
+    // An offline phone gets it only until 22:00, not up to an hour later.
+    expect(pushes[0].options.TTL).toBe(20 * 60);
   });
 });

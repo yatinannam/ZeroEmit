@@ -1,5 +1,6 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 import webpush from "web-push";
+import { HOUR_MS, IST_OFFSET_MS } from "../grid";
 import { STATES } from "../places";
 import { achievements } from "../rewards";
 import { isUuid, withinHourlyLimit } from "./leaderboard";
@@ -202,13 +203,21 @@ export async function updateSubscriptionState(sub: StoredSubscription, state: Sc
   await redis("HSET", STATE_KEY, idFor(sub.subscription.endpoint), JSON.stringify(state));
 }
 
+// How long (seconds) the push service may hold a push for a phone that's
+// offline: up to an hour, but not past 22:00 IST, so it can't land in quiet
+// hours (a 21:40 push would otherwise arrive as late as 22:40).
+export function pushTtl(now = Date.now()) {
+  const quietStart = Math.floor((now + IST_OFFSET_MS) / (24 * HOUR_MS)) * 24 * HOUR_MS - IST_OFFSET_MS + 22 * HOUR_MS;
+  return Math.max(60, Math.min(60 * 60, Math.floor((quietStart - now) / 1000)));
+}
+
 // "gone" (and the subscription is forgotten, state and all) when the push
 // service says it no longer exists — the user uninstalled, cleared data, or
 // revoked permission. "failed" is anything worth retrying later.
-export async function sendPush(sub: StoredSubscription, payload: PushPayload): Promise<"sent" | "failed" | "gone"> {
+export async function sendPush(sub: StoredSubscription, payload: PushPayload, now = Date.now()): Promise<"sent" | "failed" | "gone"> {
   try {
     // A hung push service must not hold up everyone else's reminders.
-    await webpush.sendNotification(sub.subscription, JSON.stringify(payload), { TTL: 60 * 60, urgency: "normal", timeout: 8000 });
+    await webpush.sendNotification(sub.subscription, JSON.stringify(payload), { TTL: pushTtl(now), urgency: "normal", timeout: 8000 });
     return "sent";
   } catch (error) {
     const status = (error as { statusCode?: number }).statusCode;

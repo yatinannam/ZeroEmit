@@ -267,7 +267,7 @@ export async function runPushSchedule(now = Date.now()) {
       for (const { payload, marks, badge } of planned) {
         // Stop at the first failure: an expired subscription was already
         // removed, and anything undelivered is retried on the next run.
-        const result = await sendPush(sub, payload);
+        const result = await sendPush(sub, payload, now);
         if (result !== "sent") { failed += 1; gone = result === "gone"; break; }
         sent += 1;
         for (const mark of marks) markers[mark] = markValue(mark, now);
