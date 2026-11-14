@@ -135,7 +135,7 @@ Main keys, all prefixed `zeroemit-`:
 
 ### Service worker (`public/sw.js`)
 
-- `zeroemit-pages-v4-<deploy>`: app shell and visited pages, network-first for navigations (falls back to the cached page after a timeout or offline; a page with a query string, like `/log?quick=1`, falls back to the same page without it, then to Home). Capped at 40 pages besides the shell.
+- `zeroemit-pages-v4-<deploy>`: app shell and visited pages, network-first for navigations (falls back to the cached page after a timeout or offline; a page with a query string, like `/log?quick=1`, falls back to the same page without it; a screen never opened since the deploy gets a short "You're offline" page with Try again and Open Home, rather than Home's page under the wrong URL). Capped at 40 pages besides the shell.
 - The page registers `/sw.js?v=<deploy id>` (`SW_VERSION` in `next.config.ts`: Vercel's deployment id), so each deploy installs a new worker and drops the previous deploy's pages, which would point at build files that no longer exist.
 - `zeroemit-static-v1`: `/_next/static` assets, cache-first, trimmed to the newest 150 entries.
 - `/api/*` is never cached.

@@ -59,11 +59,28 @@ self.addEventListener("activate", (event) => {
   self.clients.claim();
 });
 
+// Shown offline for a screen this device hasn't opened since the last deploy.
+// Home's page under another screen's URL lit the wrong tab and never said why.
+const OFFLINE_PAGE = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Offline · ZeroEmit</title><style>
+:root{--page:#dfe9df;--card:#fff;--ink:#141e14;--muted:#40493d;--primary:#0d631b;--on-primary:#fff;color-scheme:light dark}
+@media (prefers-color-scheme:dark){:root{--page:#070b07;--card:#1b231b;--ink:#dfe7da;--muted:#a9b4a4;--primary:#88d982;--on-primary:#00390a}}
+*{box-sizing:border-box}body{margin:0;min-height:100vh;min-height:100svh;display:grid;place-items:center;padding:16px;background:var(--page);color:var(--ink);font-family:Inter,Arial,sans-serif}
+main{width:100%;max-width:360px;padding:28px 24px;border-radius:24px;background:var(--card)}
+h1{margin:0 0 8px;font-size:24px;line-height:1.2}p{margin:0 0 20px;color:var(--muted);font-size:15px;line-height:1.5}
+.actions{display:grid;gap:8px}a,button{display:flex;align-items:center;justify-content:center;min-height:48px;border-radius:999px;font:inherit;font-weight:700;font-size:15px;text-decoration:none;cursor:pointer}
+button{border:0;background:var(--primary);color:var(--on-primary)}a{border:1px solid var(--muted);color:var(--ink)}
+:focus-visible{outline:3px solid var(--primary);outline-offset:2px}
+</style></head><body><main><h1>You're offline</h1><p>This screen hasn't been opened on this device yet, so there's no saved copy. It opens once you're back online.</p><div class="actions"><button type="button" onclick="location.reload()">Try again</button><a href="/">Open Home</a></div></main></body></html>`;
+
 // Offline: the page itself, else the same screen under another query string
-// (/log for /log?quick=1, the shortcut and the notification action), else Home.
+// (/log for /log?quick=1, the shortcut and the notification action), else
+// Home for Home, else the offline page.
 async function cachedPage(request) {
   const options = { cacheName: CACHE_NAME };
-  return (await caches.match(request, options)) || (await caches.match(request, { ...options, ignoreSearch: true })) || (await caches.match("/", options)) || Response.error();
+  const hit = (await caches.match(request, options)) || (await caches.match(request, { ...options, ignoreSearch: true }));
+  if (hit) return hit;
+  if (new URL(request.url).pathname === "/") return (await caches.match("/", options)) || Response.error();
+  return new Response(OFFLINE_PAGE, { status: 503, headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" } });
 }
 
 // How long a page load waits on a stalled connection before a cached copy
