@@ -125,7 +125,7 @@ Main keys, all prefixed `zeroemit-`:
 
 ### First load and hydration
 
-- `lib/theme-boot.ts` runs inline in `<head>` before first paint. It applies a pinned theme, and on first launch (no saved location) sets `data-first-run` on `<html>`, which hides `.mobile-app` until the welcome flow covers it.
+- `lib/theme-boot.ts` runs inline in `<head>` before first paint. It applies a pinned theme (and sets every `theme-color` meta to its colour, so the status bar matches), and on first launch (no saved location) sets `data-first-run` on `<html>`, which hides `.mobile-app` until the welcome flow covers it. `ThemeSync` re-applies the pinned colour whenever Next puts the layout's `theme-color` metas back (it remounts the head on navigation).
 - `LocationGate` (mounted in the layout) shows the three-slide intro and the "Where do you charge?" picker over any route until a place is chosen, and marks everything behind it `inert`.
 - `useLocationPicker().ready` is false until hydration *and* a saved place exist. Screens use it to hold off on showing a place name or fetching data for the default city (the leaderboard's region button reads "My region", and its board waits, until then).
 

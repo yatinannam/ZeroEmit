@@ -1,12 +1,9 @@
 "use client";
-import { useLayoutEffect, useSyncExternalStore } from "react";
+import { useEffect, useLayoutEffect, useSyncExternalStore } from "react";
 import { createLocalStorageStore } from "./local-storage-store";
-import { THEME_KEY } from "../lib/theme-boot";
+import { BAR_COLOR, THEME_KEY } from "../lib/theme-boot";
 
 export type ThemeChoice = "system" | "light" | "dark";
-
-// Browser top-bar colour for each theme — matches --surface in globals.css.
-const BAR_COLOR = { light: "#f1fdec", dark: "#0f1510" };
 
 const store = createLocalStorageStore<ThemeChoice>(THEME_KEY, (raw) => (raw === "light" || raw === "dark" ? raw : "system"), (value) => value, "system");
 
@@ -34,5 +31,15 @@ export function useThemeChoice() {
 export function ThemeSync() {
   const [choice] = useThemeChoice();
   useLayoutEffect(() => applyTheme(store.getSnapshot()), [choice]);
+  // Next remounts the head on navigation, which puts the layout's theme-color
+  // metas back with their per-scheme colours: re-apply when new ones arrive,
+  // or a pinned theme gets the other theme's status bar after a tab switch.
+  useEffect(() => {
+    const observer = new MutationObserver((mutations) => {
+      if (mutations.some((mutation) => Array.from(mutation.addedNodes).some((node) => node instanceof HTMLMetaElement && node.name === "theme-color"))) applyTheme(store.getSnapshot());
+    });
+    observer.observe(document.head, { childList: true });
+    return () => observer.disconnect();
+  }, []);
   return null;
 }
