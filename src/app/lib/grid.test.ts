@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { formatUpdatedAt, HOUR_MS, intensityAt, istDayKey, istHourOfDay, istHourStart, liveReading, planByDay, planNext24, relativeDay, intensityLevel, topWindows, type GridData } from "./grid";
+import { formatUpdatedAt, formatWindow, HOUR_MS, intensityAt, istDayKey, istHourOfDay, istHourStart, liveReading, planByDay, planNext24, relativeDay, intensityLevel, topWindows, underWay, type GridData } from "./grid";
 import { chargeTiming, hourlyPattern, isBestWindowStart } from "./timing";
 
 const MINUTE_MS = 60_000;
@@ -34,6 +34,32 @@ describe("planByDay", () => {
     const first = planByDay(withReading(8 * HOUR_MS)).today.points[0];
     expect(first?.isNow).toBeUndefined();
     expect(first?.carbonIntensity).toBe(500);
+  });
+});
+
+describe("a window that has begun", () => {
+  // 2:40 pm, cleanest from 2 pm, and the live reading 8 hours old: nothing
+  // marks 2 pm as Now, but its start has passed.
+  const now = Date.parse("2026-11-13T14:40:00+05:30");
+  const forecast = hourly(now, 30).map((point, i) => ({ ...point, carbonIntensity: i < 2 ? 300 : 700 }));
+  const data: GridData = { ...withReading(8 * HOUR_MS, now), forecast };
+  const window = planNext24(data, now).windows[0];
+
+  test("reads as Now, not as a start in the past", () => {
+    expect(window.start.isNow).toBeUndefined();
+    expect(underWay(window, now)).toBe(true);
+    expect(formatWindow(window, now)).toBe("Now – 4:00 pm");
+  });
+
+  test("a later window doesn't", () => {
+    const later = planNext24(data, now).windows[1];
+    expect(underWay(later, now)).toBe(false);
+    expect(formatWindow(later, now)).not.toStartWith("Now");
+  });
+
+  test("without a time, only the live hour is Now", () => {
+    expect(formatWindow(window)).toBe("2:00 pm – 4:00 pm");
+    expect(underWay(planNext24(withReading(30 * MINUTE_MS, now), now).windows[0], 0)).toBe(true);
   });
 });
 

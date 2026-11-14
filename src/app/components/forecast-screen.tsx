@@ -3,7 +3,7 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import gsap from "gsap";
-import { formatUpdatedAt, formatWindow, liveReading, planByDay, planNext24, relativeDay, type ChargeWindow } from "../lib/grid";
+import { formatUpdatedAt, formatWindow, liveReading, planByDay, planNext24, relativeDay, underWay, type ChargeWindow } from "../lib/grid";
 import { useGridData } from "./use-grid-data";
 import { useLocationPicker } from "./use-location-picker";
 import { useMinute } from "./use-minute";
@@ -39,8 +39,8 @@ export function ForecastScreen() {
   const plan = !now ? { points: [], windows: [] } : day === "next" ? planNext24(data, now) : planByDay(data, now)[day];
   // Over the next 24 hours a window can be today or tomorrow: say which.
   const windowLabel = (slot: ChargeWindow) => {
-    const prefix = day === "next" && !slot.start.isNow ? relativeDay(Date.parse(slot.start.datetime), now) : "";
-    return `${prefix ? `${prefix}, ` : ""}${formatWindow(slot)}`;
+    const prefix = day === "next" && !underWay(slot, now) ? relativeDay(Date.parse(slot.start.datetime), now) : "";
+    return `${prefix ? `${prefix}, ` : ""}${formatWindow(slot, now)}`;
   };
   const best = plan.windows[0] ?? null;
   const current = now ? liveReading(data, now) : undefined;
@@ -88,7 +88,7 @@ export function ForecastScreen() {
           : plan.points.length >= 2 ? <>
             <ForecastChart points={plan.points} highlight={best}/>
             {best && <p className="chip-caption"><span className="chip">Best window</span> {windowLabel(best)}</p>}
-            {best && !best.start.isNow && <AddToCalendarButton window={best} place={place}/>}
+            {best && !underWay(best, now) && <AddToCalendarButton window={best} place={place}/>}
           </>
           : <p className="personal-note">{day === "today" ? <>Today is nearly over. <button type="button" className="text-button" onClick={() => chooseDay("next")}>See the next 24 hours</button> for the next clean windows.</> : day === "tomorrow" ? "Tomorrow's forecast isn't out yet. Check back later today." : "The forecast isn't available yet. Check back soon."}</p>}
         {/* A failed update keeps the last good forecast on screen; say so. */}
@@ -105,10 +105,10 @@ export function ForecastScreen() {
             const row = <><span className="round-icon"><Icon name={index === 0 ? "bolt" : "clock"} size={18}/></span><span className="activity-text"><strong>{windowLabel(slot)}</strong><span>{Math.round(slot.average)} gCO₂/kWh average</span></span><b className={index === 0 ? "tag-best" : "tag-good"}>{index === 0 ? "Best" : "Good"}</b></>;
             // Tapping a window adds it to the calendar — except one already
             // under way, which (like the hero's) has nothing left to remind about.
-            return slot.start.isNow ? <div key={slot.start.datetime} className={className}>{row}</div>
+            return underWay(slot, now) ? <div key={slot.start.datetime} className={className}>{row}</div>
               : <button key={slot.start.datetime} type="button" className={className} onClick={() => addWindowToCalendar(slot, place)} aria-label={`Add ${windowLabel(slot)} to your calendar, ${Math.round(slot.average)} gCO₂/kWh average${index === 0 ? ", best window" : ""}`}>{row}</button>;
           })}
-          {plan.windows.some((slot) => !slot.start.isNow) && <p className="personal-note">Tap a window to add it to your calendar.</p>}
+          {plan.windows.some((slot) => !underWay(slot, now)) && <p className="personal-note">Tap a window to add it to your calendar.</p>}
         </> : loading && !data ? [0, 1, 2].map((index) => <div key={index} className="card activity-item skeleton-item" aria-hidden="true"/>)
         : <p className="personal-note">No forecast windows available yet.{data?.available && <> {retry}</>}</p>}
       </section>

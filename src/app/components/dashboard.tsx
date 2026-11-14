@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useSyncExternalStore } from "react";
-import { formatHourParts, formatUpdatedAt, liveReading, planNext24, relativeDay } from "../lib/grid";
+import { formatHourParts, formatUpdatedAt, liveReading, planNext24, relativeDay, underWay } from "../lib/grid";
 import { useGridData } from "./use-grid-data";
 import { useCharges } from "./use-charges";
 import { useProfile } from "./use-profile";
@@ -60,18 +60,22 @@ export function Dashboard() {
   // The hero looks 24 hours ahead from now, not just at what's left of
   // today: at 10 pm the useful answer is tomorrow's dip, not 11 pm.
   const nextBest = now ? planNext24(data, now).windows[0] ?? null : null;
-  const nextDay = nextBest && !nextBest.start.isNow ? relativeDay(Date.parse(nextBest.start.datetime), now) : "";
+  // Started already (the live hour, or with no live reading a start that has passed): "Now".
+  const nextIsNow = Boolean(nextBest && underWay(nextBest, now));
+  const nextDay = nextBest && !nextIsNow ? relativeDay(Date.parse(nextBest.start.datetime), now) : "";
   // Different cities sit on different regional grids with very different
   // baselines, so "usual" personalization is scoped to the selected city
   // rather than blended across everywhere the user has ever charged.
   const avgChargeIntensity = averageChargeIntensity(charges.filter((charge) => charge.city === location));
   const updatedAt = data?.updatedAt && now ? formatUpdatedAt(data.updatedAt, now) : "";
   const intensityDiff = current && avgChargeIntensity !== null ? Math.round(current.carbonIntensity - avgChargeIntensity) : null;
-  const heroPill = nextBest?.start.isNow ? "Charge now" : nextDay || "Recommended";
+  const heroPill = nextIsNow ? "Charge now" : nextDay || "Recommended";
   // The live reading can beat the region's usual cleanest hours, but the
   // timing bonus goes by those usual hours: say so rather than imply points.
   const pattern = data?.available ? hourlyPattern(data.forecast) : null;
   const nowEarnsBest = Boolean(pattern && nextBest?.start.isNow && chargeTiming(pattern, istHourOfDay(Date.parse(nextBest.start.datetime))) === "best");
+  // "Right now" only for the live reading: a forecast hour that has begun
+  // gets the plain average, like any other window.
   const heroNote = !nextBest ? "" : nextBest.start.isNow ? `The grid is cleaner right now than at any other time in the next 24 hours.${nowEarnsBest ? "" : " It isn't one of your region's usual cleanest hours, so there's no best-window bonus."}` : `${Math.round(nextBest.average)} gCO₂/kWh on average: the cleanest 2 hours in the next 24${data?.forecastIsTypical ? ", from your region's typical day" : ""}.`;
 
   return <div className="mobile-app">
@@ -83,10 +87,10 @@ export function Dashboard() {
 
       <section className="recommendation card">
         <div className="recommendation-head"><h2>Next clean window</h2>{nextBest && <span className="recommended"><Icon name="bolt" size={15}/> {heroPill}</span>}</div>
-        <div className="time-range">{loading && !data ? <strong className="loading-value">Loading…</strong> : nextBest ? <><HeroTime datetime={nextBest.start.datetime} isNow={nextBest.start.isNow}/><span>–</span><HeroTime datetime={nextBest.end.datetime}/></> : <strong className="unavailable-value">Unavailable</strong>}</div>
+        <div className="time-range">{loading && !data ? <strong className="loading-value">Loading…</strong> : nextBest ? <><HeroTime datetime={nextBest.start.datetime} isNow={nextIsNow}/><span>–</span><HeroTime datetime={nextBest.end.datetime}/></> : <strong className="unavailable-value">Unavailable</strong>}</div>
         {loading && !data && <div className="hero-skeleton" aria-hidden="true"><span/><span/><span/></div>}
         {heroNote && <p className="personal-note">{heroNote}</p>}
-        {nextBest && !nextBest.start.isNow && <AddToCalendarButton window={nextBest} place={place}/>}
+        {nextBest && !nextIsNow && <AddToCalendarButton window={nextBest} place={place}/>}
         <div className="intensity">Right now <strong>{current ? `${Math.round(current.carbonIntensity)} gCO₂/kWh` : loading && !data ? "Loading…" : "Unavailable"}</strong>{current && <IntensityLevelChip value={current.carbonIntensity} data={data} place={place}/>}</div>
         {intensityDiff !== null && <p className="personal-note">{intensityDiff === 0 ? "About the same as your usual charging window." : `${Math.abs(intensityDiff)} gCO₂/kWh ${intensityDiff < 0 ? "lower" : "higher"} than your usual charging window.`}</p>}
         <div className="hero-actions">

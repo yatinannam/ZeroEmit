@@ -197,10 +197,19 @@ export function formatShortHour(datetime: string) {
   return keepTimeTogether(new Intl.DateTimeFormat("en-IN", { hour: "numeric", timeZone: IST_TIME_ZONE }).format(new Date(datetime)));
 }
 
+// Whether a window has already begun: it starts on the live reading's hour
+// (`isNow`) or, with no live reading to merge in (one over 3 hours old), at
+// or before `now` (2:00 pm at 2:40 pm). Such a window is "Now", and there's
+// nothing left to put in a calendar for it.
+export function underWay(window: ChargeWindow, now: number) {
+  return Boolean(window.start.isNow) || Date.parse(window.start.datetime) <= now;
+}
+
 // A window starting in the current hour began before now, so its start time
 // ("12:00 pm" at 12:40) would read as already past — show it as "Now".
-export function formatWindow(window: ChargeWindow) {
-  return `${window.start.isNow ? "Now" : formatHour(window.start.datetime)} – ${formatHour(window.end.datetime)}`;
+// Without `now` (the push scheduler checks the start itself) only `isNow` counts.
+export function formatWindow(window: ChargeWindow, now?: number) {
+  return `${(now === undefined ? window.start.isNow : underWay(window, now)) ? "Now" : formatHour(window.start.datetime)} – ${formatHour(window.end.datetime)}`;
 }
 
 // Splits out the am/pm so callers can render it smaller than the hour —
