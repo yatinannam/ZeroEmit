@@ -98,7 +98,7 @@ Tests sit next to the code as `*.test.ts` and run under `bun test`. `tsconfig.js
 
 - **Low / Average / High.** Next to "Right now" (Home and Forecast), `intensityLevel` places the reading among its region's own day by IST hour: its cleanest third of hours is Low (green), its dirtiest third High (red), the rest Average (amber). Without at least 6 hours of the day to compare with there's no label.
 - **Chart reading.** Tap or drag sideways across a forecast chart (the page still scrolls vertically: `touch-action: pan-y`), hover with a mouse, or focus it and use the arrow keys (Page Up/Down move 3 hours), Home and End, to see an hour's value. To assistive tech it's a slider whose value is read out as "12:00 pm, 455 gCO₂/kWh". The reading's label sits above the chart, or just below the point when the point is at the very top.
-- **Charger filters.** Chips for the networks among the chargers found (up to 6, most common first; about 70% of mapped chargers name one) and for any connectors listed (only about 6% list them, so a connector filter says how many it left out).
+- **Charger filters.** Chips for the networks among the chargers found (up to 6, most common first; about 70% of mapped chargers name one) and for any connectors listed (only about 6% list them, so a connector filter says how many it left out). A chip only swaps the pins: the map is made once per origin and framed when it first draws, so its tiles, zoom and position stay put.
 
 ### Local state
 
