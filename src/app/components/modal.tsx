@@ -73,7 +73,8 @@ export function Modal({ title, onClose, onSubmit, initialFocus, children }: { ti
       else if (!event.shiftKey && (outside || active === last)) { event.preventDefault(); first.focus(); }
     }
     document.addEventListener("keydown", onKeyDown);
-    return () => { document.removeEventListener("keydown", onKeyDown); previous?.focus(); };
+    // preventScroll: the page is put back where it was (unlockScroll); a plain focus() then jumped to the button.
+    return () => { document.removeEventListener("keydown", onKeyDown); previous?.focus({ preventScroll: true }); };
   }, []);
 
   const head = <div className="modal-head"><h2 id={titleId}>{title}</h2><button type="button" className="modal-close" aria-label="Close" onClick={dismiss}><Icon name="close" size={18}/></button></div>;
