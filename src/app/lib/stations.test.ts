@@ -96,6 +96,55 @@ describe("parseOverpass", () => {
   });
 });
 
+describe("the same charger mapped more than once", () => {
+  // As in the snapshot near Faridabad: five untagged points within 15 m of
+  // each other, and one brand mapped twice 7 m apart.
+  const FARIDABAD = { lat: 28.54, lon: 77.24 };
+  const faridabad = [
+    { type: "node", id: 11288533005, lat: 28.54974, lon: 77.25944, tags: {} },
+    { type: "node", id: 11288533006, lat: 28.5497, lon: 77.25949, tags: {} },
+    { type: "node", id: 11288533008, lat: 28.54966, lon: 77.25956, tags: { "socket:type2": "1" } },
+    { type: "node", id: 11288533010, lat: 28.54968, lon: 77.25953, tags: { opening_hours: "24/7" } },
+    { type: "node", id: 11288533011, lat: 28.54975, lon: 77.2594, tags: { "socket:type2_combo": "2" } },
+    { type: "node", id: 11083172400, lat: 28.54435, lon: 77.24559, tags: { brand: "Charge Karo", "socket:type2": "1" } },
+    { type: "node", id: 11083172401, lat: 28.54433, lon: 77.24552, tags: { brand: "Charge Karo", "socket:chademo": "1" } },
+  ];
+
+  test("is listed once, with every connector and open 24 hours if any row is", () => {
+    const stations = parseOverpass({ elements: faridabad }, FARIDABAD);
+    expect(stations).toHaveLength(2);
+    expect(stations[0]).toMatchObject({ name: "Charge Karo", connectors: ["Type 2", "CHAdeMO"], open24h: false });
+    expect(stations[1]).toMatchObject({ name: "Unnamed EV charger", connectors: ["CCS2", "Type 2"], open24h: true });
+  });
+
+  test("rows that share an operator are one site, whatever each is called", () => {
+    // Visakhapatnam: "Tata power" and "tata power" 1 m apart; a named Tata Power charger 20 m off.
+    const stations = parseOverpass({ elements: [
+      { type: "node", id: 1, lat: 17.7, lon: 83.3, tags: { operator: "Tata power", brand: "Bharat Petroleum" } },
+      { type: "node", id: 2, lat: 17.70001, lon: 83.3, tags: { operator: "tata power", brand: "tata power", "socket:type2_combo": "1" } },
+      { type: "node", id: 3, lat: 17.7, lon: 83.30019, tags: { name: "Tata Power EZ Charge Vizag", operator: "Tata Power" } },
+    ] }, { lat: 17.7, lon: 83.29 });
+    expect(stations).toHaveLength(1);
+    expect(stations[0]).toMatchObject({ id: "node/1", name: "Tata Power", connectors: ["CCS2"] });
+  });
+
+  test("different chargers close together, or the same name farther apart, stay separate", () => {
+    const stations = parseOverpass({ elements: [
+      { type: "node", id: 1, lat: 17.0, lon: 74.6, tags: { operator: "Uplug" } },
+      { type: "node", id: 2, lat: 17.0001, lon: 74.6, tags: {} }, // 11 m from Uplug, nothing in common
+      { type: "node", id: 3, lat: 17.0, lon: 74.6001, tags: { name: "Swap Point" } }, // 11 m, another name
+      { type: "node", id: 4, lat: 17.0005, lon: 74.6, tags: { operator: "Uplug" } }, // 56 m
+    ] }, { lat: 17.0, lon: 74.59 });
+    expect(stations).toHaveLength(4);
+  });
+
+  test("repeats don't push other chargers out of the nearest 20", () => {
+    const repeats = Array.from({ length: 20 }, (_, i) => ({ type: "node", id: i, lat: 18.5204, lon: 73.8567 + i / 1e6, tags: {} }));
+    const others = Array.from({ length: 5 }, (_, i) => ({ type: "node", id: 100 + i, lat: 18.53 + i / 100, lon: 73.85, tags: { name: `Charger ${i}` } }));
+    expect(parseOverpass({ elements: [...repeats, ...others] }, PUNE)).toHaveLength(6);
+  });
+});
+
 describe("directionsUrl", () => {
   test("Google Maps directions to the station", () => {
     expect(directionsUrl({ lat: 18.53, lon: 73.85 })).toBe("https://www.google.com/maps/dir/?api=1&destination=18.53,73.85");

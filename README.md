@@ -275,7 +275,7 @@ On the device, `PushSync` (`components/push-sync.tsx`) keeps the server's copy u
 
 ### Chargers (`lib/stations.ts`, `scripts/fetch-chargers.ts`)
 
-The public Overpass API was too slow from India (up to 20 s, or rate-limited), so `/api/stations` reads a bundled snapshot of every `amenity=charging_station` in India (about 600). Operator names are normalised when the snapshot is read ("tata power" becomes "Tata Power"). Chargers with no name show as "Unnamed EV charger", with distance and compass direction. On phones the map turns off one-finger dragging so the page still scrolls.
+The public Overpass API was too slow from India (up to 20 s, or rate-limited), so `/api/stations` reads a bundled snapshot of every `amenity=charging_station` in India (about 600). Operator names are normalised when the snapshot is read ("tata power" becomes "Tata Power"). Chargers with no name show as "Unnamed EV charger", with distance and compass direction. A charger mapped more than once (rows within 30 m that share a name or operator, or are both unnamed) is listed once, before the cut to the nearest 20, with every connector and open 24 hours if any row is. On phones the map turns off one-finger dragging so the page still scrolls.
 
 ### Redis keys
 

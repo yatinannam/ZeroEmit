@@ -107,10 +107,17 @@ export function compactChargers(response: unknown): ChargerElement[] {
   return out.sort((a, b) => a.type.localeCompare(b.type) || a.id - b.id);
 }
 
+// One charger is often mapped several times (a point per socket, or a point
+// and its building): rows within 30 m that share a name or an operator (or
+// both have neither) are one site, kept once with every connector listed and
+// open 24 hours if any of them is.
+const SAME_SITE_KM = 0.03;
+const sameSite = (a: Station, b: Station) => (a.name === b.name || (a.operator !== null && a.operator === b.operator)) && distanceKm(a, b) <= SAME_SITE_KM;
+
 export function parseOverpass(response: unknown, origin: LatLon): Station[] {
   const elements = (response as { elements?: unknown } | null)?.elements;
   if (!Array.isArray(elements)) return [];
-  const stations: Station[] = [];
+  const found: { station: Station; km: number }[] = [];
   for (const raw of elements as OverpassElement[]) {
     const lat = typeof raw.lat === "number" ? raw.lat : raw.center?.lat;
     const lon = typeof raw.lon === "number" ? raw.lon : raw.center?.lon;
@@ -119,18 +126,32 @@ export function parseOverpass(response: unknown, origin: LatLon): Station[] {
     const text = (key: string) => (typeof tags[key] === "string" && (tags[key] as string).trim() ? (tags[key] as string).trim() : null);
     // Tidied here, as the app serves them, so the snapshot keeps OSM's own tags.
     const operator = normalizeOperator(text("operator")) ?? normalizeOperator(text("brand"));
-    stations.push({
+    const km = distanceKm(origin, { lat, lon });
+    found.push({ km, station: {
       id: `${String(raw.type)}/${String(raw.id)}`,
       name: stationName(text("name")) ?? stationName(text("name:en")) ?? operator ?? UNNAMED_STATION,
       operator,
       lat,
       lon,
-      distanceKm: Math.round(distanceKm(origin, { lat, lon }) * 10) / 10,
+      distanceKm: Math.round(km * 10) / 10,
       connectors: CONNECTORS.filter(([tag]) => { const value = text(tag); return value !== null && value !== "no" && value !== "0"; }).map(([, label]) => label),
       open24h: text("opening_hours") === "24/7",
-    });
+    } });
   }
-  return stations.sort((a, b) => a.distanceKm - b.distanceKm).slice(0, MAX_STATIONS);
+  // Nearest first, each site once (as its nearest row) before the cut to 20,
+  // so repeats don't push other chargers off the list.
+  const kept: typeof found = [];
+  for (const entry of found.sort((a, b) => a.km - b.km)) {
+    // Two rows 30 m apart are at most 30 m apart in distance from `origin` too,
+    // so only the last few kept rows can be the same site.
+    let site: Station | null = null;
+    for (let index = kept.length - 1; index >= 0 && kept[index].km >= entry.km - SAME_SITE_KM && !site; index--) if (sameSite(kept[index].station, entry.station)) site = kept[index].station;
+    if (!site) { kept.push(entry); continue; }
+    const connectors = new Set([...site.connectors, ...entry.station.connectors]);
+    site.connectors = CONNECTORS.map(([, label]) => label).filter((label) => connectors.has(label));
+    site.open24h ||= entry.station.open24h;
+  }
+  return kept.slice(0, MAX_STATIONS).map(({ station }) => station);
 }
 
 // The nearest chargers (up to 20) within `radiusKm` of `origin`.
