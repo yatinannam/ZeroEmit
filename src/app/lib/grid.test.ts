@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { formatUpdatedAt, HOUR_MS, intensityAt, istDayKey, istHourOfDay, istHourStart, liveReading, planByDay, planNext24, relativeDay, intensityLevel, type GridData } from "./grid";
+import { formatUpdatedAt, HOUR_MS, intensityAt, istDayKey, istHourOfDay, istHourStart, liveReading, planByDay, planNext24, relativeDay, intensityLevel, topWindows, type GridData } from "./grid";
+import { chargeTiming, hourlyPattern, isBestWindowStart } from "./timing";
 
 const MINUTE_MS = 60_000;
 const hourly = (from: number, hours: number, value = 500) => Array.from({ length: hours }, (_, i) => ({ datetime: new Date(istHourStart(from) + i * HOUR_MS).toISOString(), carbonIntensity: value }));
@@ -130,6 +131,64 @@ describe("relativeDay label table", () => {
       for (const set of labels) expect(set.size).toBe(1);
       expect(new Set(labels.map((set) => [...set][0])).size).toBe(labels.length);
     }
+  });
+});
+
+describe("topWindows", () => {
+  const ist = (iso: string) => Date.parse(`${iso}+05:30`);
+  // A typical day projected from the current hour to the end of tomorrow, as the API sends it.
+  const typicalDay = (pattern: number[], now: number): GridData => {
+    const from = istHourStart(now);
+    const forecast = Array.from({ length: 48 - istHourOfDay(from) }, (_, i) => ({ datetime: new Date(from + i * HOUR_MS).toISOString(), carbonIntensity: pattern[istHourOfDay(from + i * HOUR_MS)] }));
+    return { available: true, state: "maharashtra", forecast, forecastIsTypical: true, source: "test" };
+  };
+
+  test("a window never spans a missing hour", () => {
+    // Hours 0, 1, 5, 6, 7: 1 am and 5 am aren't a 2-hour window, and the
+    // window at midnight ends at 2 am, not at the next point (5 am).
+    const forecast = [0, 1, 5, 6, 7].map((hour, i) => ({ datetime: new Date(ist("2026-11-13T00:00:00") + hour * HOUR_MS).toISOString(), carbonIntensity: [700, 300, 300, 700, 700][i] }));
+    const windows = topWindows(forecast, 2, 3);
+    expect(windows.map((w) => [w.start.datetime, w.end.datetime])).toEqual([
+      [forecast[0].datetime, new Date(ist("2026-11-13T02:00:00")).toISOString()],
+      [forecast[2].datetime, forecast[4].datetime],
+    ]);
+  });
+
+  test("a typical day doesn't list the same clock hours twice", () => {
+    // Cleanest around 1 pm; at 2:40 pm today's 2 pm and tomorrow's are one window.
+    const pattern = Array.from({ length: 24 }, (_, h) => Math.round((720 - 160 * Math.exp(-((h - 13) ** 2) / 6)) * 10) / 10);
+    for (const now of [ist("2026-11-13T14:40:00"), ist("2026-11-13T13:20:00"), ist("2026-11-13T10:10:00")]) {
+      const hours = planNext24(typicalDay(pattern, now), now).windows.map((w) => istHourOfDay(Date.parse(w.start.datetime)));
+      expect(hours).toHaveLength(3);
+      for (const a of hours) for (const b of hours) if (a !== b) expect(Math.min(Math.abs(a - b), 24 - Math.abs(a - b))).toBeGreaterThanOrEqual(2);
+      expect(new Set(hours).size).toBe(3);
+    }
+  });
+
+  test("every window listed from a typical day earns the best-window bonus", () => {
+    let seed = 7;
+    const random = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+    for (let trial = 0; trial < 2000; trial += 1) {
+      // Rounded, so ties between hours come up too.
+      const pattern = Array.from({ length: 24 }, () => Math.round(550 + random() * 25) * 10);
+      const now = ist("2026-11-13T00:00:00") + Math.floor(random() * 24 * 60) * 60_000;
+      const data = typicalDay(pattern, now);
+      const windows = planNext24(data, now).windows;
+      const hourly = hourlyPattern(data.forecast);
+      expect(windows).toHaveLength(3);
+      for (const window of windows) {
+        const hour = istHourOfDay(Date.parse(window.start.datetime));
+        expect(chargeTiming(hourly, hour)).toBe("best");
+        expect(isBestWindowStart(hourly, hour)).toBe(true);
+      }
+    }
+  });
+
+  test("a live forecast can list the same hour today and tomorrow", () => {
+    const now = ist("2026-11-13T13:20:00");
+    const forecast = Array.from({ length: 30 }, (_, i) => ({ datetime: new Date(istHourStart(now) + i * HOUR_MS).toISOString(), carbonIntensity: i % 24 === 0 || i % 24 === 1 ? 300 : 700 }));
+    const starts = topWindows(forecast, 2, 3).map((w) => w.start.datetime);
+    expect(starts.slice(0, 2)).toEqual([forecast[0].datetime, forecast[24].datetime]);
   });
 });
 

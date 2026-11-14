@@ -29,22 +29,35 @@ export type ChargeWindow = { start: ForecastPoint; end: ForecastPoint; average: 
 // that overlap one already picked so the list shows genuinely distinct times
 // rather than the same low patch shifted by an hour. `startsIn` limits which
 // points a window may *start* on (e.g. "today") while still letting it run
-// past midnight into the next day's points.
-export function topWindows(forecast: ForecastPoint[], hours = 2, count = 3, startsIn: (point: ForecastPoint) => boolean = () => true): ChargeWindow[] {
+// past midnight into the next day's points. A window only spans back-to-back
+// hours: across a missing hour, 1 am and 5 am would make "1:00 am – 6:00 am".
+// A `typical` day repeats by IST hour, so it's ranked the way chargeTiming
+// (lib/timing.ts) ranks it for the timing bonus: ties go to the earlier hour
+// of the day, and "overlap" is around the clock (today's 2 pm and tomorrow's
+// are the same window, 11 pm and midnight overlap), so every window listed
+// is one that earns the best-window bonus.
+export function topWindows(forecast: ForecastPoint[], hours = 2, count = 3, startsIn: (point: ForecastPoint) => boolean = () => true, typical = false): ChargeWindow[] {
   if (forecast.length < hours) return [];
   const candidates: ChargeWindow[] = [];
   for (let index = 0; index <= forecast.length - hours; index += 1) {
     if (!startsIn(forecast[index])) continue;
     const window = forecast.slice(index, index + hours);
+    if (window.some((point, i) => i > 0 && Date.parse(point.datetime) - Date.parse(window[i - 1].datetime) !== HOUR_MS)) continue;
     const average = window.reduce((sum, point) => sum + point.carbonIntensity, 0) / hours;
-    const end = forecast[index + hours] || { ...window[hours - 1], isNow: false, datetime: new Date(new Date(window[hours - 1].datetime).getTime() + HOUR_MS).toISOString() };
+    const endsAt = Date.parse(window[hours - 1].datetime) + HOUR_MS;
+    const next = forecast[index + hours];
+    const end = next && Date.parse(next.datetime) === endsAt ? next : { ...window[hours - 1], isNow: false, datetime: new Date(endsAt).toISOString() };
     candidates.push({ start: window[0], end, average, startIndex: index });
   }
-  candidates.sort((a, b) => a.average - b.average);
+  const hourOf = (window: ChargeWindow) => istHourOfDay(Date.parse(window.start.datetime));
+  const apart = typical
+    ? (a: ChargeWindow, b: ChargeWindow) => { const gap = Math.abs(hourOf(a) - hourOf(b)); return Math.min(gap, 24 - gap); }
+    : (a: ChargeWindow, b: ChargeWindow) => Math.abs(Date.parse(a.start.datetime) - Date.parse(b.start.datetime)) / HOUR_MS;
+  candidates.sort((a, b) => a.average - b.average || (typical ? hourOf(a) - hourOf(b) : 0));
   const picked: ChargeWindow[] = [];
   for (const candidate of candidates) {
     if (picked.length >= count) break;
-    if (picked.some((p) => Math.abs(p.startIndex - candidate.startIndex) < hours)) continue;
+    if (picked.some((p) => apart(p, candidate) < hours)) continue;
     picked.push(candidate);
   }
   return picked;
@@ -99,7 +112,7 @@ export function planByDay(data: GridData | null | undefined): { today: DayPlan; 
   const tomorrowKey = istDayKey(now + 24 * HOUR_MS);
   const plan = (key: string) => ({
     points: merged.filter((point) => istDayKey(point.datetime) === key),
-    windows: topWindows(merged, 2, 3, (point) => istDayKey(point.datetime) === key),
+    windows: topWindows(merged, 2, 3, (point) => istDayKey(point.datetime) === key, data.forecastIsTypical),
   });
   return { today: plan(todayKey), tomorrow: plan(tomorrowKey) };
 }
@@ -112,7 +125,7 @@ export function planNext24(data: GridData | null | undefined, now = Date.now()):
   if (!data?.available) return { points: [], windows: [] };
   const merged = mergeLiveReading({ forecast: data.forecast, current: liveReading(data, now) }, now);
   const within = (point: ForecastPoint) => Date.parse(point.datetime) < now + DAY_MS;
-  return { points: merged.filter(within), windows: topWindows(merged, 2, 3, within) };
+  return { points: merged.filter(within), windows: topWindows(merged, 2, 3, within, data.forecastIsTypical) };
 }
 
 // "This morning", "Today", "Tonight", "Tomorrow" or "Tomorrow night" for a

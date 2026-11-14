@@ -35,13 +35,18 @@ export function chargeDurationMs(kwh: number, kw: number) {
 }
 
 // The average intensity from `from` to `to`, weighted by time in each hour;
-// null when the curve doesn't cover all of it (past its end, or a gap).
+// null when the curve doesn't cover all of it (past its end, or a gap). A
+// repeated hour counts once (the first, as hourlyPattern takes it), so it
+// can't make up for a missing one.
 export function averageBetween(points: ForecastPoint[], from: number, to: number): number | null {
   if (to <= from) return null;
   let weighted = 0;
   let covered = 0;
+  const seen = new Set<number>();
   for (const point of points) {
     const start = Date.parse(point.datetime);
+    if (seen.has(start)) continue;
+    seen.add(start);
     const overlap = Math.min(to, start + HOUR_MS) - Math.max(from, start);
     if (overlap <= 0) continue;
     weighted += point.carbonIntensity * overlap;

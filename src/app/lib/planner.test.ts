@@ -28,6 +28,11 @@ describe("averageBetween", () => {
     expect(averageBetween(gappy, T0, T0 + 3 * HOUR_MS)).toBeNull();
     expect(averageBetween(points, T0, T0)).toBeNull();
   });
+  test("a repeated hour can't cover for a missing one", () => {
+    // 10 am twice and no 11 am: 10 am to noon isn't covered.
+    expect(averageBetween([points[0], points[0], points[2]], T0, T0 + 2 * HOUR_MS)).toBeNull();
+    expect(averageBetween([points[0], { ...points[0], carbonIntensity: 900 }, points[1]], T0, T0 + 2 * HOUR_MS)).toBe(450);
+  });
   test("curveEnd is the end of the last hour", () => {
     expect(curveEnd(points)).toBe(T0 + 3 * HOUR_MS);
     expect(curveEnd([])).toBe(0);
