@@ -7,6 +7,7 @@ import { useGridData } from "./use-grid-data";
 import { useCharges } from "./use-charges";
 import { useProfile } from "./use-profile";
 import { useLocationPicker } from "./use-location-picker";
+import { useMinute } from "./use-minute";
 import { currentStreakDays, estimatedCarbonSavedGrams, totalPoints } from "../lib/rewards";
 import { averageChargeIntensity } from "../lib/personalization";
 import { chargeTiming, hourlyPattern } from "../lib/timing";
@@ -47,20 +48,24 @@ export function Dashboard() {
   const { charges } = useCharges();
   const { profile } = useProfile();
   const greeting = useSyncExternalStore(noopSubscribe, greetingForNow, () => null);
+  // The clock, passed to every helper below: one that read it for itself
+  // would only be re-run (React Compiler) when new grid data came in, every
+  // 15 minutes, so "Now" and Today/Tonight would lag. 0 until hydrated.
+  const now = useMinute();
   const firstName = profile.name.trim().split(/\s+/)[0];
   const points = totalPoints(charges);
   const streak = currentStreakDays(charges);
   const savedKg = estimatedCarbonSavedGrams(charges) / 1000;
-  const current = liveReading(data);
+  const current = now ? liveReading(data, now) : undefined;
   // The hero looks 24 hours ahead from now, not just at what's left of
   // today: at 10 pm the useful answer is tomorrow's dip, not 11 pm.
-  const nextBest = planNext24(data).windows[0] ?? null;
-  const nextDay = nextBest && !nextBest.start.isNow ? relativeDay(Date.parse(nextBest.start.datetime)) : "";
+  const nextBest = now ? planNext24(data, now).windows[0] ?? null : null;
+  const nextDay = nextBest && !nextBest.start.isNow ? relativeDay(Date.parse(nextBest.start.datetime), now) : "";
   // Different cities sit on different regional grids with very different
   // baselines, so "usual" personalization is scoped to the selected city
   // rather than blended across everywhere the user has ever charged.
   const avgChargeIntensity = averageChargeIntensity(charges.filter((charge) => charge.city === location));
-  const updatedAt = data?.updatedAt ? formatUpdatedAt(data.updatedAt) : "";
+  const updatedAt = data?.updatedAt && now ? formatUpdatedAt(data.updatedAt, now) : "";
   const intensityDiff = current && avgChargeIntensity !== null ? Math.round(current.carbonIntensity - avgChargeIntensity) : null;
   const heroPill = nextBest?.start.isNow ? "Charge now" : nextDay || "Recommended";
   // The live reading can beat the region's usual cleanest hours, but the

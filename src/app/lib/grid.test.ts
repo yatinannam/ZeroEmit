@@ -25,6 +25,11 @@ describe("planByDay", () => {
     expect(planByDay(withReading(30 * MINUTE_MS)).today.points[0]).toMatchObject({ isNow: true, carbonIntensity: 100 });
   });
 
+  test("plans from the time it's given, not the clock", () => {
+    const then = Date.parse("2026-11-04T09:20:00Z");
+    expect(planByDay(withReading(30 * MINUTE_MS, then), then).today.points[0]).toMatchObject({ isNow: true, datetime: new Date(istHourStart(then)).toISOString() });
+  });
+
   test("leaves an old reading out, so the forecast isn't shown as Now", () => {
     const first = planByDay(withReading(8 * HOUR_MS)).today.points[0];
     expect(first?.isNow).toBeUndefined();

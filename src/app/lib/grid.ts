@@ -102,10 +102,9 @@ export function liveReading(data: GridData | null | undefined, now = Date.now())
 }
 
 // Split into IST "today" and "tomorrow" windows.
-export function planByDay(data: GridData | null | undefined): { today: DayPlan; tomorrow: DayPlan } {
+export function planByDay(data: GridData | null | undefined, now = Date.now()): { today: DayPlan; tomorrow: DayPlan } {
   const empty = { today: { points: [], windows: [] }, tomorrow: { points: [], windows: [] } };
   if (!data?.available) return empty;
-  const now = Date.now();
   // An old reading isn't "Now": without a recent one the forecast stands alone.
   const merged = mergeLiveReading({ forecast: data.forecast, current: liveReading(data, now) }, now);
   const todayKey = istDayKey(now);

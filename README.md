@@ -131,7 +131,7 @@ Main keys, all prefixed `zeroemit-`:
 
 ### Grid data on the client
 
-`useGridData(state)` fetches `/api/grid`. It refetches every 15 minutes while the page is visible and on return if the last fetch is at least 5 minutes old (or was started that long ago and is still on its way, so returning mid-fetch doesn't restart it). A failed refresh keeps the last good data for the same state and surfaces the error, only under that state, so a city change doesn't carry the old region's error over. When the device is offline the error says so, and a failed fetch is retried on the `online` event. `lib/grid.ts` only treats `current` as "now" when the reading is under 3 hours old (Atlas's newest complete hour trails the clock).
+`useGridData(state)` fetches `/api/grid`. It refetches every 15 minutes while the page is visible and on return if the last fetch is at least 5 minutes old (or was started that long ago and is still on its way, so returning mid-fetch doesn't restart it). A failed refresh keeps the last good data for the same state and surfaces the error, only under that state, so a city change doesn't carry the old region's error over. When the device is offline the error says so, and a failed fetch is retried on the `online` event. `lib/grid.ts` only treats `current` as "now" when the reading is under 3 hours old (Atlas's newest complete hour trails the clock). Home, Forecast and the planner pass the clock into these helpers from `useMinute()`, so "Now", Today / Tonight and the windows move on every minute, not only when new data arrives.
 
 ### Service worker (`public/sw.js`)
 

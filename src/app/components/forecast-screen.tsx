@@ -6,6 +6,7 @@ import gsap from "gsap";
 import { formatUpdatedAt, formatWindow, liveReading, planByDay, planNext24, relativeDay, type ChargeWindow } from "../lib/grid";
 import { useGridData } from "./use-grid-data";
 import { useLocationPicker } from "./use-location-picker";
+import { useMinute } from "./use-minute";
 import { requestNotificationPermission, useNotificationsEnabled } from "./notifications";
 import { Icon } from "./icon-set";
 import { BottomNav, TopBar } from "./app-shell";
@@ -32,14 +33,17 @@ export function ForecastScreen() {
   const [notice, setNotice] = useState<{ text: string; ok: boolean } | null>(null);
   const notifsOn = useNotificationsEnabled();
   const { data, loading, error, refresh } = useGridData(ready ? place.state : null);
-  const plan = day === "next" ? planNext24(data) : planByDay(data)[day];
+  // The clock is passed in, so the windows and "Now" move on with it rather
+  // than only when new grid data comes in (as on Home). 0 until hydrated.
+  const now = useMinute();
+  const plan = !now ? { points: [], windows: [] } : day === "next" ? planNext24(data, now) : planByDay(data, now)[day];
   // Over the next 24 hours a window can be today or tomorrow: say which.
   const windowLabel = (slot: ChargeWindow) => {
-    const prefix = day === "next" && !slot.start.isNow ? relativeDay(Date.parse(slot.start.datetime)) : "";
+    const prefix = day === "next" && !slot.start.isNow ? relativeDay(Date.parse(slot.start.datetime), now) : "";
     return `${prefix ? `${prefix}, ` : ""}${formatWindow(slot)}`;
   };
   const best = plan.windows[0] ?? null;
-  const current = liveReading(data);
+  const current = now ? liveReading(data, now) : undefined;
   const retry = <button type="button" className="text-button" onClick={refresh}>Try again</button>;
 
   // Switching day deals the new windows in, one after another.
@@ -109,7 +113,7 @@ export function ForecastScreen() {
         : <p className="personal-note">No forecast windows available yet.{data?.available && <> {retry}</>}</p>}
       </section>
 
-      {data?.available && <p className="data-status forecast-source"><span>Grid data from {data.source}{data.updatedAt ? ` · updated ${formatUpdatedAt(data.updatedAt)}` : ""}</span><button onClick={refresh} disabled={loading}>{loading ? "Refreshing…" : "Refresh"}</button></p>}
+      {data?.available && <p className="data-status forecast-source"><span>Grid data from {data.source}{data.updatedAt && now ? ` · updated ${formatUpdatedAt(data.updatedAt, now)}` : ""}</span><button onClick={refresh} disabled={loading}>{loading ? "Refreshing…" : "Refresh"}</button></p>}
 
       {notifsOn ? <p className="success-message" role="status"><Icon name="bell" size={16}/> Notifications are on for this device.</p> : <>
         <section className="card notify-card">
