@@ -21,6 +21,36 @@ export function reducedMotion() {
 // functions out here, not in a component, so the React Compiler leaves the
 // module variable alone.
 let lenis: { instance: Lenis; tick: (time: number) => void } | null = null;
+// How many open sheets hold the page still, and where it stood when the
+// first one opened.
+let locks = 0;
+let lockedAt = { y: 0, path: "" };
+
+// An open sheet holds the page behind it still: the root stops scrolling
+// (a swipe on the backdrop, or past the end of a short sheet, used to
+// scroll the page on phones) and Lenis stops (on desktop it smooth-scrolled
+// the page under a wheel over the backdrop). Counted, so stacked or
+// swapped sheets keep the lock until the last one closes.
+export function lockScroll() {
+  if (locks++) return;
+  const root = document.documentElement;
+  lockedAt = { y: window.scrollY, path: window.location.pathname };
+  // Keep the scrollbar's room on desktop, so the page doesn't shift sideways.
+  if (window.innerWidth > root.clientWidth) root.style.scrollbarGutter = "stable";
+  root.style.overflow = "hidden";
+  lenis?.instance.stop();
+}
+
+export function unlockScroll() {
+  if (!locks || --locks) return;
+  const root = document.documentElement;
+  root.style.overflow = "";
+  root.style.scrollbarGutter = "";
+  lenis?.instance.start();
+  // Back where it was (iOS can drift under a locked root), unless the sheet
+  // went on to another page, which keeps its own scroll.
+  if (window.location.pathname === lockedAt.path && window.scrollY !== lockedAt.y) window.scrollTo(0, lockedAt.y);
+}
 
 function startLenis() {
   if (lenis) return;
@@ -35,6 +65,7 @@ function startLenis() {
   });
   const tick = (time: number) => instance.raf(time * 1000);
   gsap.ticker.add(tick);
+  if (locks) instance.stop();
   lenis = { instance, tick };
 }
 
@@ -47,8 +78,9 @@ function stopLenis() {
 
 // Back/forward isn't a link tap: drop any glide still running so it doesn't
 // fight the scroll position Next.js restores (stopping and restarting is how
-// Lenis exposes that).
+// Lenis exposes that). A sheet's lock keeps it stopped.
 function endGlide() {
+  if (locks) return;
   lenis?.instance.stop();
   lenis?.instance.start();
 }

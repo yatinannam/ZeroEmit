@@ -3,7 +3,7 @@
 import { useEffect, useEffectEvent, useId, useLayoutEffect, useRef, type FormEvent, type ReactNode } from "react";
 import gsap from "gsap";
 import { Icon } from "./icon-set";
-import { reducedMotion } from "./motion";
+import { lockScroll, reducedMotion, unlockScroll } from "./motion";
 
 const FOCUSABLE = "button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled])";
 
@@ -20,6 +20,12 @@ export function Modal({ title, onClose, onSubmit, initialFocus, children }: { ti
   const titleId = useId();
   const close = useEffectEvent(onClose);
   const focusTarget = useEffectEvent(() => initialFocus);
+
+  // The page behind stays put while the sheet is open (see lockScroll).
+  useLayoutEffect(() => {
+    lockScroll();
+    return unlockScroll;
+  }, []);
 
   // The sheet rises from the bottom over a fading backdrop. Opacity, not
   // visibility: the dialog takes focus right after mounting, and a hidden
