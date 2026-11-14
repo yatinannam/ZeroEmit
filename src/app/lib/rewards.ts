@@ -1,6 +1,6 @@
 import type { Charge } from "../components/use-charges";
 import { TIMING_BONUS } from "./timing";
-import { DAY_MS, IST_OFFSET_MS } from "./grid";
+import { DAY_MS, IST_OFFSET_MS, istHourOfDay } from "./grid";
 
 export const POINTS_PER_CHARGE = 10;
 // Fallback only — used when a charge has no provider intensity_class (older
@@ -47,18 +47,23 @@ export function totalPoints(charges: Charge[]): number {
   return charges.reduce((sum, charge) => sum + pointsForCharge(charge), 0);
 }
 
-// Consecutive calendar days (by loggedAt) with at least one charge, walking
+// IST days and months as plain numbers (days since 1970, months since year 0),
+// the same days and months as istDayKey and istMonthKey; NaN for a bad date.
+const istDayNumber = (timestamp: number) => Math.floor((timestamp + IST_OFFSET_MS) / DAY_MS);
+const istMonthNumber = (timestamp: number) => { const ist = new Date(timestamp + IST_OFFSET_MS); return ist.getUTCFullYear() * 12 + ist.getUTCMonth(); };
+
+// Consecutive IST days (by loggedAt) with at least one charge, walking
 // back from today. Today is allowed to be empty without breaking the streak
 // (grace day) so it doesn't reset to 0 first thing each morning.
-export function currentStreakDays(charges: Charge[]): number {
+export function currentStreakDays(charges: Charge[], now = Date.now()): number {
   if (charges.length === 0) return 0;
-  const loggedDays = new Set(charges.map((charge) => new Date(charge.loggedAt).toDateString()));
-  const cursor = new Date();
-  if (!loggedDays.has(cursor.toDateString())) cursor.setDate(cursor.getDate() - 1);
+  const loggedDays = new Set(charges.map((charge) => istDayNumber(Date.parse(charge.loggedAt))));
+  let day = istDayNumber(now);
+  if (!loggedDays.has(day)) day -= 1;
   let streak = 0;
-  while (loggedDays.has(cursor.toDateString())) {
+  while (loggedDays.has(day)) {
     streak += 1;
-    cursor.setDate(cursor.getDate() - 1);
+    day -= 1;
   }
   return streak;
 }
@@ -67,7 +72,7 @@ export function currentStreakDays(charges: Charge[]): number {
 // the history (same rule as currentStreakDays, without the walk back from
 // today). Streak badges unlock from it, so they stay earned after a break.
 export function longestStreakDays(charges: Charge[]): number {
-  const days = [...new Set(charges.map((charge) => Math.floor((Date.parse(charge.loggedAt) + IST_OFFSET_MS) / DAY_MS)).filter(Number.isFinite))].sort((a, b) => a - b);
+  const days = [...new Set(charges.map((charge) => istDayNumber(Date.parse(charge.loggedAt))).filter(Number.isFinite))].sort((a, b) => a - b);
   let longest = 0;
   let run = 0;
   days.forEach((day, index) => {
@@ -77,14 +82,11 @@ export function longestStreakDays(charges: Charge[]): number {
   return longest;
 }
 
-// Charges in the calendar month containing `date` (device-local, like the
-// rest of the charge history), offset by `monthsBack` (1 = the month before).
-export function chargesInMonth(charges: Charge[], monthsBack = 0, date = new Date()): Charge[] {
-  const target = new Date(date.getFullYear(), date.getMonth() - monthsBack, 1);
-  return charges.filter((charge) => {
-    const loggedAt = new Date(charge.loggedAt);
-    return loggedAt.getFullYear() === target.getFullYear() && loggedAt.getMonth() === target.getMonth();
-  });
+// Charges in the IST month containing `now` (like the recap and the
+// leaderboard), offset by `monthsBack` (1 = the month before).
+export function chargesInMonth(charges: Charge[], monthsBack = 0, now = Date.now()): Charge[] {
+  const target = istMonthNumber(now) - monthsBack;
+  return charges.filter((charge) => istMonthNumber(Date.parse(charge.loggedAt)) === target);
 }
 
 // Totals for a set of charges. `greenRate` is the share (0–1) charged while
@@ -133,8 +135,11 @@ export const REWARD_TIERS = [
 
 // The evening peak (6-10 pm), when India's grid leans hardest on coal.
 const PEAK_HOURS = { from: 18, to: 22 };
+// By the IST hour it started (`chargedAt` is the phone's own clock, which may
+// not be on IST); old charges with no real date go by `chargedAt`.
 const isPeakCharge = (charge: Charge) => {
-  const hour = Number(charge.chargedAt.slice(0, 2));
+  const at = Date.parse(charge.loggedAt);
+  const hour = at > 0 ? istHourOfDay(at) : Number(charge.chargedAt.split(":")[0]);
   return hour >= PEAK_HOURS.from && hour < PEAK_HOURS.to;
 };
 
@@ -227,7 +232,7 @@ const STREAK_MILESTONES = [3, 14, 60, 100];
 // What logging `added` on top of `before` just earned — used for the
 // confirmation toast and notifications. `rewards` lists only newly reached
 // things (a level, an achievement, a streak milestone), most notable first.
-export function chargeOutcome(before: Charge[], added: Charge) {
+export function chargeOutcome(before: Charge[], added: Charge, now = Date.now()) {
   const after = [added, ...before];
   const points = pointsForCharge(added);
   const green = isGreenCharge(added);
@@ -235,8 +240,8 @@ export function chargeOutcome(before: Charge[], added: Charge) {
   const tierBefore = currentRewardTier(totalPoints(before)).current;
   const tierAfter = currentRewardTier(totalPoints(after)).current;
   if (tierAfter.threshold > tierBefore.threshold) rewards.push(`New level: ${tierAfter.name}`);
-  const streakBefore = currentStreakDays(before);
-  const streakAfter = currentStreakDays(after);
+  const streakBefore = currentStreakDays(before, now);
+  const streakAfter = currentStreakDays(after, now);
   const unlockedBefore = new Set(achievements(before, streakBefore).filter((badge) => badge.unlocked).map((badge) => badge.key));
   for (const badge of achievements(after, streakAfter)) if (badge.unlocked && !unlockedBefore.has(badge.key)) rewards.push(`Achievement unlocked: ${badge.title}`);
   const milestone = [...STREAK_MILESTONES].reverse().find((days) => streakBefore < days && streakAfter >= days);

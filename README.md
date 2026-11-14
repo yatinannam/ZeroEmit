@@ -200,7 +200,7 @@ A story of one month (or year) of charging, built on the device from its own his
 | CO₂ avoided | `max(0, baseline - intensity) × kWh`; baseline is the day's average intensity for the zone (`baselineIntensity`), or 650 g/kWh for older charges without it |
 | Streak badges | Unlock from the longest streak ever (IST days), so a broken streak doesn't re-lock them |
 
-All day/week/month boundaries use IST (`istDayKey`, `istMonthKey`).
+All day/week/month boundaries (streaks, Profile's month totals) and Peak Dodger's 6–10 pm use IST (`istDayKey`, `istMonthKey`), whatever the phone's time zone.
 
 ## Server
 

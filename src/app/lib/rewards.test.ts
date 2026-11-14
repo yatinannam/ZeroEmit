@@ -1,16 +1,18 @@
 import { describe, expect, test } from "bun:test";
 import type { Charge } from "../components/use-charges";
-import { achievements, baselineFromPattern, chargeOutcome, closestBadge, estimatedCarbonSavedGrams, impactSummary, isGreenCharge, longestStreakDays, MIN_POINTS_KWH, pointsForCharge, totalPoints, weekSummary } from "./rewards";
+import { DAY_MS, istDayKey } from "./grid";
+import { achievements, baselineFromPattern, chargeOutcome, chargesInMonth, closestBadge, currentStreakDays, estimatedCarbonSavedGrams, impactSummary, isGreenCharge, longestStreakDays, MIN_POINTS_KWH, pointsForCharge, totalPoints, weekSummary } from "./rewards";
 
 let nextId = 0;
-// A charge `daysAgo` days back at `hour`:00, 20 kWh unless given.
+// A charge `daysAgo` IST days back at `hour`:00 IST (no later than now), 20 kWh
+// unless given. IST, so the tests pass on a machine in any time zone.
 function charge(daysAgo: number, hour: number, intensity: number | null, kwh = 20): Charge {
-  const at = new Date();
-  at.setDate(at.getDate() - daysAgo);
-  at.setHours(hour, 0, 0, 0);
-  if (at > new Date()) at.setTime(Date.now() - 60_000);
-  return { id: `c${nextId++}`, energyKwh: kwh, chargedAt: `${String(hour).padStart(2, "0")}:00`, city: "Pune, Maharashtra", carbonIntensity: intensity, intensityClass: null, loggedAt: at.toISOString() };
+  const now = Date.now();
+  const at = Math.min(Date.parse(`${istDayKey(now)}T${String(hour).padStart(2, "0")}:00:00+05:30`) - daysAgo * DAY_MS, now);
+  return { id: `c${nextId++}`, energyKwh: kwh, chargedAt: `${String(hour).padStart(2, "0")}:00`, city: "Pune, Maharashtra", carbonIntensity: intensity, intensityClass: null, loggedAt: new Date(at).toISOString() };
 }
+// A charge at an exact moment.
+const chargeAt = (iso: string, extra: Partial<Charge> = {}): Charge => ({ id: iso, energyKwh: 20, chargedAt: "12:00", city: "Pune, Maharashtra", carbonIntensity: 600, intensityClass: null, loggedAt: new Date(iso).toISOString(), ...extra });
 const byKey = (charges: Charge[], streak: number) => Object.fromEntries(achievements(charges, streak).map((a) => [a.key, a]));
 
 describe("achievements", () => {
@@ -36,6 +38,14 @@ describe("achievements", () => {
   test("Peak Dodger counts charges outside 6-10 pm", () => {
     const charges = [charge(1, 17, 600), charge(2, 18, 600), charge(3, 21, 600), charge(4, 22, 600), charge(5, 9, 600)];
     expect(byKey(charges, 0)["peak-dodger"]).toMatchObject({ current: 3, target: 5, unlocked: false });
+  });
+
+  test("Peak Dodger goes by the IST hour, not the phone's clock", () => {
+    // 18:30 and 22:15 IST, typed as 06:00 and 09:45 on a phone set to California time.
+    const charges = [chargeAt("2026-10-01T18:30:00+05:30", { chargedAt: "06:00" }), chargeAt("2026-10-02T22:15:00+05:30", { chargedAt: "09:45" })];
+    expect(byKey(charges, 0)["peak-dodger"].current).toBe(1);
+    // An old charge with no real date goes by the time typed.
+    expect(byKey([chargeAt("1970-01-01T00:00:00.000Z", { chargedAt: "19:00" })], 0)["peak-dodger"].current).toBe(0);
   });
 
   test("CO2 and energy badges use kg avoided and total kWh", () => {
@@ -158,6 +168,42 @@ describe("longestStreakDays", () => {
   });
 });
 
+describe("currentStreakDays", () => {
+  // Noon IST on Wednesday 14 Oct 2026.
+  const NOW = Date.parse("2026-10-14T12:00:00+05:30");
+
+  test("counts IST days back from today, with today allowed to be empty", () => {
+    expect(currentStreakDays([chargeAt("2026-10-13T23:00:00+05:30"), chargeAt("2026-10-12T23:00:00+05:30"), chargeAt("2026-10-11T23:00:00+05:30")], NOW)).toBe(3);
+    expect(currentStreakDays([chargeAt("2026-10-14T08:00:00+05:30"), chargeAt("2026-10-13T23:00:00+05:30")], NOW)).toBe(2);
+    expect(currentStreakDays([chargeAt("2026-10-12T23:00:00+05:30")], NOW)).toBe(0); // yesterday missed
+    expect(currentStreakDays([], NOW)).toBe(0);
+  });
+
+  test("days are IST days, whatever the phone's time zone", () => {
+    // 23:30 IST on 12 Oct and 00:30 IST on 13 Oct fall on one day in California or New Zealand, but are two.
+    expect(currentStreakDays([chargeAt("2026-10-13T00:30:00+05:30"), chargeAt("2026-10-12T23:30:00+05:30")], NOW)).toBe(2);
+    // 06:00 IST yesterday and 23:30 IST three days ago leave 12 Oct empty.
+    expect(currentStreakDays([chargeAt("2026-10-13T06:00:00+05:30"), chargeAt("2026-10-11T23:30:00+05:30")], NOW)).toBe(1);
+  });
+});
+
+describe("chargesInMonth", () => {
+  test("IST months, whatever the phone's time zone", () => {
+    const lastOfOctober = chargeAt("2026-10-31T23:00:00+05:30");
+    const firstOfNovember = chargeAt("2026-11-01T00:30:00+05:30");
+    const charges = [firstOfNovember, lastOfOctober];
+    expect(chargesInMonth(charges, 0, Date.parse("2026-10-15T12:00:00+05:30"))).toEqual([lastOfOctober]);
+    expect(chargesInMonth(charges, 0, Date.parse("2026-11-01T00:10:00+05:30"))).toEqual([firstOfNovember]);
+    expect(chargesInMonth(charges, 1, Date.parse("2026-11-15T12:00:00+05:30"))).toEqual([lastOfOctober]);
+  });
+
+  test("the month before January is last December", () => {
+    const december = chargeAt("2026-12-31T23:00:00+05:30");
+    expect(chargesInMonth([december], 1, Date.parse("2027-01-10T12:00:00+05:30"))).toEqual([december]);
+    expect(chargesInMonth([december], 0, Date.parse("2027-01-10T12:00:00+05:30"))).toEqual([]);
+  });
+});
+
 describe("streak badges after a streak breaks", () => {
   // Seven days in a row ending 20 days ago, then nothing until today.
   const earlier = Array.from({ length: 7 }, (_, i) => charge(20 + i, 12, 600));
@@ -197,6 +243,7 @@ describe("charges too small to earn points", () => {
     const tiny = [charge(0, 12, 600, 0.5), charge(1, 12, 600, 0.5), charge(2, 12, 600, 0.5)];
     expect(impactSummary(tiny)).toMatchObject({ kwh: 1.5, count: 3 });
     expect(longestStreakDays(tiny)).toBe(3);
+    expect(currentStreakDays(tiny)).toBe(3);
     expect(totalPoints(tiny)).toBe(0);
   });
 });
