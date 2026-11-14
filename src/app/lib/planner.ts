@@ -1,4 +1,4 @@
-import { HOUR_MS, IST_OFFSET_MS, istDayKey, type ForecastPoint } from "./grid";
+import { HOUR_MS, IST_OFFSET_MS, relativeDay, type ForecastPoint } from "./grid";
 
 // The charge planner: given how much energy a driver needs, how fast their
 // charger is and when the car has to be ready, the cleanest time to plug in.
@@ -137,8 +137,8 @@ export function bedtimeBefore(start: number, now: number) {
   return bedtime > now ? { at: bedtime, beforeBed: true } : { at: Math.max(now + 60_000, start - 10 * 60_000), beforeBed: false };
 }
 
-// "today", "tonight" (6 pm onwards today), or "tomorrow", IST.
+// "today", "tonight", "tomorrow" and so on, IST: relativeDay, as Home and
+// Forecast say it, in lower case for the middle of a sentence.
 export function dayWord(timestamp: number, now: number) {
-  if (istDayKey(timestamp) === istDayKey(now)) return Math.floor(((timestamp + IST_OFFSET_MS) % (24 * HOUR_MS)) / HOUR_MS) >= 18 ? "tonight" : "today";
-  return istDayKey(timestamp) === istDayKey(now + 24 * HOUR_MS) ? "tomorrow" : "";
+  return relativeDay(timestamp, now).toLowerCase();
 }

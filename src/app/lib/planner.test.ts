@@ -126,6 +126,9 @@ describe("labels", () => {
     expect(dayWord(T0 + 9 * HOUR_MS, T0)).toBe("tonight");
     expect(dayWord(T0 + 20 * HOUR_MS, T0)).toBe("tomorrow");
     expect(dayWord(T0 + 50 * HOUR_MS, T0)).toBe("");
+    // As Home says it: at 11 pm a 1 am start is tonight, not tomorrow.
+    expect(dayWord(Date.parse("2026-11-05T01:00:00+05:30"), Date.parse("2026-11-04T23:00:00+05:30"))).toBe("tonight");
+    expect(dayWord(Date.parse("2026-11-04T03:00:00+05:30"), Date.parse("2026-11-04T01:00:00+05:30"))).toBe("this morning");
   });
   test("every charger has a speed", () => {
     for (const charger of CHARGERS) expect(chargerKw(charger.key)).toBeGreaterThan(0);

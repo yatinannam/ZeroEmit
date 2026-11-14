@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { formatUpdatedAt, HOUR_MS, intensityAt, istHourStart, liveReading, planByDay, planNext24, relativeDay, intensityLevel, type GridData } from "./grid";
+import { formatUpdatedAt, HOUR_MS, intensityAt, istDayKey, istHourOfDay, istHourStart, liveReading, planByDay, planNext24, relativeDay, intensityLevel, type GridData } from "./grid";
 
 const MINUTE_MS = 60_000;
 const hourly = (from: number, hours: number, value = 500) => Array.from({ length: hours }, (_, i) => ({ datetime: new Date(istHourStart(from) + i * HOUR_MS).toISOString(), carbonIntensity: value }));
@@ -87,11 +87,49 @@ describe("planNext24", () => {
     expect(relativeDay(Date.parse("2026-11-04T05:30:00Z"), now)).toBe("Today");
     expect(relativeDay(now + 20 * HOUR_MS, now)).toBe("Tomorrow");
     expect(relativeDay(now + 60 * HOUR_MS, now)).toBe("");
-    // 9 pm: 2 am is tonight. 12:10 am: 2 am is tonight too, and noon is today.
+    // 9 pm: 2 am is tonight. 12:10 am: 2 am is this morning, and noon is today.
     expect(relativeDay(Date.parse("2026-11-04T20:30:00Z"), now)).toBe("Tonight");
     const pastMidnight = Date.parse("2026-11-04T18:40:00Z");
-    expect(relativeDay(Date.parse("2026-11-04T20:30:00Z"), pastMidnight)).toBe("Tonight");
+    expect(relativeDay(Date.parse("2026-11-04T20:30:00Z"), pastMidnight)).toBe("This morning");
     expect(relativeDay(Date.parse("2026-11-05T06:30:00Z"), pastMidnight)).toBe("Today");
+  });
+});
+
+describe("relativeDay label table", () => {
+  // Seen from each time on 13 Nov (IST), the label for each start. A night
+  // (6 pm to 6 am) has one label all through, and no two nights share one.
+  const ist = (iso: string) => Date.parse(`${iso}+05:30`);
+  const table: [now: string, starts: [string, string][]][] = [
+    ["2026-11-13T10:00:00", [["13T14:00", "Today"], ["13T17:59", "Today"], ["13T18:00", "Tonight"], ["13T23:00", "Tonight"], ["14T02:00", "Tonight"], ["14T05:59", "Tonight"], ["14T06:00", "Tomorrow"], ["14T09:00", "Tomorrow"], ["14T20:00", "Tomorrow night"], ["15T02:00", "Tomorrow night"], ["15T09:00", ""]]],
+    ["2026-11-13T18:00:00", [["13T18:30", "Tonight"], ["14T03:00", "Tonight"], ["14T12:00", "Tomorrow"], ["14T19:00", "Tomorrow night"]]],
+    ["2026-11-13T22:00:00", [["13T23:00", "Tonight"], ["14T01:00", "Tonight"], ["14T12:00", "Tomorrow"], ["14T20:00", "Tomorrow night"], ["14T21:59", "Tomorrow night"]]],
+    ["2026-11-13T23:00:00", [["14T01:00", "Tonight"], ["14T22:00", "Tomorrow night"]]],
+    ["2026-11-13T00:10:00", [["13T02:00", "This morning"], ["13T12:00", "Today"], ["13T23:00", "Tonight"], ["13T23:59", "Tonight"]]],
+    ["2026-11-13T01:00:00", [["13T03:00", "This morning"], ["13T05:59", "This morning"], ["13T06:00", "Today"], ["13T23:00", "Tonight"], ["14T00:30", "Tonight"]]],
+    ["2026-11-13T05:30:00", [["13T05:45", "This morning"], ["13T12:00", "Today"], ["13T19:00", "Tonight"], ["14T05:00", "Tonight"]]],
+    ["2026-11-13T06:00:00", [["13T07:00", "Today"], ["13T21:00", "Tonight"], ["14T05:00", "Tonight"]]],
+  ];
+  for (const [now, starts] of table) {
+    test(`seen from ${now.slice(11, 16)}`, () => {
+      expect(starts.map(([start]) => [start, relativeDay(ist(`2026-11-${start}:00`), ist(now))])).toEqual(starts);
+    });
+  }
+
+  test("every night in the next 24 hours has one label, and none shares another's", () => {
+    for (let minutes = 0; minutes < 24 * 60; minutes += 10) {
+      const now = ist("2026-11-13T00:00:00") + minutes * 60_000;
+      const byNight = new Map<string, Set<string>>();
+      for (let at = istHourStart(now); at < now + 24 * HOUR_MS; at += HOUR_MS) {
+        const hour = istHourOfDay(at);
+        if (hour >= 6 && hour < 18) continue;
+        // Each night keyed by the day of the 6 pm it starts at.
+        const night = istDayKey(at - 6 * HOUR_MS);
+        byNight.set(night, (byNight.get(night) ?? new Set()).add(relativeDay(at, now)));
+      }
+      const labels = [...byNight.values()];
+      for (const set of labels) expect(set.size).toBe(1);
+      expect(new Set(labels.map((set) => [...set][0])).size).toBe(labels.length);
+    }
   });
 });
 

@@ -176,7 +176,7 @@ With no accounts, the device holds the only copy of the charge history and of th
 
 ## Next 24 hours (`planNext24` in `lib/grid.ts`)
 
-Home and Forecast look ahead 24 hours from now instead of only at what's left of "today", which late in the evening has almost nothing to offer. The Home hero is "Next clean window" with Today / Tonight / Tomorrow on it (`relativeDay`; the night runs 6 pm to 6 am, so a 2 am start is "Tonight" seen from 10 pm or from 12:10 am), and Forecast opens on a "Next 24 h" tab, with Today and Tomorrow still a tap away. When the hero says "Charge now" at an hour that isn't one of the region's usual cleanest, it adds that there's no best-window bonus.
+Home and Forecast look ahead 24 hours from now instead of only at what's left of "today", which late in the evening has almost nothing to offer. The Home hero is "Next clean window" with This morning / Today / Tonight / Tomorrow / Tomorrow night on it (`relativeDay`, which Forecast and the planner use too; a night runs 6 pm to 6 am and keeps one name, so no two nights share one: seen from 10 pm a 2 am start is "Tonight", and seen from 1 am a 3 am start is "This morning" while 11 pm is "Tonight"), and Forecast opens on a "Next 24 h" tab, with Today and Tomorrow still a tap away. When the hero says "Charge now" at an hour that isn't one of the region's usual cleanest, it adds that there's no best-window bonus.
 
 ## Recap (`lib/recap.ts`)
 

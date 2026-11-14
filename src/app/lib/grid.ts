@@ -115,15 +115,18 @@ export function planNext24(data: GridData | null | undefined, now = Date.now()):
   return { points: merged.filter(within), windows: topWindows(merged, 2, 3, within) };
 }
 
-// "Today", "Tonight" or "Tomorrow" for a time in the next day or so (IST);
-// "" beyond that. The night runs from 6 pm to 6 am: at 10 pm a 2 am start is
-// tonight, not tomorrow, and so it is at 12:10 am.
+// "This morning", "Today", "Tonight", "Tomorrow" or "Tomorrow night" for a
+// time in the next day or so (IST); "" beyond that. A night runs from 6 pm to
+// 6 am and keeps one name all through, so two nights never share one: at
+// 10 pm a 2 am start is tonight, not tomorrow; at 1 am, 3 am is this morning
+// and 11 pm is tonight. Home, Forecast and the planner (dayWord) all use it.
 export function relativeDay(timestamp: number, now = Date.now()) {
   const hour = istHourOfDay(timestamp);
-  const nowHour = istHourOfDay(now);
-  if (istDayKey(timestamp) === istDayKey(now)) return hour >= 18 || (hour < 6 && nowHour < 6) ? "Tonight" : "Today";
-  if (istDayKey(timestamp) === istDayKey(now + DAY_MS)) return hour < 6 && nowHour >= 18 ? "Tonight" : "Tomorrow";
-  return "";
+  const day = istDayKey(timestamp);
+  const offset = day === istDayKey(now) ? 0 : day === istDayKey(now + DAY_MS) ? 1 : day === istDayKey(now + 2 * DAY_MS) ? 2 : -1;
+  // The small hours belong to the night that began the evening before.
+  if (hour < 6) return ["This morning", "Tonight", "Tomorrow night"][offset] ?? "";
+  return (hour < 18 ? ["Today", "Tomorrow"] : ["Tonight", "Tomorrow night"])[offset] ?? "";
 }
 
 // How a reading compares with the region's own day (`pattern`, by IST
