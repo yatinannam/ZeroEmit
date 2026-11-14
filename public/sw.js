@@ -62,13 +62,13 @@ self.addEventListener("activate", (event) => {
 // Shown offline for a screen this device hasn't opened since the last deploy.
 // Home's page under another screen's URL lit the wrong tab and never said why.
 const OFFLINE_PAGE = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Offline · ZeroEmit</title><style>
-:root{--page:#dfe9df;--card:#fff;--ink:#141e14;--muted:#40493d;--primary:#0d631b;--on-primary:#fff;color-scheme:light dark}
-@media (prefers-color-scheme:dark){:root{--page:#070b07;--card:#1b231b;--ink:#dfe7da;--muted:#a9b4a4;--primary:#88d982;--on-primary:#00390a}}
-*{box-sizing:border-box}body{margin:0;min-height:100vh;min-height:100svh;display:grid;place-items:center;padding:16px;background:var(--page);color:var(--ink);font-family:Inter,Arial,sans-serif}
+:root{--page:#dfe9df;--card:#fff;--ink:#141e14;--muted:#40493d;--primary:#0d631b;--on-primary:#fff;--variant:#dae6d6;color-scheme:light dark}
+@media (prefers-color-scheme:dark){:root{--page:#070b07;--card:#1b231b;--ink:#dfe7da;--muted:#a9b4a4;--primary:#88d982;--on-primary:#00390a;--variant:#2b362b}}
+*{box-sizing:border-box}body{margin:0;min-height:100vh;min-height:100svh;display:grid;place-items:center;padding:16px;background:var(--page);color:var(--ink);font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif}
 main{width:100%;max-width:360px;padding:28px 24px;border-radius:24px;background:var(--card)}
 h1{margin:0 0 8px;font-size:24px;line-height:1.2}p{margin:0 0 20px;color:var(--muted);font-size:15px;line-height:1.5}
-.actions{display:grid;gap:8px}a,button{display:flex;align-items:center;justify-content:center;min-height:48px;border-radius:999px;font:inherit;font-weight:700;font-size:15px;text-decoration:none;cursor:pointer}
-button{border:0;background:var(--primary);color:var(--on-primary)}a{border:1px solid var(--muted);color:var(--ink)}
+.actions{display:grid;gap:8px}a,button{display:flex;align-items:center;justify-content:center;min-height:48px;border:0;border-radius:12px;font:inherit;font-weight:600;font-size:15px;text-decoration:none;cursor:pointer}
+button{background:var(--primary);color:var(--on-primary)}a{background:var(--variant);color:var(--primary)}
 :focus-visible{outline:3px solid var(--primary);outline-offset:2px}
 </style></head><body><main><h1>You're offline</h1><p>This screen hasn't been opened on this device yet, so there's no saved copy. It opens once you're back online.</p><div class="actions"><button type="button" onclick="location.reload()">Try again</button><a href="/">Open Home</a></div></main></body></html>`;
 
