@@ -59,7 +59,8 @@ const SAMPLE_BEST: ChargeWindow = { start: SAMPLE_POINTS[12], end: SAMPLE_POINTS
 function MiniForecast() {
   return <div className="intro-mini" aria-label="Sample forecast: best window 12:00 – 2:00 pm" role="img">
     <div className="intro-mini-head"><span>Right now</span><b>190 <small>gCO₂/kWh</small></b></div>
-    <ForecastChart points={SAMPLE_POINTS} highlight={SAMPLE_BEST}/>
+    {/* A picture only: as a slider its arrow keys and drags also moved the slides. */}
+    <ForecastChart points={SAMPLE_POINTS} highlight={SAMPLE_BEST} interactive={false}/>
     <p className="chip-caption"><span className="chip">Best window</span> 12:00 – 2:00 pm</p>
   </div>;
 }

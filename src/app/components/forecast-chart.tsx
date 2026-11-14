@@ -24,7 +24,9 @@ export function chartDomain(values: number[]): [number, number] {
 
 // `highlight` bands a 2-hour window; `span` bands any stretch of time
 // instead (a planned charge, lib/planner.ts), from and to timestamps.
-export function ForecastChart({ points, highlight, span = null }: { points: ForecastPoint[]; highlight: ChargeWindow | null; span?: { start: number; end: number } | null }) {
+// `interactive={false}` draws a picture only (the onboarding sample): no
+// slider role, focus or reading, so its keys and swipes stay the slides'.
+export function ForecastChart({ points, highlight, span = null, interactive = true }: { points: ForecastPoint[]; highlight: ChargeWindow | null; span?: { start: number; end: number } | null; interactive?: boolean }) {
   const svg = useRef<SVGSVGElement>(null);
   const shape = points.map((point) => point.carbonIntensity).join();
   // The hour being read: tap or drag across the chart (or use the arrow
@@ -121,9 +123,11 @@ export function ForecastChart({ points, highlight, span = null }: { points: Fore
   const tipY = tip && tip.y < 24 ? tip.y + 8 : 0;
 
   // A slider to assistive tech: arrow keys move through the hours, and each
-  // value is read out with its time.
-  return <svg ref={svg} className="forecast-chart" viewBox={`0 0 ${width} ${HEIGHT}`} role="slider" tabIndex={0} aria-label="Carbon intensity by hour" aria-valuemin={0} aria-valuemax={lastIndex} aria-valuenow={shownIndex} aria-valuetext={label(shownIndex)}
-    onPointerDown={onPointer} onPointerMove={onPointer} onPointerLeave={(event) => { if (event.pointerType === "mouse") read(null); }} onKeyDown={onKeyDown} onBlur={() => read(null)}>
+  // value is read out with its time. As a picture only, it's hidden (the
+  // card around it describes it) and keeps the plain cursor.
+  const controls = interactive ? { role: "slider", tabIndex: 0, "aria-label": "Carbon intensity by hour", "aria-valuemin": 0, "aria-valuemax": lastIndex, "aria-valuenow": shownIndex, "aria-valuetext": label(shownIndex),
+    onPointerDown: onPointer, onPointerMove: onPointer, onPointerLeave: (event: PointerEvent<SVGSVGElement>) => { if (event.pointerType === "mouse") read(null); }, onKeyDown, onBlur: () => read(null) } : { "aria-hidden": true, style: { cursor: "inherit" } };
+  return <svg ref={svg} className="forecast-chart" viewBox={`0 0 ${width} ${HEIGHT}`} {...controls}>
     {band && <rect className="forecast-chart-band" x={band.from} y={TOP_PAD} width={Math.max(band.to - band.from, 4)} height={plotHeight}/>}
     <line className="forecast-chart-baseline" x1="0" y1={baseline} x2={width} y2={baseline}/>
     <path className="forecast-chart-area" d={areaPath}/>
