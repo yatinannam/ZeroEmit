@@ -113,7 +113,7 @@ export function ForecastScreen({ day }: { day: Day }) {
         {plan.windows.length ? <>
           {plan.windows.map((slot, index) => {
             const className = `card activity-item${index === 0 ? " activity-item-best" : ""}`;
-            const row = <><span className="round-icon"><Icon name={index === 0 ? "bolt" : "clock"} size={18}/></span><span className="activity-text"><strong>{dayPrefix(slot) && `${dayPrefix(slot)}, `}<span className="time-range">{formatWindow(slot, now)}</span></strong><span>{Math.round(slot.average)} gCO₂/kWh average</span></span><b className={index === 0 ? "tag-best" : "tag-good"}>{index === 0 ? "Best" : "Good"}</b></>;
+            const row = <><span className="round-icon"><Icon name={index === 0 ? "bolt" : "clock"} size={18}/></span><span className="activity-text"><strong>{dayPrefix(slot) && `${dayPrefix(slot)}, `}<span className="window-times">{formatWindow(slot, now)}</span></strong><span>{Math.round(slot.average)} gCO₂/kWh average</span></span><b className={index === 0 ? "tag-best" : "tag-good"}>{index === 0 ? "Best" : "Good"}</b></>;
             // Tapping a window adds it to the calendar — except one already
             // under way, which (like the hero's) has nothing left to remind about.
             return underWay(slot, now) ? <div key={slot.start.datetime} className={className}>{row}</div>
