@@ -127,7 +127,7 @@ Main keys, all prefixed `zeroemit-`:
 
 - `lib/theme-boot.ts` runs inline in `<head>` before first paint. It applies a pinned theme, and on first launch (no saved location) sets `data-first-run` on `<html>`, which hides `.mobile-app` until the welcome flow covers it.
 - `LocationGate` (mounted in the layout) shows the three-slide intro and the "Where do you charge?" picker over any route until a place is chosen, and marks everything behind it `inert`.
-- `useLocationPicker().ready` is false until hydration *and* a saved place exist. Screens use it to hold off on showing a place name or fetching data for the default city.
+- `useLocationPicker().ready` is false until hydration *and* a saved place exist. Screens use it to hold off on showing a place name or fetching data for the default city (the leaderboard's region button reads "My region", and its board waits, until then).
 
 ### Grid data on the client
 

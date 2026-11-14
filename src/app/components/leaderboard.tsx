@@ -52,10 +52,11 @@ export function useBoardData<T>(url: string | null, refresh: number): BoardState
   return result?.view === url && result.state.status === "ready" ? result.state : { status: "loading" };
 }
 
-function useBoard(scope: LeaderboardScope, me: string | null, refresh: number) {
-  const query = new URLSearchParams({ scope });
+// A null `scope` (the user's region, before the saved place is known) waits.
+function useBoard(scope: LeaderboardScope | null, me: string | null, refresh: number) {
+  const query = new URLSearchParams({ scope: scope ?? "" });
   if (me) query.set("me", me);
-  return useBoardData<LeaderboardResponse>(`/api/leaderboard?${query}`, refresh);
+  return useBoardData<LeaderboardResponse>(scope === null ? null : `/api/leaderboard?${query}`, refresh);
 }
 
 function LeaderboardItem({ row }: { row: LeaderboardRow }) {
@@ -159,15 +160,17 @@ export function LeaderboardCard({ after }: { after?: ReactNode }) {
 
 // /rewards/leaderboard: top 50, All India or the user's region.
 export function LeaderboardScreen() {
-  const { place, locationOpen, openLocation, closeLocation, chooseLocation } = useLocationPicker();
+  const { place, ready, locationOpen, openLocation, closeLocation, chooseLocation } = useLocationPicker();
   const membership = useLeaderboardMembership();
-  const zone = place ? zoneOf(place) : null;
+  // `place` is the default city until the saved one is read, so the region
+  // reads "My region" and its board waits until then.
+  const zone = ready ? zoneOf(place) : null;
   const [regional, setRegional] = useState(false);
   const [joinOpen, setJoinOpen] = useState(false);
   const [renameOpen, setRenameOpen] = useState(false);
   const [leaveOpen, setLeaveOpen] = useState(false);
   const [refresh, setRefresh] = useState(0);
-  const state = useBoard(regional && zone ? zone : "all", membership?.id ?? null, refresh);
+  const state = useBoard(regional ? zone : "all", membership?.id ?? null, refresh);
 
   async function leave() {
     setLeaveOpen(false);
