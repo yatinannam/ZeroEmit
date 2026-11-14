@@ -49,11 +49,14 @@ export function TabBar() {
   const drag = useRef<{ pointerId: number; startX: number } | null>(null);
   const suppressClick = useRef(false);
   // The tab the pill went to on a press or drag, on the page it happened on:
-  // once the page changes, the pill simply follows the current tab.
-  const [held, setHeld] = useState<{ index: number; on: string } | null>(null);
+  // once the page changes, the pill simply follows the current tab. Cleared
+  // then (state reset during render), not just ignored: kept, Back to the
+  // page it was pressed on sent the pill back under the tab pressed there.
+  const [heldIndex, setHeld] = useState<number | null>(null);
+  const [heldOn, setHeldOn] = useState(pathname);
+  if (heldOn !== pathname) { setHeldOn(pathname); setHeld(null); }
   const [pressed, setPressed] = useState(false);
   const [dragging, setDragging] = useState(false);
-  const heldIndex = held && held.on === pathname ? held.index : null;
   const lit = heldIndex ?? activeIndex;
 
   // A drag let go: the pill springs from under the finger to its tab.
@@ -74,7 +77,7 @@ export function TabBar() {
     const all = tabs();
     return all.reduce((best, tab, index) => (Math.abs(tab.centre - x) < Math.abs(all[best].centre - x) ? index : best), 0);
   }
-  const hold = (index: number | null) => setHeld(index === null ? null : { index, on: pathname });
+  const hold = (index: number | null) => setHeld(index);
 
   function onPointerDown(event: PointerEvent<HTMLElement>) {
     suppressClick.current = false;
