@@ -34,10 +34,13 @@ export function ForecastChart({ points, highlight, span = null }: { points: Fore
   // Drawn at its real width (one unit = one pixel), so labels and lines keep
   // their size on a narrow phone and on a wide desktop card alike.
   const [width, setWidth] = useState(WIDTH);
+  // Set with the first real width: the draw-in waits for it, as the line it
+  // measures is the one drawn at that width, not at the default.
+  const [measured, setMeasured] = useState(false);
   useLayoutEffect(() => {
     const element = svg.current;
     if (!element) return;
-    const measure = () => { const next = Math.round(element.getBoundingClientRect().width); if (next > 0) setWidth(next); };
+    const measure = () => { const next = Math.round(element.getBoundingClientRect().width); if (next > 0) { setWidth(next); setMeasured(true); } };
     measure();
     const observer = new ResizeObserver(measure);
     observer.observe(element);
@@ -45,9 +48,11 @@ export function ForecastChart({ points, highlight, span = null }: { points: Fore
   }, []);
 
   // Draw the line in from the left each time a different day's curve
-  // appears, then let the fill and the best-window band settle in.
+  // appears, then let the fill and the best-window band settle in. Both
+  // layout effects run before paint, so waiting for `measured` shows no
+  // undrawn frame.
   useLayoutEffect(() => {
-    if (!svg.current || reducedMotion()) return;
+    if (!measured || !svg.current || reducedMotion()) return;
     const ctx = gsap.context(() => {
       const line = svg.current?.querySelector<SVGPathElement>(".forecast-chart-line");
       const length = line?.getTotalLength() ?? 0;
@@ -57,7 +62,7 @@ export function ForecastChart({ points, highlight, span = null }: { points: Fore
       gsap.from(".forecast-chart-dot", { scale: 0, transformOrigin: "50% 50%", duration: 0.4, ease: "back.out(3)", delay: 0.1, clearProps: "transform" });
     }, svg);
     return () => ctx.revert();
-  }, [shape]);
+  }, [shape, measured]);
 
   if (points.length < 2) return null;
   const [low, high] = chartDomain(points.map((point) => point.carbonIntensity));
