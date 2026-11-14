@@ -341,8 +341,12 @@ export async function leaveLeaderboard() {
   return sendLeaves(entries);
 }
 
-export async function retryPendingLeave() {
-  const pending = pendingLeaves.getSnapshot();
-  if (!pending.length) return;
-  await sendLeaves(pending);
+// One retry at a time: coming back online and to the front often happen together.
+let retrying: Promise<void> | null = null;
+export function retryPendingLeave() {
+  retrying ??= (async () => {
+    const pending = pendingLeaves.getSnapshot();
+    if (pending.length) await sendLeaves(pending);
+  })().finally(() => { retrying = null; });
+  return retrying;
 }

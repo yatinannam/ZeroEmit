@@ -17,7 +17,16 @@ export function LeaderboardSync() {
   const { charges } = useCharges();
   const zone = place ? zoneOf(place) : null;
 
-  useEffect(() => { void retryPendingLeave(); }, []);
+  // On load, and again whenever the device comes back online or the app comes
+  // back to the front: an installed app can stay open for days.
+  useEffect(() => {
+    const retry = () => void retryPendingLeave();
+    const onVisible = () => { if (document.visibilityState === "visible") retry(); };
+    retry();
+    window.addEventListener("online", retry);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => { window.removeEventListener("online", retry); document.removeEventListener("visibilitychange", onVisible); };
+  }, []);
 
   useEffect(() => {
     if (!joined || !zone) return;

@@ -61,6 +61,17 @@ describe("leaveLeaderboard", () => {
     expect(requests.map((request) => [request.method, JSON.parse(request.body)])).toEqual([["DELETE", { id, key }], ["DELETE", { id, key }], ["DELETE", { id, key }]]);
   });
 
+  test("retries that start together (back online and back to the front) send each removal once", async () => {
+    const { id, key } = joined();
+    statuses = [502];
+    await leaveLeaderboard();
+    requests.length = 0;
+    statuses = [200];
+    await Promise.all([retryPendingLeave(), retryPendingLeave()]);
+    expect(requests.map((request) => [request.method, JSON.parse(request.body)])).toEqual([["DELETE", { id, key }]]);
+    expect(JSON.parse(storage.get(PENDING) ?? "[]")).toEqual([]);
+  });
+
   test("a removal the server says isn't ours to make stops retrying", async () => {
     statuses = [403];
     await leaveLeaderboard();
