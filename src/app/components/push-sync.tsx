@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import { istDayKey } from "../lib/grid";
 import { achievements, closestBadge, currentStreakDays, weekSummary } from "../lib/rewards";
 import { useCharges } from "./use-charges";
@@ -34,6 +34,21 @@ export function PushSync() {
   const week = weekSummary(charges);
   const { weekStart, charges: weekCharges, co2Kg: weekCo2Kg, greenPercent: weekGreenPercent } = week;
 
+  // Bumped to sync again: after a sync that failed (offline, server busy),
+  // once back online or on screen; and whenever the service worker says the
+  // push service replaced the subscription (pushsubscriptionchange in sw.js).
+  const [attempt, setAttempt] = useState(0);
+  const failed = useRef(false);
+  useEffect(() => {
+    const retry = () => { if (failed.current && navigator.onLine && document.visibilityState === "visible") setAttempt((value) => value + 1); };
+    const onMessage = (event: MessageEvent) => { if ((event.data as { type?: unknown } | null)?.type === "push-subscription-changed") setAttempt((value) => value + 1); };
+    const worker = "serviceWorker" in navigator ? navigator.serviceWorker : null;
+    window.addEventListener("online", retry);
+    document.addEventListener("visibilitychange", retry);
+    worker?.addEventListener("message", onMessage);
+    return () => { window.removeEventListener("online", retry); document.removeEventListener("visibilitychange", retry); worker?.removeEventListener("message", onMessage); };
+  }, []);
+
   useEffect(() => {
     // Debounced: a burst of changes (e.g. logging a charge) syncs once.
     const timer = setTimeout(() => {
@@ -46,14 +61,14 @@ export function PushSync() {
           leaderboardId,
           badge: badgeKey && badgeHint ? { key: badgeKey, hint: badgeHint } : null,
           week: { weekStart, charges: weekCharges, co2Kg: weekCo2Kg, greenPercent: weekGreenPercent },
-        });
+        }).then((synced) => { failed.current = !synced; });
       // Not gated on isPushActive(): a sync that failed (offline) clears
       // that flag while the server may still hold this device, and opting
       // out must still reach it. With no subscription this is a no-op.
-      } else if (!wanted) void removePushSubscription();
+      } else if (!wanted) { failed.current = false; void removePushSubscription(); }
     }, 1000);
     return () => clearTimeout(timer);
-  }, [wanted, state, name, bestTime, dailyDigest, streakReminders, leaderboard, progress, chargesPref, rewards, streak, lastChargeDay, leaderboardId, badgeKey, badgeHint, weekStart, weekCharges, weekCo2Kg, weekGreenPercent]);
+  }, [wanted, state, name, bestTime, dailyDigest, streakReminders, leaderboard, progress, chargesPref, rewards, streak, lastChargeDay, leaderboardId, badgeKey, badgeHint, weekStart, weekCharges, weekCo2Kg, weekGreenPercent, attempt]);
 
   return null;
 }

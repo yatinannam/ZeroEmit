@@ -268,6 +268,8 @@ GitHub Actions calls `/api/push/run` every 15 minutes from 06:30 to 22:15 IST; a
 - sends with a concurrency of 20, never from 22:00 to 07:00 IST;
 - removes subscriptions that weren't refreshed for 90 days, and any the push service reports as gone.
 
+On the device, `PushSync` (`components/push-sync.tsx`) keeps the server's copy up to date. It replaces a subscription made with an earlier VAPID key (removing the old one from the server), retries a failed sync once the device is back online or the app is on screen again, and syncs again when the service worker posts `{ type: "push-subscription-changed" }`.
+
 ### Chargers (`lib/stations.ts`, `scripts/fetch-chargers.ts`)
 
 The public Overpass API was too slow from India (up to 20 s, or rate-limited), so `/api/stations` reads a bundled snapshot of every `amenity=charging_station` in India (about 600). Operator names are normalised when the snapshot is read ("tata power" becomes "Tata Power"). Chargers with no name show as "Unnamed EV charger", with distance and compass direction. On phones the map turns off one-finger dragging so the page still scrolls.
