@@ -258,7 +258,7 @@ Invite-only monthly boards for a class, an office or a housing society. Anyone w
 
 ### Push scheduler (`lib/server/push-scheduler.ts`, `lib/server/push.ts`)
 
-GitHub Actions calls `/api/push/run` every 15 minutes from 06:30 to 22:15 IST; a Vercel cron at 08:00 IST is a daily backup (the Hobby plan allows only one). Each run:
+GitHub Actions calls `/api/push/run` every 15 minutes from 06:30 to 22:15 IST; a Vercel cron at 08:00 IST is a daily backup (the Hobby plan allows only one). GitHub runs often come hours late or not at all, so an external cron is the reliable driver (see Operations). Each run:
 
 - refreshes at most 2 zones from upstream, and only when their data is over an hour old;
 - plans each subscriber's notifications:
@@ -348,5 +348,6 @@ Before pushing, run `bun test`, `bunx tsc --noEmit`, `bun run lint` and `bun run
     -d '{"name":"Display Name","zone":"southern"}'
   ```
 
+- **Push schedule:** GitHub delays and drops scheduled runs (in practice 2 to 7 a day, often 3 to 6 hours late), and the Vercel cron fires once, somewhere between 07:30 and 08:29 IST. For reminders on time, have an external cron (for example cron-job.org, free) call `https://zero-emit.vercel.app/api/push/run` every 15 minutes with the header `Authorization: Bearer $CRON_SECRET`. Overlapping runs are harmless: `push:run-lock` lets one through at a time.
 - **Scheduled workflows:** GitHub disables scheduled workflows in public repos after 60 days without commits. If that happens, every push except the 08:00 IST Vercel cron stops. Re-enable it from the Actions tab.
 - **Data sources and attribution:** grid data from [India Energy Atlas](https://api.energymap.in); chargers and map tiles © [OpenStreetMap contributors](https://www.openstreetmap.org/copyright) (ODbL). The credit appears wherever charger data is shown. Impact comparisons assume about 150 g CO₂/km for a petrol car and 21 kg CO₂ per mature tree per year.

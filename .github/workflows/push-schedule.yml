@@ -1,3 +1,4 @@
+# GitHub delays and drops scheduled runs (often hours late, a few a day); an external cron (e.g. cron-job.org, free) calling /api/push/run with "Authorization: Bearer $CRON_SECRET" every 15 minutes is the reliable driver.
 # Runs ZeroEmit's scheduled-notification check about every 15 minutes.
 # Vercel's Hobby plan only allows a once-a-day cron (see vercel.json), which
 # can't time a "your clean window starts at 1:00 pm" reminder, so this free
