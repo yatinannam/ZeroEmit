@@ -37,6 +37,9 @@ export type StoredSubscription = {
   // down"; `leaderboardId` ties it to the entry it was seen for.
   lb?: { month: string; rank: number; aboveId: string | null; leaderboardId: string };
   sent: SentMarkers;
+  // Runs in a row whose push the service refused (400, 403, 413), and when
+  // the first of them was.
+  rejected?: { runs: number; since: number };
   updatedAt: number;
 };
 // `actions` become notification buttons where supported (not on iPhone);
@@ -48,7 +51,7 @@ const SUBS_KEY = "push:subs";
 // hash, so the device saving its settings and the scheduler saving its state
 // never overwrite each other's newer data.
 const STATE_KEY = "push:state";
-type SchedulerState = Pick<StoredSubscription, "sent" | "lb">;
+type SchedulerState = Pick<StoredSubscription, "sent" | "lb" | "rejected">;
 
 // web-push POSTs to whatever endpoint a subscription names, so an unchecked
 // endpoint would let anyone make this server send requests to arbitrary
@@ -193,7 +196,7 @@ export async function listSubscriptions(): Promise<StoredSubscription[]> {
       const sub = JSON.parse(subsFlat![i]) as StoredSubscription;
       // Subscriptions saved before the split carried their state inline.
       const state = states.get(subsFlat![i - 1]) ?? { sent: sub.sent ?? {}, lb: sub.lb };
-      subs.push({ ...sub, sent: state.sent ?? {}, lb: state.lb });
+      subs.push({ ...sub, sent: state.sent ?? {}, lb: state.lb, rejected: state.rejected });
     } catch { /* skip a corrupt entry */ }
   }
   return subs;
@@ -211,16 +214,39 @@ export function pushTtl(now = Date.now()) {
   return Math.max(60, Math.min(60 * 60, Math.floor((quietStart - now) / 1000)));
 }
 
+// 400, 403 and 413 mean the push service refused this subscription's push,
+// which retrying rarely fixes. But a 403 is also what every device gets
+// while this server's VAPID keys are wrong, so one refusal never removes a
+// subscription: only REJECTED_RUNS_TO_REMOVE runs in a row (nothing
+// delivered in between), the first at least REJECTED_SPAN_MS before.
+const REJECTED_STATUSES = [400, 403, 413];
+export const REJECTED_RUNS_TO_REMOVE = 5;
+export const REJECTED_SPAN_MS = 2 * 24 * HOUR_MS;
+export type SendResult = "sent" | "failed" | "rejected" | "gone";
+
+// The refusal count after a run, from its last send: one more for a
+// refusal, cleared by a delivery, and kept as it was by anything else (a
+// timeout or a 5xx says nothing about the subscription).
+export function nextRejected(previous: StoredSubscription["rejected"], result: SendResult, now: number): StoredSubscription["rejected"] {
+  if (result === "sent") return undefined;
+  if (result !== "rejected") return previous;
+  return { runs: (previous?.runs ?? 0) + 1, since: previous?.since ?? now };
+}
+
+export const rejectedForGood = (rejected: StoredSubscription["rejected"], now: number) => Boolean(rejected && rejected.runs >= REJECTED_RUNS_TO_REMOVE && now - rejected.since >= REJECTED_SPAN_MS);
+
 // "gone" (and the subscription is forgotten, state and all) when the push
 // service says it no longer exists — the user uninstalled, cleared data, or
-// revoked permission. "failed" is anything worth retrying later.
-export async function sendPush(sub: StoredSubscription, payload: PushPayload, now = Date.now()): Promise<"sent" | "failed" | "gone"> {
+// revoked permission. "rejected" is a refusal (see REJECTED_STATUSES) and
+// "failed" is anything worth retrying later.
+export async function sendPush(sub: StoredSubscription, payload: PushPayload, now = Date.now()): Promise<SendResult> {
   try {
     // A hung push service must not hold up everyone else's reminders.
     await webpush.sendNotification(sub.subscription, JSON.stringify(payload), { TTL: pushTtl(now), urgency: "normal", timeout: 8000 });
     return "sent";
   } catch (error) {
     const status = (error as { statusCode?: number }).statusCode;
+    if (status !== undefined && REJECTED_STATUSES.includes(status)) return "rejected";
     if (status !== 404 && status !== 410) return "failed";
     await removeSubscription(sub.subscription.endpoint).catch(() => undefined);
     return "gone";

@@ -4,7 +4,7 @@ import { STATES, type Zone } from "../places";
 import { GREEN_CHARGE_FALLBACK_THRESHOLD } from "../rewards";
 import { getZoneSnapshot, isFresh, projectTypicalForecast } from "./grid-source";
 import { boardStandings, type Standing } from "./leaderboard";
-import { listSubscriptions, pruneStaleSubscriptions, sendPush, updateSubscriptionState, type PushPayload, type SentMarkers, type StoredSubscription } from "./push";
+import { listSubscriptions, nextRejected, pruneStaleSubscriptions, rejectedForGood, removeSubscription, sendPush, updateSubscriptionState, type PushPayload, type SendResult, type SentMarkers, type StoredSubscription } from "./push";
 import { forEachLimited } from "./pool";
 import { redis } from "./redis";
 
@@ -264,10 +264,12 @@ export async function runPushSchedule(now = Date.now()) {
       const { planned, lb } = plan(sub, plansByZone.get(STATES[sub.state]?.zone), now, standings);
       const markers: SentMarkers = { ...sub.sent, badges: { ...sub.sent.badges } };
       let gone = false;
+      let last: SendResult | undefined;
       for (const { payload, marks, badge } of planned) {
         // Stop at the first failure: an expired subscription was already
         // removed, and anything undelivered is retried on the next run.
         const result = await sendPush(sub, payload, now);
+        last = result;
         if (result !== "sent") { failed += 1; gone = result === "gone"; break; }
         sent += 1;
         for (const mark of marks) markers[mark] = markValue(mark, now);
@@ -275,12 +277,15 @@ export async function runPushSchedule(now = Date.now()) {
       }
       // Its state went with it; writing it back would leave an orphan entry.
       if (gone) return;
+      // A run with nothing to send leaves the refusal count as it was.
+      const rejected = last ? nextRejected(sub.rejected, last, now) : sub.rejected;
+      if (rejectedForGood(rejected, now)) { await removeSubscription(sub.subscription.endpoint); return; }
       if (!Object.keys(markers.badges ?? {}).length) delete markers.badges;
       // Keep the old rank while an overtake notice is still undelivered, or
       // the next run would see no change and never send it.
       const overtakeUndelivered = planned.some(({ marks }) => marks.includes("overtake")) && markers.overtake === sub.sent.overtake;
       const nextLb = overtakeUndelivered ? sub.lb : lb;
-      if (JSON.stringify(markers) !== JSON.stringify(sub.sent) || JSON.stringify(nextLb) !== JSON.stringify(sub.lb)) await updateSubscriptionState(sub, { sent: markers, lb: nextLb });
+      if (JSON.stringify(markers) !== JSON.stringify(sub.sent) || JSON.stringify(nextLb) !== JSON.stringify(sub.lb) || JSON.stringify(rejected) !== JSON.stringify(sub.rejected)) await updateSubscriptionState(sub, { sent: markers, lb: nextLb, rejected });
     });
     if (failed) console.error(`push schedule: ${failed} of ${subs.length} subscribers had a failed send`);
     return { subscriptions: subs.length, zones: zones.length, sent, failed };

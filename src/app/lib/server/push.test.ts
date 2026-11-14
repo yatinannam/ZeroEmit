@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, mock, test } from "bun:test";
 import { fakeRedis, fakeRedisModule, resetFakeRedis } from "./test-redis";
 
 mock.module("./redis", () => fakeRedisModule);
-const { listSubscriptions, MAX_SUBSCRIPTIONS, parseSubscriptionBody, pruneStaleSubscriptions, pushTtl, removeSubscription, saveSubscription, STALE_SUBSCRIPTION_MS, updateSubscriptionState } = await import("./push");
+const { listSubscriptions, MAX_SUBSCRIPTIONS, nextRejected, parseSubscriptionBody, pruneStaleSubscriptions, pushTtl, rejectedForGood, removeSubscription, saveSubscription, STALE_SUBSCRIPTION_MS, updateSubscriptionState } = await import("./push");
 beforeEach(() => { resetFakeRedis(); });
 
 const base = {
@@ -153,5 +153,33 @@ describe("pushTtl", () => {
     expect(pushTtl(ist("2026-10-14T21:59:30"))).toBe(60);
     expect(pushTtl(ist("2026-10-14T22:30:00"))).toBe(60);
     expect(pushTtl(ist("2026-10-14T07:00:00"))).toBe(3600);
+  });
+});
+
+describe("refused pushes", () => {
+  const DAY = 24 * 3_600_000;
+  const T = Date.parse("2026-10-14T13:00:00.000Z");
+
+  test("count runs in a row that were refused, reset on a delivery, and ignore other failures", () => {
+    const one = nextRejected(undefined, "rejected", T);
+    expect(one).toEqual({ runs: 1, since: T });
+    expect(nextRejected(one, "rejected", T + 900_000)).toEqual({ runs: 2, since: T });
+    expect(nextRejected(one, "failed", T + 900_000)).toEqual(one);
+    expect(nextRejected(one, "sent", T + 900_000)).toBeUndefined();
+  });
+
+  test("remove only after 5 refused runs spread over at least 2 days", () => {
+    expect(rejectedForGood({ runs: 1, since: T }, T)).toBe(false); // a first 403 never removes it
+    expect(rejectedForGood({ runs: 5, since: T }, T + DAY)).toBe(false);
+    expect(rejectedForGood({ runs: 4, since: T }, T + 3 * DAY)).toBe(false);
+    expect(rejectedForGood({ runs: 5, since: T }, T + 2 * DAY)).toBe(true);
+    expect(rejectedForGood(undefined, T)).toBe(false);
+  });
+
+  test("the count is kept with the scheduler's state", async () => {
+    await saveSubscription(parseSubscriptionBody(base)!);
+    const [stored] = await listSubscriptions();
+    await updateSubscriptionState(stored, { sent: {}, rejected: { runs: 2, since: T } });
+    expect((await listSubscriptions())[0].rejected).toEqual({ runs: 2, since: T });
   });
 });

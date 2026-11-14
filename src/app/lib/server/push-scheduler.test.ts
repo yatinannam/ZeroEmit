@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, mock, spyOn, test } from "bun:test";
 import { mergeLiveReading, type ForecastPoint } from "../grid";
 import type { StoredSubscription } from "./push";
 import type { Standing } from "./leaderboard";
@@ -261,14 +261,17 @@ describe("streak reminder", () => {
 
 describe("scheduler runs", () => {
   const realFetch = globalThis.fetch;
+  let quiet: ReturnType<typeof spyOn> | undefined;
   beforeEach(() => {
     resetFakeRedis();
     pushes.length = 0;
     pushAnswer = () => undefined;
     // No grid provider in these runs: they're about what's sent, not the grid.
     globalThis.fetch = (async () => { throw new Error("offline in tests"); }) as unknown as typeof fetch;
+    // Failed sends are expected here; keep their log line out of the output.
+    quiet = spyOn(console, "error").mockImplementation(() => undefined);
   });
-  afterEach(() => { globalThis.fetch = realFetch; });
+  afterEach(() => { globalThis.fetch = realFetch; quiet?.mockRestore(); });
 
   // The keys are deliberately invalid, so a real web-push could never send.
   const subscribe = (now: number, extra: Partial<StoredSubscription> = {}) => saveSubscription(sub({ subscription: { endpoint: "https://fcm.googleapis.com/fcm/send/run-test", keys: { p256dh: "p", auth: "a" } }, ...extra }), null, now);
@@ -294,5 +297,43 @@ describe("scheduler runs", () => {
     expect(sentTitles()).toEqual(["Your week in ZeroEmit"]);
     // An offline phone gets it only until 22:00, not up to an hour later.
     expect(pushes[0].options.TTL).toBe(20 * 60);
+  });
+
+  // A badge nudge is due every evening until it's delivered.
+  const badge = { key: "green-10", hint: "1 more green charge to unlock Green Regular." };
+  const refuse = (statusCode: number) => { pushAnswer = () => { throw Object.assign(new Error("refused"), { statusCode }); }; };
+  const evening = (day: number, minutes: number) => ist(`2026-10-${String(day).padStart(2, "0")}T18:00:00`) + minutes * 60_000;
+
+  test("a subscription the push service keeps refusing goes after 5 runs over 2 days, not on the first 403", async () => {
+    await subscribe(evening(14, 0), { badge });
+    refuse(403);
+    for (const minutes of [0, 15, 30, 45, 60]) expect(await runPushSchedule(evening(14, minutes))).toMatchObject({ sent: 0, failed: 1 });
+    // Five refusals in an hour: kept, since a broken server setup looks the same.
+    expect((await listSubscriptions())[0].rejected).toEqual({ runs: 5, since: evening(14, 0) });
+    await runPushSchedule(evening(15, 0));
+    expect(await listSubscriptions()).toHaveLength(1);
+    await runPushSchedule(evening(16, 0));
+    expect(await listSubscriptions()).toEqual([]);
+    expect(fakeRedis.hashes.get("push:state")?.size ?? 0).toBe(0);
+  });
+
+  test("a delivery resets the count, and other failures leave it as it was", async () => {
+    await subscribe(evening(14, 0), { badge });
+    refuse(400);
+    await runPushSchedule(evening(14, 0));
+    await runPushSchedule(evening(14, 15));
+    refuse(503);
+    await runPushSchedule(evening(14, 30));
+    expect((await listSubscriptions())[0].rejected).toEqual({ runs: 2, since: evening(14, 0) });
+    pushAnswer = () => undefined;
+    expect(await runPushSchedule(evening(14, 45))).toMatchObject({ sent: 1 });
+    expect((await listSubscriptions())[0].rejected).toBeUndefined();
+  });
+
+  test("a subscription the push service says is gone is removed at once", async () => {
+    await subscribe(evening(14, 0), { badge });
+    refuse(410);
+    await runPushSchedule(evening(14, 0));
+    expect(await listSubscriptions()).toEqual([]);
   });
 });

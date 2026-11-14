@@ -269,7 +269,7 @@ GitHub Actions calls `/api/push/run` every 15 minutes from 06:30 to 22:15 IST; a
   - badge nudges (6 to 9 pm, one an evening) and the Sunday recap (6 to 10 pm);
 - records sent "marks" per day or month in `push:state`, so nothing repeats (the time slots are a few hours wide because scheduled runs can be hours late, and the marks keep each to one push);
 - sends with a concurrency of 20, never from 22:00 to 07:00 IST, and with a TTL of up to an hour that ends by 22:00 (at least a minute), so a phone that was offline doesn't get it in quiet hours;
-- removes subscriptions that weren't refreshed for 90 days, and any the push service reports as gone.
+- removes subscriptions that weren't refreshed for 90 days, any the push service reports as gone (404, 410), and any it refused (400, 403, 413) on 5 runs in a row spread over at least 2 days. A single refusal never removes one, since a broken VAPID setup on the server gets a 403 for every device; a delivery resets the count.
 
 On the device, `PushSync` (`components/push-sync.tsx`) keeps the server's copy up to date. It replaces a subscription made with an earlier VAPID key (removing the old one from the server), retries a failed sync once the device is back online or the app is on screen again, and syncs again when the service worker posts `{ type: "push-subscription-changed" }`.
 
@@ -294,7 +294,7 @@ The public Overpass API was too slow from India (up to 20 s, or rate-limited), s
 | `lb:gnew:<id>`, `lb:gjoin:<id>`, `lb:gmiss:<ip>:<hour>` | counters | Group create and join rate limits; unknown codes looked up per address |
 | `lb:new:<ip>`, `lb:rate:<id>` | counters | Leaderboard rate limits, one key per hour (`:<hour>`); each count sets the key's 1 h expiry in the same transaction |
 | `push:subs` | hash | Subscriptions, prefs and summaries, keyed by an endpoint hash |
-| `push:state` | hash | Scheduler marks, so pushes aren't repeated |
+| `push:state` | hash | Scheduler marks, so pushes aren't repeated, and the count of runs in a row the push service refused |
 | `push:new:<ip>`, `push:rate:<id>` | counters | Subscription rate limits |
 
 ## Environment variables
