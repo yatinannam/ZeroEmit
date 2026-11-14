@@ -133,6 +133,19 @@ self.addEventListener("push", (event) => {
   event.waitUntil(self.registration.showNotification(payload.title || "ZeroEmit", { body: payload.body || "", icon: "/icons/icon-192.png", tag: payload.tag || "zeroemit", actions: Array.isArray(payload.actions) ? payload.actions : [], data: { url: payload.url || "/" } }));
 });
 
+// The push service replaced or expired this device's subscription, so the
+// server's copy no longer reaches it. Subscribe again with the same server
+// key when the browser doesn't hand over a new one, then ask any open page to
+// save it (push-sync.tsx; the worker can't read the settings the server needs).
+// With no page open, the next visit saves it.
+self.addEventListener("pushsubscriptionchange", (event) => {
+  const key = event.oldSubscription?.options?.applicationServerKey;
+  const renewed = event.newSubscription || !key ? Promise.resolve() : self.registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key }).catch(() => undefined);
+  event.waitUntil(renewed
+    .then(() => self.clients.matchAll({ type: "window", includeUncontrolled: true }))
+    .then((clients) => clients.forEach((client) => client.postMessage({ type: "push-subscription-changed" }))));
+});
+
 // Each notification carries the page it's about in `data.url` (e.g. /log for
 // a charge confirmation): reuse an open ZeroEmit window if there is one.
 self.addEventListener("notificationclick", (event) => {

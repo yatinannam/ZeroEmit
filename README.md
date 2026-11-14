@@ -140,6 +140,7 @@ Main keys, all prefixed `zeroemit-`:
 - `zeroemit-static-v1`: `/_next/static` assets, cache-first, trimmed to the newest 150 entries.
 - `/api/*` is never cached.
 - Handles `push` and `notificationclick`; a click focuses an open window or opens the notification's URL, including the "Log a charge" action.
+- On `pushsubscriptionchange` it subscribes again with the same server key (unless the browser supplied a new subscription) and posts `{ type: "push-subscription-changed" }` to open pages, which save the new subscription.
 
 `sw.js` itself is served with `no-store` and a strict CSP (`next.config.ts`). All responses get `nosniff`, `X-Frame-Options: DENY` and a strict referrer policy.
 
