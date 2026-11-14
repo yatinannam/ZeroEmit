@@ -15,12 +15,12 @@ import { showToast } from "./toast";
 import { Icon, type IconName } from "./icon-set";
 import { BottomNav, TopBar } from "./app-shell";
 import { LocationModal } from "./location-modal";
-import { Modal } from "./modal";
+import { focusField, Modal, typedValue } from "./modal";
 import { EQUIVALENTS_NOTE, equivalentsSentence } from "../lib/equivalents";
-import { OTHER_VEHICLE, parseBatteryKwh, vehicleByKey, VEHICLE_GROUPS, VEHICLES } from "../lib/vehicles";
+import { batteryKwhError, OTHER_VEHICLE, parseBatteryKwh, vehicleByKey, VEHICLE_GROUPS, VEHICLES } from "../lib/vehicles";
 import { usePlannerSettings } from "./use-planner-settings";
 import { BackupModal, useLastBackup } from "./backup";
-import { chargeCost, DEFAULT_PRICE_PER_KWH, formatRupees, parsePricePerKwh } from "../lib/cost";
+import { chargeCost, DEFAULT_PRICE_PER_KWH, formatRupees, parsePricePerKwh, priceError } from "../lib/cost";
 import { useThemeChoice, type ThemeChoice } from "./theme";
 import { resetIntroSeen } from "./location-gate";
 import { leaveLeaderboard, useLeaderboardMembership } from "./use-leaderboard";
@@ -45,11 +45,13 @@ type EditField = "name" | "vehicle" | "price";
 
 // The EV picker: a preset fills in the name and battery; "Other" asks for
 // both. Old profiles with a typed-in vehicle and no preset start on "Other".
-function VehicleFields({ vehicle, vehicleKey, batteryKwh }: { vehicle: string; vehicleKey?: string; batteryKwh?: number }) {
+// `batteryInvalid` marks the battery size the form's message is about;
+// `onEdit` clears that message once the EV or the size changes.
+function VehicleFields({ vehicle, vehicleKey, batteryKwh, batteryInvalid, onEdit }: { vehicle: string; vehicleKey?: string; batteryKwh?: number; batteryInvalid: boolean; onEdit: () => void }) {
   const [choice, setChoice] = useState(vehicleKey ?? (vehicle ? OTHER_VEHICLE : ""));
   const preset = vehicleByKey(choice);
   return <>
-    <label>Your EV<select name="vehicleKey" value={choice} onChange={(event) => setChoice(event.target.value)}>
+    <label>Your EV<select name="vehicleKey" value={choice} onChange={(event) => { onEdit(); setChoice(event.target.value); }}>
       <option value="">Choose your EV</option>
       {VEHICLE_GROUPS.map((group) => <optgroup key={group.kind} label={group.label}>{VEHICLES.filter((item) => item.kind === group.kind).map((item) => <option key={item.key} value={item.key}>{item.name}</option>)}</optgroup>)}
       <option value={OTHER_VEHICLE}>Other</option>
@@ -57,7 +59,7 @@ function VehicleFields({ vehicle, vehicleKey, batteryKwh }: { vehicle: string; v
     {preset && <p className="form-hint">Battery about {preset.batteryKwh} kWh, so you can log charges by battery %.</p>}
     {choice === OTHER_VEHICLE && <div className="form-row">
       <label>Vehicle name<input name="vehicle" type="text" defaultValue={vehicle} placeholder="e.g. Tata Nexon EV" maxLength={60}/></label>
-      <label>Battery (kWh)<input name="batteryKwh" type="number" inputMode="decimal" step="0.1" min="1" max="135" defaultValue={vehicleKey === OTHER_VEHICLE || !vehicleKey ? batteryKwh ?? "" : ""} placeholder="e.g. 30"/></label>
+      <label>Battery (kWh)<input name="batteryKwh" type="number" inputMode="decimal" step="0.1" min="1" max="135" defaultValue={vehicleKey === OTHER_VEHICLE || !vehicleKey ? batteryKwh ?? "" : ""} placeholder="e.g. 30" aria-invalid={batteryInvalid} onChange={onEdit}/></label>
     </div>}
   </>;
 }
@@ -86,6 +88,8 @@ export function ProfileScreen() {
   const { place, ready, location, setPlace, locationOpen, openLocation, closeLocation, chooseLocation } = useLocationPicker();
   // null: closed. `focus`: the field to put the cursor in, if the user tapped one.
   const [editing, setEditing] = useState<{ focus?: EditField } | null>(null);
+  // What's wrong with Profile & vehicle's battery size or price, until it's edited.
+  const [editError, setEditError] = useState<{ field: "batteryKwh" | "price"; message: string } | null>(null);
   const [infoModal, setInfoModal] = useState<"about" | "privacy" | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
@@ -116,9 +120,17 @@ export function ProfileScreen() {
 
   function submitProfile(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const form = new FormData(event.currentTarget);
-    // A blank or out-of-range price clears it (back to the typical tariff).
+    const fields = event.currentTarget;
+    const form = new FormData(fields);
+    // A blank price clears it (back to the typical tariff).
     const key = String(form.get("vehicleKey") || "");
+    // An out-of-range battery size or price is said, not quietly cleared: the
+    // first one to fix gets the message and the cursor (the browser's own
+    // checks are off, see modal.tsx).
+    const batteryError = key === OTHER_VEHICLE ? batteryKwhError(typedValue(fields, "batteryKwh")) : null;
+    const priceProblem = priceError(typedValue(fields, "price"));
+    const problem = batteryError ? { field: "batteryKwh" as const, message: batteryError } : priceProblem ? { field: "price" as const, message: priceProblem } : null;
+    if (problem) { setEditError(problem); focusField(fields, problem.field); return; }
     const preset = vehicleByKey(key);
     const vehicle = preset ? preset.name : key === OTHER_VEHICLE ? String(form.get("vehicle") || "").trim() : "";
     const batteryKwh = preset ? preset.batteryKwh : key === OTHER_VEHICLE ? parseBatteryKwh(form.get("batteryKwh")) ?? undefined : undefined;
@@ -225,10 +237,11 @@ export function ProfileScreen() {
 
     {locationOpen && <LocationModal current={place} onClose={closeLocation} onChoose={chooseLocation}/>}
 
-    {editing && <Modal title="Profile & vehicle" onClose={() => setEditing(null)} onSubmit={submitProfile} initialFocus={editing.focus && (editing.focus === "vehicle" ? `select[name="vehicleKey"]` : `input[name="${editing.focus}"]`)}>
+    {editing && <Modal title="Profile & vehicle" onClose={() => { setEditing(null); setEditError(null); }} onSubmit={submitProfile} initialFocus={editing.focus && (editing.focus === "vehicle" ? `select[name="vehicleKey"]` : `input[name="${editing.focus}"]`)}>
       <label>Name<input name="name" type="text" defaultValue={profile.name} placeholder="Your name" maxLength={60} autoComplete="name"/></label>
-      <VehicleFields vehicle={profile.vehicle} vehicleKey={profile.vehicleKey} batteryKwh={profile.batteryKwh}/>
-      <label>Electricity price (₹ per kWh)<input name="price" type="number" inputMode="decimal" step="0.01" min="1" max="60" defaultValue={profile.pricePerKwh ?? ""} placeholder={String(DEFAULT_PRICE_PER_KWH)}/></label>
+      <VehicleFields vehicle={profile.vehicle} vehicleKey={profile.vehicleKey} batteryKwh={profile.batteryKwh} batteryInvalid={editError?.field === "batteryKwh"} onEdit={() => setEditError(null)}/>
+      <label>Electricity price (₹ per kWh)<input name="price" type="number" inputMode="decimal" step="0.01" min="1" max="60" defaultValue={profile.pricePerKwh ?? ""} placeholder={String(DEFAULT_PRICE_PER_KWH)} aria-invalid={editError?.field === "price"} onChange={() => setEditError(null)}/></label>
+      {editError && <p className="form-error" role="alert">{editError.message}</p>}
       <button className="primary-button" type="submit">Save profile</button>
     </Modal>}
 

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { isFractionalPercent, kwhForPercent, parseBatteryKwh, parsePercent, vehicleByKey, VEHICLE_GROUPS, VEHICLES } from "./vehicles";
+import { batteryKwhError, isFractionalPercent, kwhForPercent, parseBatteryKwh, parsePercent, vehicleByKey, VEHICLE_GROUPS, VEHICLES } from "./vehicles";
 
 describe("vehicles", () => {
   test("every preset has a unique key, a sensible battery and a known group", () => {
@@ -45,5 +45,18 @@ describe("vehicles", () => {
     expect(isFractionalPercent("20.0")).toBe(false);
     expect(isFractionalPercent("")).toBe(false);
     expect(isFractionalPercent("abc")).toBe(false);
+  });
+});
+
+describe("batteryKwhError", () => {
+  test("a blank size or one from 1 to 135 kWh can be saved", () => {
+    for (const ok of ["", "1", "3.7", "40.55", "135"]) expect(batteryKwhError(ok)).toBeNull();
+    for (const ok of ["1", "3.7", "40.55", "135"]) expect(parseBatteryKwh(ok)).not.toBeNull();
+  });
+
+  test("each way a size can't be saved gets its own message", () => {
+    expect(batteryKwhError("NaN")).toBe("Enter the battery size as a number, like 30.");
+    for (const low of ["0", "0.5", "-3"]) expect(batteryKwhError(low)).toBe("Enter at least 1 kWh, or leave it blank.");
+    for (const high of ["136", "135.5", "999"]) expect(batteryKwhError(high)).toBe("Enter 135 kWh or less, or leave it blank.");
   });
 });

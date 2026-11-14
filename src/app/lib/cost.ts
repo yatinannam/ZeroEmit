@@ -20,3 +20,14 @@ export function parsePricePerKwh(raw: unknown): number | null {
   if (!Number.isFinite(value) || value < MIN_PRICE || value > MAX_PRICE) return null;
   return Math.round(value * 100) / 100;
 }
+
+// What's wrong with a price typed into Profile & vehicle, said so the driver
+// can fix it, or null when it can be saved. Blank is fine: the typical tariff.
+export function priceError(raw: string): string | null {
+  if (!raw.trim()) return null;
+  const value = Number(raw);
+  if (!Number.isFinite(value)) return "Enter the price as a number, like 7.5.";
+  if (value < MIN_PRICE) return `Enter at least ₹${MIN_PRICE} per kWh, or leave it blank to use ₹${DEFAULT_PRICE_PER_KWH}.`;
+  if (value > MAX_PRICE) return `Enter ₹${MAX_PRICE} per kWh or less, or leave it blank to use ₹${DEFAULT_PRICE_PER_KWH}.`;
+  return null;
+}

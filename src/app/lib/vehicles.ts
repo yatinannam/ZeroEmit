@@ -65,6 +65,17 @@ export function parseBatteryKwh(raw: unknown): number | null {
   return Math.round(value * 100) / 100;
 }
 
+// What's wrong with a battery size typed in for "Other", said so the driver
+// can fix it, or null when it can be saved. Blank is fine: no battery %.
+export function batteryKwhError(raw: string): string | null {
+  if (!raw.trim()) return null;
+  const value = Number(raw);
+  if (!Number.isFinite(value)) return "Enter the battery size as a number, like 30.";
+  if (value < MIN_BATTERY_KWH) return `Enter at least ${MIN_BATTERY_KWH} kWh, or leave it blank.`;
+  if (value > MAX_BATTERY_KWH) return `Enter ${MAX_BATTERY_KWH} kWh or less, or leave it blank.`;
+  return null;
+}
+
 // A whole battery % (0–100), or null.
 // 20.5 isn't rounded to 21: the form would save a level that wasn't typed,
 // and a charge keeps whole %s (use-charges.ts drops any other).

@@ -81,7 +81,7 @@ Tests sit next to the code as `*.test.ts` and run under `bun test`. `tsconfig.js
 | `/rewards` | Rewards | Points, levels, badges, how to earn |
 | `/rewards/leaderboard` | Leaderboard | Join/rename/leave, all-India or per-zone board |
 | `/rewards/groups` | Groups | `?code=` a group's board with its invite code, share and leave; `?join=` (an invite link) also opens the join sheet; no query lists the device's groups |
-| `/profile` | Profile (the avatar in the top bar) | Name/EV/price, impact table, links to the monthly and all-time recaps (`?share=last-month` from old notifications redirects to last month's recap), settings, back up and restore, delete data |
+| `/profile` | Profile (the avatar in the top bar) | Name/EV/price (a price is ₹1–60 per kWh, or blank for a typical ₹8; one outside that range is turned down with a message, `priceError`, rather than quietly cleared), impact table, links to the monthly and all-time recaps (`?share=last-month` from old notifications redirects to last month's recap), settings, back up and restore, delete data |
 | `/recap` | Recap | Full-screen story of a month (`?period=2026-10`) or a year (`?period=2026`), ending with a 9:16 share image (see [Recap](#recap-librecapts)) |
 
 ### Navigation and look
@@ -162,7 +162,7 @@ The planner answers "I need this much charge by this time: when should I plug in
 
 Most drivers know their battery %, not kWh. Profile → Profile & vehicle offers about 35 popular Indian EVs (cars, scooters and bikes, three-wheelers) with approximate usable battery sizes, or "Other" with a name and battery size typed in. Picking a preset also sets the planner's usual charger (scooter charger for two-wheelers, home socket otherwise).
 
-- With a battery size known, the log form asks "battery before / after" by default, and so does the planner unless a kWh figure was saved there before (kWh stays one tap away). A gain that works out under the minimum or over 150 kWh says which, and levels are whole numbers: 20.5% gets "Use whole numbers" rather than being rounded to 21% (`parsePercent`, `isFractionalPercent`), so the live kWh and the saved charge never use a level that wasn't typed; an "Other" battery is capped at 135 kWh so 0→100% fits.
+- With a battery size known, the log form asks "battery before / after" by default, and so does the planner unless a kWh figure was saved there before (kWh stays one tap away). A gain that works out under the minimum or over 150 kWh says which, and levels are whole numbers: 20.5% gets "Use whole numbers" rather than being rounded to 21% (`parsePercent`, `isFractionalPercent`), so the live kWh and the saved charge never use a level that wasn't typed; an "Other" battery is 1–135 kWh (capped so 0→100% fits) or blank, and a size outside that is turned down with a message (`batteryKwhError`).
 - Picking a preset only changes the planner's charger when the one set can't be the EV's own (a scooter charger for a car, or a car charger for a scooter).
 - `kwhForPercent` converts a gain to energy from the grid: `(to − from)% × battery ÷ 0.9`, since about 10% is lost as heat on AC charging and the grid's carbon is in what the meter counts. The form shows the result live.
 - The % is saved on the charge (`percentFrom`, `percentTo`) and shown in the history; damaged values are dropped when charges are read.
