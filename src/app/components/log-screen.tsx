@@ -188,7 +188,8 @@ export function LogScreen({ quick = false }: { quick?: boolean }) {
               return <button key={charge.id} className={`card activity-item log-item log-${timing}`} onClick={() => setSelected(charge)}>
                 <span className="round-icon"><Icon name="bolt" size={19}/></span>
                 <span className="activity-text"><strong>{charge.energyKwh} kWh{charge.percentTo !== undefined && <small> · {charge.percentFrom}% → {charge.percentTo}%</small>}</strong><span>{dayHeading(charge.loggedAt)}, {formatTimeOfDay(charge.chargedAt)}{charge.city !== city ? ` · ${charge.city}` : ""}</span></span>
-                <b>+{pointsForCharge(charge)}<span className="sr-only"> points</span>{TIMING_TAGS[timing] && <small> {TIMING_TAGS[timing]}</small>}</b>
+                {/* "+0" read like a mistake: a charge too small to score says so. */}
+                {timing === "small" ? <b>No points<span className="sr-only">, under {MIN_POINTS_KWH} kWh</span></b> : <b>+{pointsForCharge(charge)}<span className="sr-only"> points</span>{TIMING_TAGS[timing] && <small> {TIMING_TAGS[timing]}</small>}</b>}
               </button>;
             })}
           </div>;
