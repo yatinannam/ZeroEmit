@@ -41,6 +41,9 @@ export const viewport: Viewport = {
   // resolve to 0), so the bottom nav's safe-area padding — already written
   // in globals.css — silently does nothing on notched/home-indicator iPhones.
   viewportFit: "cover",
+  // Android Chrome otherwise lays the keyboard over the page, covering a
+  // bottom sheet's fields and Save button; this shrinks the page above it.
+  interactiveWidget: "resizes-content",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
