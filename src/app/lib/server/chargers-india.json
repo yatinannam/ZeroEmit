@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-10-29T15:48:49Z",
+  "updatedAt": "2026-11-14T05:31:03Z",
   "elements": [
     {"type":"node","id":763446417,"lat":18.496101,"lon":73.8088593,"tags":{}},
     {"type":"node","id":1024717983,"lat":12.0010333,"lon":79.8100656,"tags":{"name":"Cycle Kiosk / E-Vehicle Recharge"}},
@@ -311,7 +311,7 @@
     {"type":"node","id":12183518228,"lat":10.7727816,"lon":75.9471268,"tags":{"name":"KSEB EV Charging Station"}},
     {"type":"node","id":12192527479,"lat":28.5133039,"lon":77.1860742,"tags":{"brand":"Statiq"}},
     {"type":"node","id":12192684763,"lat":12.3323233,"lon":78.2138537,"tags":{"name":"Ather charger"}},
-    {"type":"node","id":12196467738,"lat":28.688648,"lon":77.2067275,"tags":{"brand":"Battery Smart"}},
+    {"type":"node","id":12196467738,"lat":28.6886484,"lon":77.2068345,"tags":{"brand":"Battery Smart"}},
     {"type":"node","id":12197027554,"lat":10.7702552,"lon":76.6377821,"tags":{"operator":"Ather","brand":"Ather Grid Charging Stationed"}},
     {"type":"node","id":12224096371,"lat":10.163392,"lon":77.7360648,"tags":{}},
     {"type":"node","id":12327155403,"lat":10.3806893,"lon":76.2975931,"tags":{"name":"EV Point"}},
@@ -351,7 +351,6 @@
     {"type":"node","id":12811975823,"lat":28.5679245,"lon":77.2427016,"tags":{"brand":"Okaya"}},
     {"type":"node","id":12823839873,"lat":28.6251684,"lon":77.3056013,"tags":{}},
     {"type":"node","id":12828589994,"lat":10.7719508,"lon":76.65726,"tags":{"brand":"Esygo"}},
-    {"type":"node","id":12864701235,"lat":17.7021023,"lon":83.2965766,"tags":{}},
     {"type":"node","id":12880786515,"lat":22.5682609,"lon":88.472598,"tags":{"operator":"Jio BP Pulse","brand":"Jio BP Pulse"}},
     {"type":"node","id":12894372007,"lat":28.6112384,"lon":77.2449181,"tags":{}},
     {"type":"node","id":12901933482,"lat":28.5875463,"lon":77.226213,"tags":{}},
@@ -567,6 +566,17 @@
     {"type":"node","id":14315904572,"lat":11.3206509,"lon":76.9181103,"tags":{}},
     {"type":"node","id":14322512186,"lat":10.6580829,"lon":77.0461506,"tags":{"name":"ather grid","operator":"Zeon","brand":"Ather Grid","opening_hours":"24/7"}},
     {"type":"node","id":14322512187,"lat":10.6580978,"lon":77.0461761,"tags":{"name":"Zeon electric vehicle charging station","operator":"Zeon","brand":"Zeon","opening_hours":"24/7","socket:type2_combo":"3"}},
+    {"type":"node","id":14335080501,"lat":10.7660306,"lon":76.6572634,"tags":{"operator":"KSEB"}},
+    {"type":"node","id":14340600353,"lat":28.6966433,"lon":77.2108903,"tags":{}},
+    {"type":"node","id":14340600387,"lat":28.6886354,"lon":77.2068283,"tags":{"brand":"Ather"}},
+    {"type":"node","id":14340600390,"lat":28.6957245,"lon":77.2128518,"tags":{"brand":"Charj Karo"}},
+    {"type":"node","id":14340600391,"lat":28.6966747,"lon":77.2108493,"tags":{}},
+    {"type":"node","id":14340600397,"lat":28.6886188,"lon":77.2068168,"tags":{"brand":"ElectriVa"}},
+    {"type":"node","id":14340600400,"lat":28.6966669,"lon":77.210879,"tags":{}},
+    {"type":"node","id":14344975814,"lat":28.6710875,"lon":77.1839236,"tags":{}},
+    {"type":"node","id":14344975845,"lat":28.6710492,"lon":77.1838863,"tags":{}},
+    {"type":"node","id":14344975858,"lat":28.6711115,"lon":77.1839508,"tags":{}},
+    {"type":"node","id":14362166001,"lat":10.8649707,"lon":76.1699443,"tags":{"name":"Qisto EV charging station","opening_hours":"24/7"}},
     {"type":"relation","id":20357586,"lat":12.9293344,"lon":77.7448798,"tags":{"operator":"Bolt Earth","brand":"Bolt Earth"}},
     {"type":"way","id":359699641,"lat":18.5912547,"lon":73.7488124,"tags":{}},
     {"type":"way","id":360242628,"lat":18.5882782,"lon":73.784882,"tags":{}},
@@ -611,6 +621,7 @@
     {"type":"way","id":1510242804,"lat":16.9459866,"lon":74.4053918,"tags":{"operator":"Uplug","brand":"Uplug"}},
     {"type":"way","id":1528697596,"lat":28.5745564,"lon":77.3554084,"tags":{}},
     {"type":"way","id":1531209911,"lat":12.9221172,"lon":80.1654923,"tags":{"operator":"Shell"}},
-    {"type":"way","id":1536737974,"lat":8.5104241,"lon":76.8972637,"tags":{"brand":"Indofast Energy"}}
+    {"type":"way","id":1536737974,"lat":8.5104241,"lon":76.8972637,"tags":{"brand":"Indofast Energy"}},
+    {"type":"way","id":1578144854,"lat":10.1718875,"lon":76.3732092,"tags":{"name":"KSEB Electric Vehicle Charging Station","operator":"KSEB"}}
   ]
 }

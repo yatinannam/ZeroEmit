@@ -1,10 +1,13 @@
 // Public Overpass (OpenStreetMap) servers. They come and go and get
-// overloaded: maps.mail.ru answers 504 to everything (checked 2026-11-12) and
-// overpass.kumi.systems often doesn't answer at all, so all are asked at once
-// and the first good answer wins, and each one is retried after a busy answer.
+// overloaded, so both are asked at once, the first good answer wins, and a
+// busy one is asked again. maps.mail.ru is often busy (504) but answers on a
+// retry. overpass-api.de answers 406 to clients it has banned and, since
+// October 2025, to parts of Azure and AWS, which includes GitHub's runners
+// (https://github.com/drolbr/Overpass-API/issues/791). overpass.kumi.systems
+// stopped answering at all (checked 2026-11-13).
 export const OVERPASS_SERVERS = [
+  "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
   "https://overpass-api.de/api/interpreter",
-  "https://overpass.kumi.systems/api/interpreter",
 ];
 
 // Answers worth trying again later: rate limited or overloaded.
@@ -54,12 +57,15 @@ export async function firstOverpassAnswer(servers: string[], query: string, { fe
     try {
       const response = await fetchImpl(server, {
         method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded", "User-Agent": "ZeroEmit (https://zero-emit.vercel.app)" },
+        // The operators ask scripts to identify themselves (no stock or faked user agents).
+        headers: { "Content-Type": "application/x-www-form-urlencoded", "User-Agent": "ZeroEmit charger snapshot (https://zero-emit.vercel.app)" },
         body: `data=${encodeURIComponent(query)}`,
         signal: controller.signal,
         cache: "no-store",
       });
       const text = await response.text();
+      // 406 is the operator refusing this client or network; asking again won't help.
+      if (response.status === 406) throw new OverpassError("HTTP 406: this server refuses requests from here (a ban or a blocked cloud network)", false);
       if (!response.ok) throw new OverpassError(`HTTP ${response.status}${text ? `: ${excerpt(text)}` : ""}`, BUSY_STATUSES.has(response.status));
       let body: { elements?: unknown; remark?: unknown };
       // A busy server sometimes answers 200 with an HTML page.
