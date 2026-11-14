@@ -190,6 +190,11 @@ describe("displayNameFrom", () => {
     expect(displayNameFrom("Supercalifragilisticexpialidocious")).toBe("Supercalifragilistic");
   });
 
+  test("when whole words leave under 2 characters, the longest word is cut to fit", () => {
+    expect(displayNameFrom("A Verylongwordthatdoesnotfitatallxx")).toBe("Verylongwordthatdoes");
+    expect(displayNameFrom("X Abcdefghijklmnopqrstuvwxyz Bo")).toBe("Abcdefghijklmnopqrst");
+  });
+
   test("nothing usable gives an empty name", () => {
     expect(displayNameFrom("")).toBe("");
     expect(displayNameFrom("K.")).toBe("");
@@ -211,6 +216,17 @@ describe("alternativeName", () => {
     expect(suggestion!.length).toBeLessThanOrEqual(20);
     expect(suggestion!.endsWith(" 2")).toBe(true);
     expect(validateDisplayName(suggestion)).toBe(suggestion);
+  });
+
+  test("makes room by dropping whole words, never cutting one", () => {
+    expect(alternativeName("Asha Rao Kumar Nair 9")).toBe("Asha Rao Kumar 10");
+    expect(alternativeName("Venkata Subramaniam")).toBe("Venkata 2");
+  });
+
+  test("cuts the longest word only when whole words leave under 2 characters", () => {
+    expect(alternativeName("Abcdefghijklmnopqrst")).toBe("Abcdefghijklmnopqr 2");
+    expect(alternativeName("A Verylongwordthatdo")).toBe("Verylongwordthatdo 2");
+    expect(alternativeName("Asha 99999999999999999999")).toBeNull();
   });
 });
 

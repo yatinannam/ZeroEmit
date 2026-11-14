@@ -132,15 +132,24 @@ const MAX_NAME_LENGTH = 20;
 // whole words are kept while they fit. "" when nothing valid is left.
 export function displayNameFrom(raw: string): string {
   const words = raw.replace(NOT_NAME_CHARACTERS, " ").trim().split(" ").filter(Boolean);
+  return validateDisplayName(fitWords(words, MAX_NAME_LENGTH)) ?? "";
+}
+
+const visibleLength = (text: string) => text.replace(JOINERS, "").length;
+
+// Whole words while they fit in `max` (joiners don't count), so a name is
+// never cut mid-word. When that leaves under 2 characters (a first word too
+// long on its own, or "A" before one), the longest word is cut to fit.
+function fitWords(words: string[], max: number): string {
   let name = "";
   for (const word of words) {
     const next = name ? `${name} ${word}` : word;
-    if (next.replace(JOINERS, "").length > MAX_NAME_LENGTH) break;
+    if (visibleLength(next) > max) break;
     name = next;
   }
-  // A first word that's too long on its own is cut to fit.
-  if (!name && words.length) name = [...words[0]].slice(0, MAX_NAME_LENGTH).join("");
-  return validateDisplayName(name) ?? "";
+  if (visibleLength(name) >= 2 || !words.length) return name;
+  const longest = words.reduce((best, word) => (visibleLength(word) > visibleLength(best) ? word : best));
+  return [...longest].slice(0, Math.max(0, max)).join("");
 }
 
 // Another name to suggest when `name` is taken: a number added, or the
@@ -151,6 +160,6 @@ export function alternativeName(name: string): string | null {
   const base = numbered ? numbered[1] : name;
   const suffix = numbered ? String(Number(numbered[2]) + 1) : "2";
   const room = MAX_NAME_LENGTH - suffix.length - 1;
-  const trimmed = base.replace(JOINERS, "").length > room ? displayNameFrom([...base].slice(0, room).join("")) : base;
+  const trimmed = visibleLength(base) > room ? fitWords(base.split(" ").filter(Boolean), room) : base;
   return trimmed ? validateDisplayName(`${trimmed} ${suffix}`) : null;
 }
