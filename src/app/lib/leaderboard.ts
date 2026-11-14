@@ -124,6 +124,19 @@ export function validateDisplayName(raw: unknown, maxLength = MAX_NAME_LENGTH): 
   return BLOCKED_ANYWHERE.some((word) => squashed.includes(word)) ? null : name;
 }
 
+// Why validateDisplayName turns a typed name down, said so it can be fixed,
+// or null when it takes it. `field` names it in the message ("your display
+// name", "the group name").
+export function displayNameError(raw: unknown, field = "your display name", maxLength = MAX_NAME_LENGTH): string | null {
+  const name = typeof raw === "string" ? raw.trim().replace(/\s+/g, " ") : "";
+  if (!name) return `Enter ${field}.`;
+  if (!NAME_PATTERN.test(name) || STRAY_JOINER.test(name)) return `Use only letters, numbers and spaces in ${field}.`;
+  const visible = name.replace(JOINERS, "").length;
+  if (visible < 2) return `Use at least 2 characters in ${field}.`;
+  if (visible > maxLength) return `Use ${maxLength} characters or fewer in ${field}.`;
+  return validateDisplayName(name, maxLength) ? null : "That name isn't allowed. Pick another one.";
+}
+
 const NOT_NAME_CHARACTERS = new RegExp("[^\\p{L}\\p{M}\\p{N}\\u200C\\u200D]+", "gu");
 const MAX_NAME_LENGTH = 20;
 

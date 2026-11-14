@@ -1,4 +1,4 @@
-import { validateDisplayName, type LeaderboardResponse } from "./leaderboard";
+import { displayNameError, validateDisplayName, type LeaderboardResponse } from "./leaderboard";
 
 // Group challenges: an invite-only monthly board for a class, an office or a
 // housing society, joined with a short code. Built on leaderboard entries,
@@ -28,6 +28,14 @@ export const formatGroupCode = (code: string) => `${code.slice(0, 3)}-${code.sli
 
 // The same rules as a display name, with room for "Pune Office EV Club".
 export const validateGroupName = (raw: unknown) => validateDisplayName(raw, MAX_GROUP_NAME_LENGTH);
+// Why it isn't one, for the create sheet, or null.
+export const groupNameError = (raw: unknown) => displayNameError(raw, "the group name", MAX_GROUP_NAME_LENGTH);
+
+// Why a typed code isn't one, for the join sheet, or null.
+export function groupCodeError(raw: unknown): string | null {
+  if (typeof raw !== "string" || !raw.trim()) return "Enter the group code, like ABC-234.";
+  return parseGroupCode(raw) ? null : "A group code is 6 letters and numbers, like ABC-234.";
+}
 
 // The link an invite shares: opens the group with the join sheet up.
 export const groupInvitePath = (code: string) => `/rewards/groups?join=${code}`;

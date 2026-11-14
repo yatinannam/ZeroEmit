@@ -3,14 +3,14 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useEffectEvent, useState, type FormEvent, type ReactNode } from "react";
-import { formatGroupCode, groupInvitePath, MAX_GROUPS_PER_MEMBER, parseGroupCode, validateGroupName, type GroupBoardResponse, type MyGroup } from "../lib/groups";
-import { displayNameFrom, validateDisplayName } from "../lib/leaderboard";
+import { formatGroupCode, groupCodeError, groupInvitePath, groupNameError, MAX_GROUPS_PER_MEMBER, parseGroupCode, validateGroupName, type GroupBoardResponse, type MyGroup } from "../lib/groups";
+import { displayNameError, displayNameFrom, validateDisplayName } from "../lib/leaderboard";
 import { zoneOf } from "../lib/places";
 import { BottomNav, TopBar } from "./app-shell";
 import { Icon } from "./icon-set";
 import { BoardBody, useBoardData } from "./leaderboard";
 import { LocationModal } from "./location-modal";
-import { Modal } from "./modal";
+import { focusField, Modal } from "./modal";
 import { PageHeader } from "./page-header";
 import { showToast } from "./toast";
 import { useCharges } from "./use-charges";
@@ -35,24 +35,34 @@ function GroupModal({ mode, code, groupName, onClose, onDone }: { mode: "create"
   const { profile, updateProfile } = useProfile();
   const { charges } = useCharges();
   const [place] = useStoredLocation();
-  const [error, setError] = useState<string | null>(null);
+  // `field`: the input a check on this device found wrong (a server's
+  // answer has none). Any edit clears it: it described what was tried before.
+  const [error, setError] = useState<{ message: string; field?: string } | null>(null);
   const [busy, setBusy] = useState(false);
+  const clearError = () => setError(null);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const form = new FormData(event.currentTarget);
+    const fields = event.currentTarget;
+    const form = new FormData(fields);
+    // Top to bottom: the first field that's wrong gets the message and the
+    // cursor (the browser's own checks are off, see modal.tsx).
+    const checks: [field: string, message: string | null][] = [
+      ["displayName", membership ? null : displayNameError(form.get("displayName"))],
+      ["groupName", mode === "create" ? groupNameError(form.get("groupName")) : null],
+      ["code", mode === "join" && !code ? groupCodeError(form.get("code")) : null],
+    ];
+    const [field, message] = checks.find((check) => check[1] !== null) ?? [];
+    if (field && message) { setError({ field, message }); focusField(fields, field); return; }
     const displayName = membership ? null : validateDisplayName(form.get("displayName"));
-    if (!membership && !displayName) { setError("Use 2 to 20 letters or numbers in your display name, with single spaces."); return; }
     const groupNameValue = mode === "create" ? validateGroupName(form.get("groupName")) : null;
-    if (mode === "create" && !groupNameValue) { setError("Use 2 to 30 letters or numbers in the group name, with single spaces."); return; }
     const joinCode = mode === "join" ? code ?? parseGroupCode(form.get("code")) : null;
-    if (mode === "join" && !joinCode) { setError("A group code is 6 letters and numbers, like ABC-234."); return; }
     if (!place) return;
     setBusy(true);
     setError(null);
     if (displayName) {
       const joined = await joinLeaderboard(displayName, zoneOf(place), charges);
-      if (!joined.ok) { setBusy(false); setError(joined.error); return; }
+      if (!joined.ok) { setBusy(false); setError({ message: joined.error }); return; }
       if (!profile.name.trim()) updateProfile({ ...profile, name: displayName });
     }
     const attempt = () => (mode === "create" ? createGroup(groupNameValue!) : joinGroup(joinCode!));
@@ -66,7 +76,7 @@ function GroupModal({ mode, code, groupName, onClose, onDone }: { mode: "create"
     setBusy(false);
     if (!result.ok) {
       // A first join already put them on the public board; say so, so it's no surprise.
-      setError(displayName ? `${result.error} You're on the leaderboard now; you can leave it from Rewards.` : result.error);
+      setError({ message: displayName ? `${result.error} You're on the leaderboard now; you can leave it from Rewards.` : result.error });
       return;
     }
     showToast(mode === "create" ? `${result.value.name} is ready. Share its code to invite people.` : `You've joined ${result.value.name}`);
@@ -77,10 +87,10 @@ function GroupModal({ mode, code, groupName, onClose, onDone }: { mode: "create"
   return <Modal title={title} onClose={onClose} onSubmit={submit}>
     <p>{mode === "create" ? "An invite-only board for your class, office or housing society. You'll get a code to share." : "Everyone in the group sees each other's display name, region, and this month's Eco points and CO₂ avoided."}</p>
     {!membership && <p className="group-note">Groups rank leaderboard entries, so you&apos;ll join the leaderboard too: your display name, region, Eco points and CO₂ avoided also appear on the public board. You can leave any time.</p>}
-    {!membership && <label>Your display name<input name="displayName" type="text" defaultValue={displayNameFrom(profile.name)} placeholder="e.g. Asha" minLength={2} maxLength={20} autoComplete="nickname" required/></label>}
-    {mode === "create" && <label>Group name<input name="groupName" type="text" placeholder="e.g. Pune Office EV Club" minLength={2} maxLength={30} required/></label>}
-    {mode === "join" && !code && <label>Group code<input name="code" type="text" placeholder="ABC-234" maxLength={9} autoCapitalize="characters" autoComplete="off" spellCheck={false} required className="code-input"/></label>}
-    {error && <p className="form-error" role="alert">{error}</p>}
+    {!membership && <label>Your display name<input name="displayName" type="text" defaultValue={displayNameFrom(profile.name)} placeholder="e.g. Asha" minLength={2} maxLength={20} autoComplete="nickname" required aria-invalid={error?.field === "displayName"} onChange={clearError}/></label>}
+    {mode === "create" && <label>Group name<input name="groupName" type="text" placeholder="e.g. Pune Office EV Club" minLength={2} maxLength={30} required aria-invalid={error?.field === "groupName"} onChange={clearError}/></label>}
+    {mode === "join" && !code && <label>Group code<input name="code" type="text" placeholder="ABC-234" maxLength={9} autoCapitalize="characters" autoComplete="off" spellCheck={false} required className="code-input" aria-invalid={error?.field === "code"} onChange={clearError}/></label>}
+    {error && <p className="form-error" role="alert">{error.message}</p>}
     <button className="primary-button" type="submit" disabled={busy}>{busy ? (mode === "create" ? "Creating…" : "Joining…") : mode === "create" ? "Create group" : "Join group"}</button>
   </Modal>;
 }

@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { Charge } from "../components/use-charges";
-import { alternativeName, displayNameFrom, istMonthKey, scoreMonth, toLeaderboardCharges, validateDisplayName, type LeaderboardCharge } from "./leaderboard";
+import { alternativeName, displayNameError, displayNameFrom, istMonthKey, scoreMonth, toLeaderboardCharges, validateDisplayName, type LeaderboardCharge } from "./leaderboard";
 
 const entry = (date: string, kwh = 20, intensity: number | null = 600, green = false): LeaderboardCharge => ({ date, kwh, intensity, green });
 const MONTH = "2026-10";
@@ -117,6 +117,29 @@ describe("validateDisplayName", () => {
     expect(validateDisplayName("xFuCkx")).toBeNull();
     expect(validateDisplayName("Dickens")).toBe("Dickens");
     expect(validateDisplayName("Lundgren")).toBe("Lundgren");
+  });
+});
+
+describe("displayNameError", () => {
+  test("null for every name validateDisplayName takes", () => {
+    for (const ok of ["Asha", "  Asha   Rao ", "राहुल", "ശ്രീ‍കാന്ത്", "x".repeat(20), "Dickens"]) {
+      expect(validateDisplayName(ok)).not.toBeNull();
+      expect(displayNameError(ok)).toBeNull();
+    }
+  });
+
+  test("each way a name is turned down gets its own message", () => {
+    for (const empty of ["", "   ", null, 42]) expect(displayNameError(empty)).toBe("Enter your display name.");
+    for (const bad of ["<script>", "Rahul_1", "Asha!", "\u200D\u200D", "Asha\u200D"]) expect(displayNameError(bad)).toBe("Use only letters, numbers and spaces in your display name.");
+    expect(displayNameError("A")).toBe("Use at least 2 characters in your display name.");
+    expect(displayNameError("x".repeat(21))).toBe("Use 20 characters or fewer in your display name.");
+    for (const blocked of ["fuck you", "xFuCkx", "sh\u200Dit"]) expect(displayNameError(blocked)).toBe("That name isn't allowed. Pick another one.");
+  });
+
+  test("names the field and its own length limit", () => {
+    expect(displayNameError("x", "the group name", 30)).toBe("Use at least 2 characters in the group name.");
+    expect(displayNameError("x".repeat(30), "the group name", 30)).toBeNull();
+    expect(displayNameError("x".repeat(31), "the group name", 30)).toBe("Use 30 characters or fewer in the group name.");
   });
 });
 
