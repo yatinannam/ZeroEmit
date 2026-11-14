@@ -4,6 +4,12 @@ import { useEffect, useRef, useState } from "react";
 import { isInIndia, nearestPlace, POPULAR_PLACES, searchPlaces, STATES, ZONE_LABELS, zoneOf, type Place } from "../lib/places";
 import { Icon } from "./icon-set";
 
+// The browser's own timeout only starts once the permission prompt is
+// answered, so a prompt that's ignored would leave "Finding your location…"
+// up for good (as in use-charger-location.ts).
+const GIVE_UP_MS = 15_000;
+const UNAVAILABLE = "Couldn't get your location. Try again, or search for your city.";
+
 // Shared by the location sheet and the first-run setup screen. Detection
 // uses the device's position only to pick the nearest listed city — the
 // coordinates themselves never leave the device.
@@ -29,7 +35,11 @@ export function LocationSearch({ current, onChoose }: { current: Place | null; o
     setDetectError("");
     setLocating(true);
     const id = ++request.current;
+    // Still waiting (an unanswered prompt): give up. A late answer still
+    // counts, as nothing else has been chosen since.
+    const giveUp = setTimeout(() => { if (id !== request.current) return; setLocating(false); setDetectError(UNAVAILABLE); }, GIVE_UP_MS);
     navigator.geolocation.getCurrentPosition((position) => {
+      clearTimeout(giveUp);
       if (id !== request.current) return;
       setLocating(false);
       const { latitude, longitude } = position.coords;
@@ -37,9 +47,10 @@ export function LocationSearch({ current, onChoose }: { current: Place | null; o
       const { name, state } = nearestPlace(latitude, longitude);
       choose({ name, state });
     }, (error) => {
+      clearTimeout(giveUp);
       if (id !== request.current) return;
       setLocating(false);
-      setDetectError(error.code === error.PERMISSION_DENIED ? "Location access is off for this site. Allow it in your browser settings, or search for your city." : "Couldn't get your location. Try again, or search for your city.");
+      setDetectError(error.code === error.PERMISSION_DENIED ? "Location access is off for this site. Allow it in your browser settings, or search for your city." : UNAVAILABLE);
     }, { enableHighAccuracy: false, timeout: 10_000, maximumAge: 10 * 60_000 });
   }
 
