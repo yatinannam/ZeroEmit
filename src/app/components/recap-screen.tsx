@@ -247,7 +247,13 @@ function Story({ slides, label, onClose }: { slides: Slide[]; label: string; onC
     {/* Tap zones for touch; keyboards and screen readers use the buttons below. */}
     <div className="recap-tap recap-tap-prev" aria-hidden="true" onClick={tap(-1)}/>
     <div className="recap-tap recap-tap-next" aria-hidden="true" onClick={tap(1)}/>
-    <div ref={slideRef} key={slide.key} className={`recap-slide${slide.key === "share" ? " recap-slide-share" : ""}`} role="group" aria-roledescription="page" aria-label={`${index + 1} of ${slides.length}`}>{slide.body}</div>
+    {/* The last page scrolls, so it sits over the tap zones: a tap on its left third (not on a control) still goes back. */}
+    <div ref={slideRef} key={slide.key} className={`recap-slide${slide.key === "share" ? " recap-slide-share" : ""}`} role="group" aria-roledescription="page" aria-label={`${index + 1} of ${slides.length}`}
+      onClick={slide.key !== "share" ? undefined : (event) => {
+        if ((event.target as Element).closest("a, button, select, label, input")) return;
+        const frame = event.currentTarget.parentElement!.getBoundingClientRect();
+        if (event.clientX < frame.left + frame.width / 3) tap(-1)();
+      }}>{slide.body}</div>
     {/* One steady live region, outside the page that's swapped out, says what the new page shows. */}
     <p className="sr-only" aria-live="polite">{`Page ${index + 1} of ${slides.length}. ${slide.summary}`}</p>
     <div className="recap-nav">
