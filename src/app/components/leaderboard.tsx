@@ -2,12 +2,12 @@
 
 import Link from "next/link";
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
-import { displayNameFrom, validateDisplayName, type LeaderboardResponse, type LeaderboardRow, type LeaderboardScope } from "../lib/leaderboard";
+import { displayNameError, displayNameFrom, validateDisplayName, type LeaderboardResponse, type LeaderboardRow, type LeaderboardScope } from "../lib/leaderboard";
 import { ZONE_LABELS, zoneOf } from "../lib/places";
 import { BottomNav, TopBar } from "./app-shell";
 import { Icon } from "./icon-set";
 import { LocationModal } from "./location-modal";
-import { Modal } from "./modal";
+import { focusField, Modal } from "./modal";
 import { PageHeader } from "./page-header";
 import { showToast } from "./toast";
 import { useCharges } from "./use-charges";
@@ -107,20 +107,27 @@ function NameModal({ currentName, onClose, onDone }: { currentName?: string; onC
   const { charges } = useCharges();
   const [place] = useStoredLocation();
   // Cleared as soon as the name is edited: it described the name tried before.
-  const [error, setError] = useState<string | null>(null);
+  // `invalid`: a check on this device found the name wrong (a server's answer
+  // may be about the network instead).
+  const [error, setError] = useState<{ message: string; invalid?: boolean } | null>(null);
   const [busy, setBusy] = useState(false);
   const renaming = currentName !== undefined;
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const name = validateDisplayName(new FormData(event.currentTarget).get("name"));
-    if (!name) { setError("Use 2 to 20 letters or numbers, with single spaces."); return; }
+    const fields = event.currentTarget;
+    const typed = new FormData(fields).get("name");
+    // Checked here, not by the browser (see modal.tsx): the message is in red
+    // under the name, and the cursor goes back to it.
+    const problem = displayNameError(typed);
+    if (problem) { setError({ message: problem, invalid: true }); focusField(fields, "name"); return; }
+    const name = validateDisplayName(typed)!;
     if (!place) return;
     if (renaming && name === currentName) { onClose(); return; }
     setBusy(true);
     const result = await joinLeaderboard(name, zoneOf(place), charges);
     setBusy(false);
-    if (!result.ok) { setError(result.error); return; }
+    if (!result.ok) { setError({ message: result.error }); return; }
     // No name on the profile yet: the one just chosen is the best guess.
     if (!profile.name.trim()) updateProfile({ ...profile, name });
     showToast(renaming ? `You're now on the board as ${name}` : joinedMessage(result));
@@ -129,8 +136,8 @@ function NameModal({ currentName, onClose, onDone }: { currentName?: string; onC
 
   return <Modal title={renaming ? "Change your display name" : "Join the leaderboard"} onClose={onClose} onSubmit={submit}>
     {!renaming && <p>Other ZeroEmit users will see your display name, your grid region, and this month&apos;s Eco points and CO₂ avoided. Nothing else is shown to anyone. If scheduled notifications are on, the server also links your entry to them (your city, streak and weekly totals) to tell you about your rank.</p>}
-    <label>Display name<input name="name" type="text" defaultValue={renaming ? currentName : displayNameFrom(profile.name)} placeholder="e.g. Asha" minLength={2} maxLength={20} autoComplete="nickname" required onChange={() => setError(null)}/></label>
-    {error && <p className="form-error" role="alert">{error}</p>}
+    <label>Display name<input name="name" type="text" defaultValue={renaming ? currentName : displayNameFrom(profile.name)} placeholder="e.g. Asha" minLength={2} maxLength={20} autoComplete="nickname" required aria-invalid={Boolean(error?.invalid)} onChange={() => setError(null)}/></label>
+    {error && <p className="form-error" role="alert">{error.message}</p>}
     <button className="primary-button" type="submit" disabled={busy}>{busy ? (renaming ? "Saving…" : "Joining…") : renaming ? "Save name" : "Join"}</button>
   </Modal>;
 }
