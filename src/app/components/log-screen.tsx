@@ -51,13 +51,17 @@ export function LogScreen({ quick = false }: { quick?: boolean }) {
   // timing for good (no bonus, no CO₂), so Save waits for it — but only so
   // long: offline, a charge without grid data beats no charge at all.
   const gridPending = grid.loading && !grid.data;
-  const [gridWaitOver, setGridWaitOver] = useState(false);
-  const savePending = gridPending && !gridWaitOver;
+  // The place the wait ran out for: a new form (openForm clears it) or a new
+  // place waits afresh, rather than saving without grid data for good.
+  const [gridWaitOverFor, setGridWaitOverFor] = useState<string | null>(null);
+  const savePending = gridPending && gridWaitOverFor !== city;
+  // Whether a form is open, not the form itself: typing a % would restart the 8 s.
+  const formOpen = Boolean(form);
   useEffect(() => {
-    if (!form || !gridPending) return;
-    const timer = setTimeout(() => setGridWaitOver(true), 8000);
+    if (!formOpen || !gridPending) return;
+    const timer = setTimeout(() => setGridWaitOverFor(city), 8000);
     return () => clearTimeout(timer);
-  }, [form, gridPending]);
+  }, [formOpen, gridPending, city]);
 
   // Scoped to the selected city — different cities sit on different grids,
   // so a blended cross-city average wouldn't be a meaningful "usual" here.
@@ -88,6 +92,7 @@ export function LogScreen({ quick = false }: { quick?: boolean }) {
     // night's charge" case) — or, with no usual time, to right now.
     const { date, time } = defaultChargeMoment(atNow ? null : typicalTime, now);
     setFormError("");
+    setGridWaitOverFor(null);
     setForm({ date, time, today: localDate(now), earliest: localDate(new Date(now.getTime() - MAX_BACKDATE_DAYS * DAY_MS)), mode: battery ? "percent" : "kwh", from: "20", to: "80" });
   }
 
