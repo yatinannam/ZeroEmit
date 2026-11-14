@@ -13,7 +13,7 @@ Live at [zero-emit.vercel.app](https://zero-emit.vercel.app). The exhibition pos
 | Styling | Tailwind CSS 4 (PostCSS) plus hand-written tokens in `src/app/globals.css`, light/dark via `prefers-color-scheme` or `data-theme` |
 | Motion | GSAP 3 (`@gsap/react`), Lenis smooth scroll; everything is skipped under `prefers-reduced-motion` |
 | Maps | Leaflet 1.9 with OpenStreetMap tiles |
-| Server state | Upstash Redis over its REST API (`src/app/lib/server/redis.ts`), no ORM |
+| Server state | Upstash Redis over its REST API (`src/app/lib/server/redis.ts`), no ORM; each call times out after 8 s and fails like any other Redis error |
 | Push | `web-push` (VAPID) |
 | Hosting | Vercel; GitHub Actions for the 15-minute scheduler and the weekly charger refresh |
 
