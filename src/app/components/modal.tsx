@@ -17,6 +17,10 @@ const FOCUSABLE = "button:not([disabled]), [href], input:not([disabled]), select
 // it rather than leaving the page (see sheet-history.ts).
 // `initialFocus` is a selector for a field inside the dialog to focus instead,
 // for when the user opened it to type into that field (e.g. "Add your name").
+// A form is `noValidate`: the browser's pop-up bubbles looked nothing like the
+// red text each form shows, so every submit handler checks its own fields and
+// says what to fix in a `.form-error` line. `required`, `min` and the like stay
+// on the inputs for phone keyboards and screen readers.
 // A field's value as typed. A number field holding what isn't a number ("1e",
 // "-") reads as blank, so it comes back as "NaN" instead: never taken for a
 // field left empty (a blank price, say, means "use the typical one").
@@ -97,7 +101,7 @@ export function Modal({ title, onClose, onSubmit, initialFocus, children }: { ti
 
   return <div ref={backdropRef} className="modal-backdrop" role="presentation" onClick={onSubmit ? undefined : dismiss}>
     {onSubmit
-      ? <form {...boxProps} className="modal charge-form" onSubmit={onSubmit}>{head}{children}</form>
+      ? <form {...boxProps} className="modal charge-form" noValidate onSubmit={onSubmit}>{head}{children}</form>
       : <section {...boxProps} className="modal">{head}{children}</section>}
   </div>;
 }
