@@ -306,8 +306,9 @@ a.station-row { border-radius:12px; color:inherit; text-decoration:none; }a.stat
 .log-item.log-other > b, .log-item.log-untimed > b, .log-item.log-small > b { color:var(--muted); background:var(--variant); }
 /* Grid label (Low / Average / High for the region's day) */
 .level-chip { display:inline-flex; align-items:center; margin-left:auto; padding:4px 9px; border-radius:999px; font-size:12px; font-weight:700; white-space:nowrap; }
-/* "Average for the Southern grid" beside Forecast's source chip: it wraps rather than pushing that chip out of the card at 360px. */
-.recommendation-head .level-chip { white-space:normal; max-width:100%; }
+/* Forecast's reading column can shrink (min-width:0 above), so a long level chip ("Average for the Southern grid") no longer pushes the source chip out of the card at 360px; the level chip stays on one line, running into the free space under the source chip. */
+/* A window's times stay on one line ("11:00 am – 1:00 pm"); only the day before them wraps away. */
+.time-range, .activity-item .activity-text strong .time-range { display:inline; color:inherit; font-size:inherit; white-space:nowrap; }
 .stat-card .level-chip { margin:10px 0 0; }
 .level-low { color:var(--good); background:var(--good-bg); }.level-average { color:var(--warn); background:var(--warn-bg); }.level-high { color:var(--bad); background:var(--bad-bg); }
 /* Chargers: connector filter */
